@@ -2,6 +2,8 @@
 
 CodeOracle turns an unfamiliar Python or JavaScript codebase into an understandable, reviewable modernization plan. Upload a ZIP, connect a public GitHub repository, or use the bundled demo.
 
+**Live application:** [https://codeoracle-zker.onrender.com](https://codeoracle-zker.onrender.com)
+
 ## What works
 
 - Simple project, module, class, and function explanations grounded in AST analysis
