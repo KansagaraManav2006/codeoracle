@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: codeoracle
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: TEST_EXECUTION_ENABLED
+        value: "false"
+      - key: TEST_EXECUTION_ALLOW_UNTRUSTED
+        value: "false"

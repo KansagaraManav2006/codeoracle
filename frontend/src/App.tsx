@@ -1,0 +1,63 @@
+import React, { useState } from 'react';
+import Header from './components/Header';
+import InputSection from './components/InputSection';
+import JobProgressView from './components/JobProgressView';
+import ProjectResultsView from './components/ProjectResultsView';
+import TabNavigation from './components/TabNavigation';
+import ExplanationTab from './components/ExplanationTab';
+import DependencyGraphTab from './components/DependencyGraphTab';
+import GeneratedTestsTab from './components/GeneratedTestsTab';
+import RefactoredCodeTab from './components/RefactoredCodeTab';
+import { useJobPoller } from './hooks/useJobPoller';
+import { TabType } from './types';
+
+export const App: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<TabType>('explanation');
+  const { job, project, files, loading, error, errorCode, submitZip, submitGithub, loadDemo, reset } =
+    useJobPoller();
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+      <Header />
+
+      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-8">
+        {!project ? (
+          <>
+            <InputSection
+              onAnalyzeZip={submitZip}
+              onAnalyzeGithub={submitGithub}
+              onLoadDemo={loadDemo}
+              disabled={loading}
+            />
+            <JobProgressView
+              job={job}
+              loading={loading}
+              error={error}
+              errorCode={errorCode}
+              onRetry={reset}
+            />
+          </>
+        ) : (
+          <ProjectResultsView project={project} files={files} onReset={reset} />
+        )}
+
+        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-xl">
+          <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+
+          <div className="mt-4">
+            {activeTab === 'explanation' && <ExplanationTab projectId={project?.project_id} />}
+            {activeTab === 'graph' && <DependencyGraphTab projectId={project?.project_id} />}
+            {activeTab === 'tests' && <GeneratedTestsTab projectId={project?.project_id} trustedDemo={project?.source_type === 'demo_benchmark'} />}
+            {activeTab === 'refactor' && <RefactoredCodeTab projectId={project?.project_id} />}
+          </div>
+        </div>
+      </main>
+
+      <footer className="border-t border-slate-800/80 py-4 text-center text-xs text-slate-500">
+        CodeOracle Hackathon Demo &copy; 2026. Built with FastAPI, React, TypeScript & Tailwind CSS.
+      </footer>
+    </div>
+  );
+};
+
+export default App;
