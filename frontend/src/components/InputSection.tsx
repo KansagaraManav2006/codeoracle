@@ -107,8 +107,9 @@ export const InputSection: React.FC<InputSectionProps> = ({
       return false;
     }
 
-    const regex = /^https:\/\/github\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+(?:\.git)?$/;
-    if (!regex.test(url.trim())) {
+    const normalizedUrl = url.trim().replace(/\/+$/, '');
+    const regex = /^https:\/\/github\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+(?:\.git)?$/i;
+    if (!regex.test(normalizedUrl)) {
       setGithubUrlError('Enter a valid public GitHub HTTPS URL (e.g. https://github.com/owner/repo)');
       return false;
     }
@@ -126,8 +127,9 @@ export const InputSection: React.FC<InputSectionProps> = ({
       }
       onAnalyzeZip(selectedFile);
     } else {
-      if (!validateGithubUrl(githubUrl)) return;
-      onAnalyzeGithub(githubUrl.trim());
+      const normalizedUrl = githubUrl.trim().replace(/\/+$/, '');
+      if (!validateGithubUrl(normalizedUrl)) return;
+      onAnalyzeGithub(normalizedUrl);
     }
   };
 
@@ -253,6 +255,10 @@ export const InputSection: React.FC<InputSectionProps> = ({
               <Github className="w-5 h-5 absolute left-3.5 top-3 text-slate-500" />
               <input
                 type="url"
+                inputMode="url"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 placeholder="https://github.com/username/repository"
                 value={githubUrl}
                 onChange={(e) => {

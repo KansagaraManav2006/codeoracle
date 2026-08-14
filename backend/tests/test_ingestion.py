@@ -310,6 +310,11 @@ def test_19_valid_github_url_normalization():
     assert clean == "https://github.com/octocat/Hello-World.git"
 
 
+def test_github_url_accepts_mobile_friendly_host_case_and_trailing_slash():
+    clean = validate_github_url("  https://gitHub.com/Talaviya-Sarthak/DataForge/  ")
+    assert clean == "https://github.com/Talaviya-Sarthak/DataForge.git"
+
+
 # --- 20. Invalid Scheme ---
 def test_20_invalid_github_scheme():
     with pytest.raises(IngestionError) as exc:
