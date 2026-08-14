@@ -357,50 +357,50 @@ def test_12_api_analysis_endpoints(tmp_path):
         assert res_post.json()["source_type"] == "analysis"
 
 
-# --- 13. Synthetic 10,000 Line Performance Benchmark ---
-def test_13_synthetic_10k_line_performance_benchmark(tmp_path):
+# --- 13. Synthetic 100,000 Line Performance Benchmark ---
+def test_13_synthetic_100k_line_performance_benchmark(tmp_path):
     ws_dir = tmp_path / "ws_bench"
     raw_dir = ws_dir / "raw"
     raw_dir.mkdir(parents=True)
 
     db = TestingSessionLocal()
     proj = Project(
-        id="proj_bench_10k",
-        display_name="Bench10k",
+        id="proj_bench_100k",
+        display_name="Bench100k",
         source_type="zip",
         detected_languages=["python", "javascript"],
-        total_files=50,
-        total_lines=10000,
-        content_hash="bench_hash_10k",
+        total_files=100,
+        total_lines=100000,
+        content_hash="bench_hash_100k",
         workspace_id="ws_bench",
         created_at=datetime.now(timezone.utc),
     )
     db.add(proj)
 
-    # Generate 25 Python files and 25 JavaScript files (200 lines each = 10,000 total lines)
-    for i in range(25):
+    # Generate 50 Python and 50 JavaScript files (1,000 lines each = 100,000 total lines).
+    for i in range(50):
         py_path = f"src/py_mod_{i}.py"
-        py_lines = [f"val_{j} = {j}\n" for j in range(200)]
+        py_lines = [f"val_{j} = {j}\n" for j in range(1000)]
         (raw_dir / f"src/py_mod_{i}.py").parent.mkdir(parents=True, exist_ok=True)
         (raw_dir / py_path).write_text("".join(py_lines), encoding="utf-8")
 
-        db.add(ProjectFile(id=f"f_py_{i}", project_id="proj_bench_10k", relative_path=py_path, language="python", size_bytes=2000, line_count=200, sha256_hash=f"h_py_{i}"))
+        db.add(ProjectFile(id=f"f_py_{i}", project_id="proj_bench_100k", relative_path=py_path, language="python", size_bytes=20000, line_count=1000, sha256_hash=f"h_py_{i}"))
 
         js_path = f"src/js_mod_{i}.js"
-        js_lines = [f"const val_{j} = {j};\n" for j in range(200)]
+        js_lines = [f"const val_{j} = {j};\n" for j in range(1000)]
         (raw_dir / js_path).write_text("".join(js_lines), encoding="utf-8")
 
-        db.add(ProjectFile(id=f"f_js_{i}", project_id="proj_bench_10k", relative_path=js_path, language="javascript", size_bytes=2000, line_count=200, sha256_hash=f"h_js_{i}"))
+        db.add(ProjectFile(id=f"f_js_{i}", project_id="proj_bench_100k", relative_path=js_path, language="javascript", size_bytes=20000, line_count=1000, sha256_hash=f"h_js_{i}"))
 
     db.commit()
 
     with patch("app.analysis.service.get_workspace_dir", return_value=ws_dir):
         start_t = time.perf_counter()
-        analysis = run_analysis_for_project(db, "proj_bench_10k", force=True)
+        analysis = run_analysis_for_project(db, "proj_bench_100k", force=True)
         elapsed = time.perf_counter() - start_t
 
-        assert analysis.total_files == 50
-        assert analysis.total_lines == 10000
-        assert elapsed < 5.0
+        assert analysis.total_files == 100
+        assert analysis.total_lines == 100000
+        assert elapsed < 30.0
 
     db.close()

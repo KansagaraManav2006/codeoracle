@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Upload, Github, FolderArchive, ArrowRight, FileCheck, X, AlertCircle, Sparkles } from 'lucide-react';
 import { IngestionMode } from '../types';
 
-const MAX_ZIP_BYTES = 100 * 1024 * 1024;
+const MAX_ZIP_BYTES = 200 * 1024 * 1024;
 
 interface InputSectionProps {
   onAnalyzeZip: (file: File) => void;
@@ -48,7 +48,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
     }
 
     if (file.size > MAX_ZIP_BYTES) {
-      setFileError('ZIP compressed file size exceeds maximum limit of 100MB.');
+      setFileError('ZIP compressed file size exceeds maximum limit of 200MB.');
       setSelectedFile(null);
       return;
     }
@@ -115,7 +115,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
       <div className="flex flex-col gap-4 border-b border-slate-800 pb-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-white">Codebase Ingestion</h2>
-          <p className="text-xs text-slate-400">Select a ZIP archive or public GitHub repo (up to 50,000 LOC)</p>
+          <p className="text-xs text-slate-400">Select a ZIP archive or public GitHub repo (up to 100,000 LOC)</p>
         </div>
         <div className="grid w-full grid-cols-3 bg-slate-950 p-1 rounded-xl border border-slate-800 sm:w-auto">
           <button
@@ -235,7 +235,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
 
         <div className="mt-6 pt-4 border-t border-slate-800/80 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-slate-500">
-            {mode === 'zip' ? 'Max 100MB ZIP · 300MB extracted' : 'Public HTTPS repositories only'}
+            {mode === 'zip' ? 'Max 200MB ZIP | 500MB extracted' : 'Public HTTPS repositories only'}
           </p>
           <button
             type="submit"

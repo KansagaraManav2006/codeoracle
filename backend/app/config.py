@@ -20,14 +20,14 @@ class Settings(BaseSettings):
     STATIC_DIR: Optional[str] = None
     
     # Ingestion & Security Thresholds
-    MAX_ZIP_COMPRESSED_BYTES: int = 100 * 1024 * 1024  # 100MB
-    MAX_ZIP_UNCOMPRESSED_BYTES: int = 300 * 1024 * 1024  # 300MB
-    MAX_FILE_BYTES: int = 25 * 1024 * 1024  # 25MB
-    MAX_ZIP_ENTRIES: int = 3000
+    MAX_ZIP_COMPRESSED_BYTES: int = 200 * 1024 * 1024  # 200MB
+    MAX_ZIP_UNCOMPRESSED_BYTES: int = 500 * 1024 * 1024  # 500MB
+    MAX_FILE_BYTES: int = 50 * 1024 * 1024  # 50MB
+    MAX_ZIP_ENTRIES: int = 10000
     MAX_COMPRESSION_RATIO: float = 100.0
-    MAX_RELEVANT_LINES: int = 50000
-    CLONE_TIMEOUT_SECONDS: int = 90
-    MAX_CLONE_SIZE_BYTES: int = 300 * 1024 * 1024  # 300MB
+    MAX_RELEVANT_LINES: int = 100000
+    CLONE_TIMEOUT_SECONDS: int = 150
+    MAX_CLONE_SIZE_BYTES: int = 500 * 1024 * 1024  # 500MB
 
     # Generated-test execution is opt-in. Uploaded code is untrusted.
     TEST_EXECUTION_ENABLED: bool = False

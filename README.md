@@ -12,8 +12,8 @@ CodeOracle turns an unfamiliar Python or JavaScript codebase into an understanda
 - Real source-only coverage measurement for the trusted benchmark: **73.8%**, above the required 60%
 - Non-destructive Python 2 and legacy JavaScript modernization proposals
 - Unified diffs, static syntax checks, and explicit breaking-change warnings
-- Python and JavaScript support for repositories up to 50,000 relevant source lines
-- Higher-capacity ingestion: 100 MB ZIP, 300 MB extracted/clone size, 25 MB per file, and 3,000 archive entries
+- Python and JavaScript support for repositories up to 100,000 relevant source lines
+- Higher-capacity ingestion: 200 MB ZIP, 500 MB extracted/clone size, 50 MB per file, and 10,000 archive entries
 - Secure ZIP extraction and bounded, non-interactive public GitHub cloning
 
 Uploaded repositories are never executed by default. Only the bundled trusted benchmark may run generated tests automatically.
@@ -57,6 +57,8 @@ npm run build
 ```
 
 Current verification: **81 backend tests pass**, the TypeScript/Vite production build passes, and the browser-tested demo achieves **73.8% measured line coverage**.
+
+The extended benchmark also covers a synthetic 100,000-line mixed-language project plus the real [Flask](https://github.com/pallets/flask) and [Express](https://github.com/expressjs/express) repositories. See [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for reproducible results.
 
 ## Docker deployment
 
