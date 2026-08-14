@@ -112,13 +112,15 @@ def test_05_excessive_uncompressed_size(mock_zipfile_cls, tmp_path):
     target = tmp_path / "target"
     zip_path = tmp_path / "bomb.zip"
 
-    # 15 entries of 8MB each = 120MB > 100MB total limit, while each is below 10MB single-file limit
+    # Build mocked entries whose total exceeds the configured extracted-size limit.
     mock_entries = []
-    for i in range(15):
+    entry_size = min(settings.MAX_FILE_BYTES, 20 * 1024 * 1024)
+    entry_count = (settings.MAX_ZIP_UNCOMPRESSED_BYTES // entry_size) + 1
+    for i in range(entry_count):
         zinfo = MagicMock()
         zinfo.flag_bits = 0
-        zinfo.file_size = 8 * 1024 * 1024
-        zinfo.compress_size = 8 * 1024 * 1024
+        zinfo.file_size = entry_size
+        zinfo.compress_size = entry_size
         zinfo.external_attr = 0o100644 << 16
         zinfo.filename = f"file_{i}.txt"
         zinfo.is_dir.return_value = False
@@ -282,18 +284,18 @@ def test_16_minified_javascript_filtering(tmp_path):
     assert res.files[0].relative_path == "app.js"
 
 
-# --- 17. Exact 10,000-Line Acceptance Boundary ---
-def test_17_10000_line_acceptance_boundary(tmp_path):
-    lines = ["print('line')\n"] * 10000
-    (tmp_path / "exact10k.py").write_text("".join(lines), encoding="utf-8")
+# --- 17. Exact configured-line acceptance boundary ---
+def test_17_configured_line_acceptance_boundary(tmp_path):
+    lines = ["print('line')\n"] * settings.MAX_RELEVANT_LINES
+    (tmp_path / "exact_limit.py").write_text("".join(lines), encoding="utf-8")
 
     res = discover_source_files(tmp_path)
-    assert res.total_lines == 10000
+    assert res.total_lines == settings.MAX_RELEVANT_LINES
 
 
-# --- 18. Over-10,000-Line Rejection ---
-def test_18_over_10000_line_rejection(tmp_path):
-    lines = ["print('line')\n"] * 10001
+# --- 18. Over-configured-line rejection ---
+def test_18_over_configured_line_rejection(tmp_path):
+    lines = ["print('line')\n"] * (settings.MAX_RELEVANT_LINES + 1)
     (tmp_path / "huge.py").write_text("".join(lines), encoding="utf-8")
 
     with pytest.raises(IngestionError) as exc:
@@ -339,7 +341,7 @@ def test_23_github_url_query_fragment():
 # --- 24. Clone Timeout Mocked Subprocess ---
 @patch("subprocess.run")
 def test_24_clone_timeout(mock_run, tmp_path):
-    mock_run.side_effect = subprocess.TimeoutExpired(cmd=["git"], timeout=30)
+    mock_run.side_effect = subprocess.TimeoutExpired(cmd=["git"], timeout=settings.CLONE_TIMEOUT_SECONDS)
     with pytest.raises(IngestionError) as exc:
         clone_github_repository("https://github.com/octocat/Hello-World.git", tmp_path)
     assert exc.value.code == "CLONE_TIMEOUT"

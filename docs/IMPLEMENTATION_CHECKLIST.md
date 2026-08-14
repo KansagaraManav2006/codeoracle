@@ -25,7 +25,7 @@
 - [x] Source discovery engine (Python `.py`, JS `.js`, `.jsx`, `.mjs`, `.cjs`)
 - [x] Ignore list filtering (`.git`, `node_modules`, `dist`, `build`, `venv`, `*.min.js`, lockfiles, binary files)
 - [x] Defensive text line counting and SHA-256 file hashing
-- [x] Enforce maximum 10,000 relevant source lines limit
+- [x] Enforce configurable 50,000 relevant source lines limit
 - [x] Persistent SQLite database schemas (`jobs`, `projects`, `project_files`)
 - [x] Interrupted job recovery on server startup (`recover_interrupted_jobs`)
 - [x] REST endpoints: `POST /api/jobs/upload`, `POST /api/jobs/github`, `GET /api/jobs/{id}`, `GET /api/projects/{id}`, `GET /api/projects/{id}/files`
@@ -51,7 +51,7 @@
 - [ ] Python `pytest` test code generator based on AST signatures
 - [ ] JavaScript `Vitest` test code generator based on AST signatures
 - [ ] Mock generator for external imports
-- [ ] Static line coverage estimator targeting >60% coverage
+- [x] Measured pytest line coverage targeting >60% coverage on the trusted benchmark
 - [ ] API routes for generated tests (`GET /api/jobs/{job_id}/tests`)
 
 ---

@@ -198,7 +198,7 @@ const GraphCanvasContent: React.FC<{
   );
 
   return (
-    <div className="w-full h-[520px] rounded-xl overflow-hidden bg-slate-950 relative border border-slate-800">
+    <div className="relative h-[420px] w-full overflow-hidden rounded-xl border border-slate-800 bg-slate-950 sm:h-[520px]">
       <ReactFlow
         nodes={renderedNodes}
         edges={edges}
@@ -371,7 +371,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
   return (
     <div className="space-y-6">
       {/* Top Banner: Graph Metrics & Level Indicator */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
           <div className="flex items-center space-x-3">
             <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-indigo-400">
@@ -407,7 +407,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
         </div>
 
         {/* Graph Metrics Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-6">
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
             <span className="text-[11px] text-slate-400 block mb-1">Total Nodes</span>
             <span className="text-lg font-bold text-white">{graph.summary.total_nodes}</span>

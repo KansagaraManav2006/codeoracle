@@ -29,7 +29,7 @@ Uploads a `.zip` file of a legacy codebase for ingestion.
 
 - **Content-Type**: `multipart/form-data`
 - **Body**:
-  - `file`: Binary ZIP file (Max size 25MB compressed)
+  - `file`: Binary ZIP file (max 100MB compressed, 300MB extracted)
 
 #### Response `202 Accepted`
 ```json

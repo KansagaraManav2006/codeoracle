@@ -81,7 +81,7 @@ def is_minified_javascript(file_name: str, first_line: str, avg_line_length: flo
 def discover_source_files(root_dir: Path) -> DiscoveryResult:
     """
     Traverses the directory, filters out ignored directories and non-source files,
-    counts lines defensively, enforces 10,000 line limit, and returns structured result.
+    counts lines defensively, enforces the configured line limit, and returns structured result.
     """
     root_path = root_dir.resolve()
     discovered: List[DiscoveredFile] = []
@@ -154,7 +154,7 @@ def discover_source_files(root_dir: Path) -> DiscoveryResult:
             except Exception:
                 continue
 
-    # Enforce maximum 10,000 relevant lines limit
+    # Enforce the configured relevant-source line limit.
     if total_lines > settings.MAX_RELEVANT_LINES:
         raise IngestionError(
             code="EXCEEDED_LINE_LIMIT",

@@ -20,7 +20,7 @@ export const App: React.FC = () => {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       <Header />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 py-4 sm:px-4 sm:py-6 lg:px-6 lg:py-8">
         {!project ? (
           <>
             <InputSection
@@ -41,7 +41,7 @@ export const App: React.FC = () => {
           <ProjectResultsView project={project} files={files} onReset={reset} />
         )}
 
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-xl">
+        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3 shadow-xl sm:p-4 lg:p-6">
           <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
           <div className="mt-4">
@@ -53,7 +53,7 @@ export const App: React.FC = () => {
         </div>
       </main>
 
-      <footer className="border-t border-slate-800/80 py-4 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-800/80 px-4 py-4 text-center text-[11px] text-slate-500 sm:text-xs">
         CodeOracle Hackathon Demo &copy; 2026. Built with FastAPI, React, TypeScript & Tailwind CSS.
       </footer>
     </div>

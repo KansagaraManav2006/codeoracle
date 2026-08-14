@@ -21,8 +21,8 @@ export const JobProgressView: React.FC<JobProgressViewProps> = ({
 
   if (error || (job && job.state === 'failed')) {
     return (
-      <div className="bg-red-950/30 border border-red-800/40 rounded-2xl p-6 shadow-xl max-w-4xl mx-auto mb-8">
-        <div className="flex items-start space-x-4">
+      <div className="bg-red-950/30 border border-red-800/40 rounded-2xl p-4 sm:p-6 shadow-xl max-w-4xl mx-auto mb-5 sm:mb-8">
+        <div className="flex items-start gap-3 sm:gap-4">
           <div className="p-3 bg-red-900/40 border border-red-700/50 rounded-xl text-red-400">
             <ShieldAlert className="w-6 h-6" />
           </div>
@@ -53,7 +53,7 @@ export const JobProgressView: React.FC<JobProgressViewProps> = ({
   const stage = job?.stage ?? 'Preparing ingestion workspace...';
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl max-w-4xl mx-auto mb-8">
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl max-w-4xl mx-auto mb-5 sm:mb-8">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-3">
           <Activity className="w-5 h-5 text-indigo-400 animate-spin" />

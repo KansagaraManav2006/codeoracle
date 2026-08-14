@@ -28,12 +28,13 @@ def parse_pytest_coverage_json(
 
         for file_key, file_info in files_data.items():
             # Normalize file path to relative path
-            file_path_obj = Path(file_key)
+            normalized_file_key = file_key.replace("\\", "/").lstrip("./")
             
             # Find matching target relative path
             matched_rel_path = None
             for target_rel in target_relative_files:
-                if file_key.endswith(target_rel) or target_rel.endswith(file_path_obj.name):
+                normalized_target = target_rel.replace("\\", "/").lstrip("./")
+                if normalized_file_key == normalized_target or normalized_file_key.endswith(f"/{normalized_target}"):
                     matched_rel_path = target_rel
                     break
 

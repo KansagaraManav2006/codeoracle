@@ -19,7 +19,7 @@
 
 ## 3. Scope & Constraints
 - **Supported Languages**: Python (.py) and JavaScript (.js, .jsx, .mjs, .cjs).
-- **Codebase Capacity**: Repositories up to **10,000 relevant lines of code (LOC)**.
+- **Codebase Capacity**: Repositories up to **50,000 relevant lines of code (LOC)**, exceeding the 10,000-line benchmark requirement.
 - **LLM Key Independence**: Static AST analysis and dependency graph generation work **deterministically without an LLM key**. LLM key enables explanations, deep test synthesis, and refactoring recommendations.
 - **Job Execution Model**: Asynchronous job queue running background tasks with granular state tracking.
 

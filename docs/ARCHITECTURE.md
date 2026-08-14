@@ -44,7 +44,7 @@ CodeOracle is an automated codebase inspection, documentation, test generation, 
   - Streamed chunk validation to prevent in-memory payload exhaustion.
   - Multi-tier Zip Slip path containment check: `Path(dest).is_relative_to(target_dir)`.
   - Rejects `../`, absolute paths, drive letters (`C:`), UNC paths, null bytes, symlinks (`S_IFLNK`), and encrypted entries.
-  - Enforces thresholds: max 25MB compressed, 100MB uncompressed, 1,000 file entries, 100x compression ratio.
+  - Enforces thresholds: max 100MB compressed, 300MB uncompressed, 3,000 file entries, 25MB per file, and 100x compression ratio.
 - **GitHub Ingestor (`app.ingestion.github_ingest`)**:
   - Non-interactive `git clone --depth 1` subprocess with argument array security (`["git", "clone", ...]`).
   - Sets `GIT_TERMINAL_PROMPT=0` to prevent interactive hangs.
@@ -54,7 +54,7 @@ CodeOracle is an automated codebase inspection, documentation, test generation, 
   - Filters out ignored directories (`.git`, `node_modules`, `vendor`, `dist`, `build`, `coverage`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.venv`, `venv`, `target`).
   - Filters out minified JS (`*.min.js`), lockfiles, source maps (`*.map`), and binary files.
   - Counts text lines defensively (UTF-8 with `errors='replace'`).
-  - Enforces maximum 10,000 relevant source lines limit.
+  - Enforces maximum 50,000 relevant source lines limit.
   - Generates SHA-256 hashes per file and global project content hash.
 
 ### 2.2 Database Layer (`app.models.db`)

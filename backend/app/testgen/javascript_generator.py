@@ -30,7 +30,9 @@ def generate_javascript_unit_tests(
     safe_test_path = _safe_js_test_filename(module.relative_path)
     test_id = f"testgen_js_{module.module_id}"
 
-    is_commonjs = module.import_kind == "require" or "module.exports" in (module.raw_code_snippet or "") or "exports." in (module.raw_code_snippet or "")
+    is_commonjs = Path(module.relative_path).suffix.lower() == ".cjs" or any(
+        item.import_kind == "require" for item in module.imports
+    )
 
     lines = [
         "// Auto-generated Vitest test suite by CodeOracle",

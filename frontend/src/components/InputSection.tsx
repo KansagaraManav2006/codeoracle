@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Upload, Github, FolderArchive, ArrowRight, FileCheck, X, AlertCircle, Sparkles } from 'lucide-react';
 import { IngestionMode } from '../types';
 
+const MAX_ZIP_BYTES = 100 * 1024 * 1024;
+
 interface InputSectionProps {
   onAnalyzeZip: (file: File) => void;
   onAnalyzeGithub: (url: string) => void;
@@ -45,8 +47,8 @@ export const InputSection: React.FC<InputSectionProps> = ({
       return;
     }
 
-    if (file.size > 25 * 1024 * 1024) {
-      setFileError('ZIP compressed file size exceeds maximum limit of 25MB.');
+    if (file.size > MAX_ZIP_BYTES) {
+      setFileError('ZIP compressed file size exceeds maximum limit of 100MB.');
       setSelectedFile(null);
       return;
     }
@@ -109,27 +111,27 @@ export const InputSection: React.FC<InputSectionProps> = ({
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl max-w-4xl mx-auto mb-8">
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl max-w-4xl mx-auto mb-5 sm:mb-8">
       <div className="flex flex-col gap-4 border-b border-slate-800 pb-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-white">Codebase Ingestion</h2>
-          <p className="text-xs text-slate-400">Select a zip archive or public GitHub repo (up to 10,000 LOC)</p>
+          <p className="text-xs text-slate-400">Select a ZIP archive or public GitHub repo (up to 50,000 LOC)</p>
         </div>
-        <div className="flex flex-wrap bg-slate-950 p-1 rounded-xl border border-slate-800">
+        <div className="grid w-full grid-cols-3 bg-slate-950 p-1 rounded-xl border border-slate-800 sm:w-auto">
           <button
             type="button"
             onClick={() => {
               setMode('zip');
               setFileError(null);
             }}
-            className={`flex items-center space-x-2 px-4 py-2 text-xs font-medium rounded-lg transition-all ${
+            className={`flex items-center justify-center gap-1.5 px-2 sm:px-4 py-2 text-[11px] sm:text-xs font-medium rounded-lg transition-all ${
               mode === 'zip' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <FolderArchive className="w-4 h-4" />
             <span>ZIP Upload</span>
           </button>
-          <button type="button" onClick={onLoadDemo} disabled={disabled} className="flex items-center space-x-2 rounded-lg px-4 py-2 text-xs font-medium text-amber-300 transition-all hover:bg-amber-500/10 disabled:opacity-50">
+          <button type="button" onClick={onLoadDemo} disabled={disabled} className="flex items-center justify-center gap-1.5 rounded-lg px-2 sm:px-4 py-2 text-[11px] sm:text-xs font-medium text-amber-300 transition-all hover:bg-amber-500/10 disabled:opacity-50">
             <Sparkles className="w-4 h-4"/><span>Try Demo</span>
           </button>
           <button
@@ -138,7 +140,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
               setMode('github');
               setGithubUrlError(null);
             }}
-            className={`flex items-center space-x-2 px-4 py-2 text-xs font-medium rounded-lg transition-all ${
+            className={`flex items-center justify-center gap-1.5 px-2 sm:px-4 py-2 text-[11px] sm:text-xs font-medium rounded-lg transition-all ${
               mode === 'github' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -155,7 +157,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-xl p-8 text-center bg-slate-950/40 transition-all ${
+              className={`border-2 border-dashed rounded-xl p-5 sm:p-8 text-center bg-slate-950/40 transition-all ${
                 isDragging
                   ? 'border-indigo-500 bg-indigo-500/10'
                   : selectedFile
@@ -164,11 +166,11 @@ export const InputSection: React.FC<InputSectionProps> = ({
               }`}
             >
               {selectedFile ? (
-                <div className="flex items-center justify-between bg-slate-900 border border-emerald-500/30 p-4 rounded-xl max-w-lg mx-auto">
-                  <div className="flex items-center space-x-3 text-left">
+                <div className="flex min-w-0 items-center justify-between gap-3 bg-slate-900 border border-emerald-500/30 p-3 sm:p-4 rounded-xl max-w-lg mx-auto">
+                  <div className="flex min-w-0 items-center space-x-3 text-left">
                     <FileCheck className="w-8 h-8 text-emerald-400 flex-shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium text-white truncate max-w-xs">{selectedFile.name}</p>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-white truncate">{selectedFile.name}</p>
                       <p className="text-xs text-slate-400">{formatBytes(selectedFile.size)}</p>
                     </div>
                   </div>
@@ -231,14 +233,14 @@ export const InputSection: React.FC<InputSectionProps> = ({
           </div>
         )}
 
-        <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between">
+        <div className="mt-6 pt-4 border-t border-slate-800/80 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-slate-500">
-            {mode === 'zip' ? 'Max 25MB zip archive size limit' : 'Public HTTPS repositories only'}
+            {mode === 'zip' ? 'Max 100MB ZIP · 300MB extracted' : 'Public HTTPS repositories only'}
           </p>
           <button
             type="submit"
             disabled={disabled || (mode === 'zip' && !selectedFile) || (mode === 'github' && !githubUrl.trim())}
-            className="flex items-center space-x-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/20"
+            className="flex w-full items-center justify-center space-x-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/20 sm:w-auto"
           >
             <span>{mode === 'zip' ? 'Analyze Codebase' : 'Analyze Repository'}</span>
             <ArrowRight className="w-4 h-4" />
