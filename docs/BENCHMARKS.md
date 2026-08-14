@@ -34,3 +34,15 @@ https://github.com/expressjs/express
 ```
 
 Flask is the recommended Python demonstration. Express is the recommended JavaScript demonstration.
+
+## Deployed GitHub ingestion verification
+
+The public Render deployment ingested `https://github.com/pallets/flask` directly from GitHub on 2026-08-14. The clone, discovery, and initial static analysis job completed in approximately 6.5 seconds.
+
+- Project metadata: 83 files, 18,345 relevant LOC
+- Analysis: 83 complete parses, 0 failures
+- Explanation: project overview, entry point, important modules, dependencies, complexity hotspots, and legacy risks returned successfully
+- Dependency graph: 83 nodes and 164 internal edges
+- Generated tests: 1,529 tests across 83 files; 83 of 83 generated suites passed syntax validation
+- Refactor review: all 83 output files passed static syntax validation
+- Security: test execution remained disabled for the untrusted public repository
