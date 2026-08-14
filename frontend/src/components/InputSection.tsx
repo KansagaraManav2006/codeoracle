@@ -1,5 +1,19 @@
 import React, { useState } from 'react';
-import { Upload, Github, FolderArchive, ArrowRight, FileCheck, X, AlertCircle, Sparkles } from 'lucide-react';
+import {
+  Upload,
+  Github,
+  FolderArchive,
+  ArrowRight,
+  FileCheck,
+  X,
+  AlertCircle,
+  Sparkles,
+  BookOpen,
+  GitFork,
+  TestTube,
+  Wand2,
+  Map,
+} from 'lucide-react';
 import { IngestionMode } from '../types';
 
 const MAX_ZIP_BYTES = 200 * 1024 * 1024;
@@ -17,6 +31,13 @@ export const InputSection: React.FC<InputSectionProps> = ({
   onLoadDemo,
   disabled = false,
 }) => {
+  const outputs = [
+    { label: 'Explanation', icon: BookOpen },
+    { label: 'Dependency Graph', icon: GitFork },
+    { label: 'Generated Tests', icon: TestTube },
+    { label: 'Safe Refactor', icon: Wand2 },
+    { label: 'Migration Plan', icon: Map, featured: true },
+  ];
   const [mode, setMode] = useState<IngestionMode>('zip');
   const [githubUrl, setGithubUrl] = useState('');
   const [githubUrlError, setGithubUrlError] = useState<string | null>(null);
@@ -112,7 +133,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl max-w-4xl mx-auto mb-5 sm:mb-8">
-      <div className="flex flex-col gap-4 border-b border-slate-800 pb-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 border-b border-slate-800 pb-4 mb-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-white">Codebase Ingestion</h2>
           <p className="text-xs text-slate-400">Select a ZIP archive or public GitHub repo (up to 100,000 source lines)</p>
@@ -147,6 +168,26 @@ export const InputSection: React.FC<InputSectionProps> = ({
             <Github className="w-4 h-4" />
             <span>GitHub Repo</span>
           </button>
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Every analysis includes</p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          {outputs.map(({ label, icon: Icon, featured }) => (
+            <div
+              key={label}
+              className={`flex min-h-12 items-center gap-2 rounded-lg border px-3 py-2 text-[10px] font-semibold ${
+                featured
+                  ? 'border-indigo-500/40 bg-indigo-500/10 text-indigo-200'
+                  : 'border-slate-800 bg-slate-950/60 text-slate-400'
+              }`}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span>{label}</span>
+              {featured && <span className="ml-auto rounded bg-indigo-500/20 px-1.5 py-0.5 text-[8px] uppercase">New</span>}
+            </div>
+          ))}
         </div>
       </div>
 
