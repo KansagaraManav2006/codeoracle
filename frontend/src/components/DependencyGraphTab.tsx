@@ -389,9 +389,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Deterministic React Flow rendering for project {graph.project_id}
-              </p>
+              <p className="text-xs text-slate-400 mt-0.5">Explore module relationships and architectural hotspots.</p>
             </div>
           </div>
 

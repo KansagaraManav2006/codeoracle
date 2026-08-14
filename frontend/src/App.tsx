@@ -41,20 +41,22 @@ export const App: React.FC = () => {
           <ProjectResultsView project={project} files={files} onReset={reset} />
         )}
 
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3 shadow-xl sm:p-4 lg:p-6">
-          <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+        {project && (
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3 shadow-xl sm:p-4 lg:p-6">
+            <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
-          <div className="mt-4">
-            {activeTab === 'explanation' && <ExplanationTab projectId={project?.project_id} />}
-            {activeTab === 'graph' && <DependencyGraphTab projectId={project?.project_id} />}
-            {activeTab === 'tests' && <GeneratedTestsTab projectId={project?.project_id} trustedDemo={project?.source_type === 'demo_benchmark'} />}
-            {activeTab === 'refactor' && <RefactoredCodeTab projectId={project?.project_id} />}
+            <div className="mt-4">
+              {activeTab === 'explanation' && <ExplanationTab projectId={project.project_id} />}
+              {activeTab === 'graph' && <DependencyGraphTab projectId={project.project_id} />}
+              {activeTab === 'tests' && <GeneratedTestsTab projectId={project.project_id} trustedDemo={project.source_type === 'demo_benchmark'} />}
+              {activeTab === 'refactor' && <RefactoredCodeTab projectId={project.project_id} />}
+            </div>
           </div>
-        </div>
+        )}
       </main>
 
       <footer className="border-t border-slate-800/80 px-4 py-4 text-center text-[11px] text-slate-500 sm:text-xs">
-        CodeOracle Hackathon Demo &copy; 2026. Built with FastAPI, React, TypeScript & Tailwind CSS.
+        CodeOracle &copy; 2026
       </footer>
     </div>
   );

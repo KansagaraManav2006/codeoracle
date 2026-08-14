@@ -179,18 +179,8 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
               <Zap className="w-6 h-6" />
             </div>
             <div>
-              <div className="flex items-center space-x-2">
-                <h2 className="text-base font-bold text-white">Deterministic Codebase Static Analysis</h2>
-                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                  No LLM / Pure AST
-                </span>
-                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                  Cache: {analysis.cache_status.toUpperCase()}
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Analyzer v{analysis.analyzer_version} &bull; Processed {analysis.total_files} file(s) in {analysis.analysis_duration_ms}ms
-              </p>
+              <h2 className="text-base font-bold text-white">Codebase Explanation</h2>
+              <p className="text-xs text-slate-400 mt-0.5">A simple overview of the project, modules, and functions.</p>
             </div>
           </div>
 
@@ -200,7 +190,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
             className="flex items-center space-x-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 text-xs font-medium rounded-xl transition-colors border border-slate-700 self-start sm:self-auto"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>Force Reanalyze</span>
+            <span>Refresh Explanation</span>
           </button>
         </div>
 
