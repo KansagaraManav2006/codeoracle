@@ -4,12 +4,14 @@ import {
   Controls,
   Edge,
   Handle,
+  MarkerType,
   MiniMap,
   Node,
   Panel,
   ReactFlow,
   useEdgesState,
   useNodesState,
+  useReactFlow,
   ReactFlowProvider,
   Position,
 } from '@xyflow/react';
@@ -17,15 +19,17 @@ import '@xyflow/react/dist/style.css';
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowRight,
   Cpu,
   Download,
   Eye,
   Filter,
   Info,
+  Network,
   RefreshCw,
   Search,
 } from 'lucide-react';
-import { GraphNodeData, GraphResponse } from '../types';
+import { GraphEdgeData, GraphNodeData, GraphResponse } from '../types';
 import { complexityLabel, titleCase } from '../utils/presentation';
 
 interface DependencyGraphTabProps {
@@ -49,6 +53,8 @@ const GraphCanvasContent: React.FC<{
   includeExternal: boolean;
   highlightCycles: boolean;
   nodeFocusFilter: string;
+  selectedNodeId: string | null;
+  focusSelected: boolean;
   onSelectNode: (node: GraphNodeData | null) => void;
   onDrillDown: (moduleId: string) => void;
 }> = ({
@@ -58,6 +64,8 @@ const GraphCanvasContent: React.FC<{
   includeExternal,
   highlightCycles,
   nodeFocusFilter,
+  selectedNodeId,
+  focusSelected,
   onSelectNode,
   onDrillDown,
 }) => {
@@ -68,10 +76,22 @@ const GraphCanvasContent: React.FC<{
     return set;
   }, [graph.cycles]);
 
-  // Layout Nodes Deterministically in a multi-row grid
+  const connectedNodeIds = useMemo(() => {
+    if (!selectedNodeId) return new Set<string>();
+    const ids = new Set<string>([selectedNodeId]);
+    graph.edges.forEach((edge) => {
+      if (edge.source === selectedNodeId) ids.add(edge.target);
+      if (edge.target === selectedNodeId) ids.add(edge.source);
+    });
+    return ids;
+  }, [graph.edges, selectedNodeId]);
+
+  // Place entry points on the left and dependencies in successive columns.
+  // This makes an arrow read naturally as "source depends on target".
   const initialNodes: Node[] = useMemo(() => {
     const filtered = graph.nodes.filter((n) => {
       if (!includeExternal && n.is_external) return false;
+      if (focusSelected && selectedNodeId && !connectedNodeIds.has(n.id)) return false;
       if (nodeFocusFilter === 'review' && n.warning_count === 0 && n.complexity_score <= 10 && !cycleNodeIds.has(n.id)) return false;
       if (nodeFocusFilter === 'entry' && !n.is_entry_point) return false;
       if (searchQuery.trim()) {
@@ -80,14 +100,37 @@ const GraphCanvasContent: React.FC<{
       return true;
     });
 
-    const columns = Math.ceil(Math.sqrt(filtered.length * 1.5)) || 1;
-    const xSpacing = 280;
-    const ySpacing = 160;
+    const visibleIds = new Set(filtered.map((node) => node.id));
+    const outgoing = new Map<string, string[]>();
+    graph.edges.forEach((edge) => {
+      if (!visibleIds.has(edge.source) || !visibleIds.has(edge.target)) return;
+      outgoing.set(edge.source, [...(outgoing.get(edge.source) || []), edge.target]);
+    });
+    const depth = new Map<string, number>();
+    const roots = filtered.filter((node) => node.is_entry_point).map((node) => node.id);
+    const queue = (roots.length ? roots : filtered.slice(0, 1).map((node) => node.id)).map((id) => ({ id, level: 0 }));
+    while (queue.length) {
+      const current = queue.shift()!;
+      if ((depth.get(current.id) ?? Number.POSITIVE_INFINITY) <= current.level) continue;
+      depth.set(current.id, current.level);
+      (outgoing.get(current.id) || []).forEach((target) => queue.push({ id: target, level: current.level + 1 }));
+    }
+    const maxDepth = Math.max(0, ...depth.values());
+    filtered.forEach((node) => { if (!depth.has(node.id)) depth.set(node.id, maxDepth + 1); });
+    const rowsByDepth = new Map<number, string[]>();
+    filtered.forEach((node) => {
+      const level = depth.get(node.id) || 0;
+      rowsByDepth.set(level, [...(rowsByDepth.get(level) || []), node.id]);
+    });
+    const xSpacing = 300;
+    const ySpacing = 150;
 
-    return filtered.map((n, idx) => {
-      const col = idx % columns;
-      const row = Math.floor(idx / columns);
+    return filtered.map((n) => {
+      const col = depth.get(n.id) || 0;
+      const row = (rowsByDepth.get(col) || []).indexOf(n.id);
       const isCycle = cycleNodeIds.has(n.id);
+      const isSelected = selectedNodeId === n.id;
+      const isRelated = !selectedNodeId || connectedNodeIds.has(n.id);
 
       // Color coding & borders
       let borderClass = 'border-slate-700 bg-slate-900';
@@ -103,7 +146,7 @@ const GraphCanvasContent: React.FC<{
 
       return {
         id: n.id,
-        position: { x: col * xSpacing + 50, y: row * ySpacing + 50 },
+        position: { x: col * xSpacing + 40, y: row * ySpacing + 40 },
         data: { raw: n },
         style: {
           background: 'transparent',
@@ -114,7 +157,7 @@ const GraphCanvasContent: React.FC<{
           <div
             onClick={() => onSelectNode(n)}
             onDoubleClick={() => !n.is_external && n.kind === 'module' && onDrillDown(n.id)}
-            className={`p-3 rounded-xl border ${borderClass} transition-all duration-200 hover:scale-105 hover:z-20 cursor-pointer min-w-[200px] shadow-md`}
+            className={`min-w-[210px] cursor-pointer rounded-xl border p-3 shadow-md transition-all duration-200 hover:z-20 hover:scale-[1.02] ${borderClass} ${isSelected ? 'ring-2 ring-indigo-400 ring-offset-2 ring-offset-slate-950' : ''} ${!isRelated ? 'opacity-35' : ''}`}
           >
             <div className="flex items-center justify-between gap-2 mb-1">
               <span className="font-mono text-xs font-bold text-white truncate max-w-[140px]" title={n.label}>
@@ -160,7 +203,7 @@ const GraphCanvasContent: React.FC<{
         ),
       };
     });
-  }, [graph.nodes, searchQuery, includeExternal, highlightCycles, nodeFocusFilter, cycleNodeIds, onSelectNode, onDrillDown]);
+  }, [graph.nodes, graph.edges, searchQuery, includeExternal, highlightCycles, nodeFocusFilter, cycleNodeIds, onSelectNode, onDrillDown, selectedNodeId, connectedNodeIds, focusSelected]);
 
   // Transform React Flow Edges
   const initialEdges: Edge[] = useMemo(() => {
@@ -171,6 +214,8 @@ const GraphCanvasContent: React.FC<{
       .filter((e) => edgeTypeFilter === 'all' || e.type === edgeTypeFilter)
       .map((e) => {
         const isCycleEdge = cycleNodeIds.has(e.source) && cycleNodeIds.has(e.target);
+        const isSelectedEdge = Boolean(selectedNodeId && (e.source === selectedNodeId || e.target === selectedNodeId));
+        const isDimmed = Boolean(selectedNodeId && !isSelectedEdge);
         const strokeColor = isCycleEdge && highlightCycles ? '#f43f5e' : e.type === 'require' ? '#f59e0b' : '#6366f1';
 
         return {
@@ -178,26 +223,31 @@ const GraphCanvasContent: React.FC<{
           source: e.source,
           target: e.target,
           type: 'smoothstep',
-          animated: isCycleEdge && highlightCycles,
+          animated: isSelectedEdge || (isCycleEdge && highlightCycles),
           style: {
             stroke: strokeColor,
-            strokeWidth: isCycleEdge && highlightCycles ? 2.5 : 1.5,
+            strokeWidth: isSelectedEdge ? 3 : isCycleEdge && highlightCycles ? 2.5 : 1.5,
+            opacity: isDimmed ? 0.18 : 1,
             strokeDasharray: e.type === 'require' ? '4,4' : undefined,
           },
-          label: e.type !== 'import' ? e.type : undefined,
+          markerEnd: { type: MarkerType.ArrowClosed, color: strokeColor, width: 18, height: 18 },
+          label: isSelectedEdge ? (e.type === 'require' ? 'requires' : e.type === 'call' ? 'calls' : 'imports') : undefined,
           labelStyle: { fill: '#94a3b8', fontSize: 10, fontFamily: 'monospace' },
           labelBgStyle: { fill: '#0f172a' },
         };
       });
-  }, [graph.edges, initialNodes, edgeTypeFilter, highlightCycles, cycleNodeIds]);
+  }, [graph.edges, initialNodes, edgeTypeFilter, highlightCycles, cycleNodeIds, selectedNodeId]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const { fitView } = useReactFlow();
 
   useEffect(() => {
     setNodes(initialNodes);
     setEdges(initialEdges);
-  }, [initialNodes, initialEdges, setNodes, setEdges]);
+    const fitTimer = window.setTimeout(() => fitView({ padding: 0.25, duration: 350 }), 60);
+    return () => window.clearTimeout(fitTimer);
+  }, [initialNodes, initialEdges, setNodes, setEdges, fitView]);
 
   const renderedNodes = useMemo(
     () => nodes.map((node: any) => ({ ...node, data: { ...node.data, nodeContent: node.nodeContent } })),
@@ -248,6 +298,25 @@ const GraphCanvasContent: React.FC<{
   );
 };
 
+const RelationshipList: React.FC<{
+  title: string;
+  tone: 'indigo' | 'emerald';
+  items: Array<{ edge: GraphEdgeData; node: GraphNodeData }>;
+  onSelect: (node: GraphNodeData) => void;
+}> = ({ title, tone, items, onSelect }) => (
+  <div>
+    <h4 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">{title}</h4>
+    <div className="max-h-44 space-y-1.5 overflow-y-auto pr-1">
+      {items.map(({ edge, node }) => (
+        <button key={edge.id} type="button" onClick={() => onSelect(node)} className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-2 text-left hover:border-slate-600 hover:bg-slate-800">
+          <span className="min-w-0"><span className="block truncate font-mono text-[10px] text-slate-200" title={node.label}>{node.label}</span><span className={`mt-0.5 block text-[9px] ${tone === 'indigo' ? 'text-indigo-300' : 'text-emerald-300'}`}>{edge.type === 'require' ? 'requires' : edge.type === 'call' ? 'calls' : edge.type}</span></span>
+          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-500"/>
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
 export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectId }) => {
   const [graph, setGraph] = useState<GraphResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -261,7 +330,18 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
   const [highlightCycles, setHighlightCycles] = useState<boolean>(true);
   const [nodeFocusFilter, setNodeFocusFilter] = useState<string>('all');
   const [selectedNode, setSelectedNode] = useState<GraphNodeData | null>(null);
+  const [focusSelected, setFocusSelected] = useState<boolean>(false);
   const [currentLevel, setCurrentLevel] = useState<'module' | 'symbol'>('module');
+
+  const nodeById = useMemo(() => new Map((graph?.nodes || []).map((node) => [node.id, node])), [graph]);
+  const outgoingRelations = useMemo<Array<{ edge: GraphEdgeData; node: GraphNodeData }>>(
+    () => selectedNode && graph ? graph.edges.filter((edge) => edge.source === selectedNode.id).flatMap((edge) => { const node = nodeById.get(edge.target); return node ? [{ edge, node }] : []; }) : [],
+    [graph, selectedNode, nodeById]
+  );
+  const incomingRelations = useMemo<Array<{ edge: GraphEdgeData; node: GraphNodeData }>>(
+    () => selectedNode && graph ? graph.edges.filter((edge) => edge.target === selectedNode.id).flatMap((edge) => { const node = nodeById.get(edge.source); return node ? [{ edge, node }] : []; }) : [],
+    [graph, selectedNode, nodeById]
+  );
 
   const fetchGraph = useCallback(
     async (lvl: 'module' | 'symbol' = 'module', modId: string | null = null) => {
@@ -319,6 +399,8 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
   };
 
   const handleBackToModules = () => {
+    setSelectedNode(null);
+    setFocusSelected(false);
     fetchGraph('module', null);
   };
 
@@ -530,6 +612,12 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
         </div>
       </div>
 
+      <div className="grid gap-3 rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4 text-xs text-slate-300 sm:grid-cols-3">
+        <div className="flex gap-2"><ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-indigo-400"/><span><strong className="text-white">Follow the arrow:</strong> the file at the tail imports, requires, or calls the file at the arrowhead.</span></div>
+        <div className="flex gap-2"><Network className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400"/><span><strong className="text-white">Tap a file:</strong> its direct connections become brighter and are explained in the side panel.</span></div>
+        <div className="flex gap-2"><Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-400"/><span><strong className="text-white">Connection styles:</strong> solid purple means import; dashed amber means CommonJS require; red marks a loop.</span></div>
+      </div>
+
       {/* Main Canvas & Details Drawer */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-3">
@@ -541,6 +629,8 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
               includeExternal={includeExternal}
               highlightCycles={highlightCycles}
               nodeFocusFilter={nodeFocusFilter}
+              selectedNodeId={selectedNode?.id || null}
+              focusSelected={focusSelected}
               onSelectNode={setSelectedNode}
               onDrillDown={handleDrillDown}
             />
@@ -548,7 +638,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
         </div>
 
         {/* Selected Node Detail Drawer */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between min-h-[400px]">
+        <div className="min-h-[400px] rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl">
           <div>
             <h3 className="text-xs uppercase font-bold text-slate-400 tracking-wider mb-4 border-b border-slate-800 pb-2">
               Selected Item
@@ -581,6 +671,10 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
                     <span className="font-semibold">{selectedNode.warning_count}</span>
                   </div>
                   <div className="flex justify-between border-b border-slate-800/60 pb-1">
+                    <span className="text-slate-400">Functions / classes:</span>
+                    <span className="font-semibold">{selectedNode.symbol_count}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-800/60 pb-1">
                     <span className="text-slate-400">Entry Point:</span>
                     <span className="font-semibold">{selectedNode.is_entry_point ? 'Yes' : 'No'}</span>
                   </div>
@@ -590,20 +684,37 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
                   </div>
                 </div>
 
-                {!selectedNode.is_external && selectedNode.kind === 'module' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-3"><span className="block text-[10px] uppercase text-indigo-300">Depends on</span><strong className="mt-1 block text-xl text-white">{outgoingRelations.length}</strong></div>
+                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3"><span className="block text-[10px] uppercase text-emerald-300">Used by</span><strong className="mt-1 block text-xl text-white">{incomingRelations.length}</strong></div>
+                </div>
+
+                {(outgoingRelations.length > 0 || incomingRelations.length > 0) && (
+                  <button type="button" onClick={() => setFocusSelected((value) => !value)} className={`w-full rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${focusSelected ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'}`}>
+                    {focusSelected ? 'Show whole graph' : 'Focus direct connections'}
+                  </button>
+                )}
+
+                {outgoingRelations.length > 0 && <RelationshipList title="This file depends on" tone="indigo" items={outgoingRelations} onSelect={setSelectedNode}/>}
+                {incomingRelations.length > 0 && <RelationshipList title="Files that use this" tone="emerald" items={incomingRelations} onSelect={setSelectedNode}/>}
+
+                {!selectedNode.is_external && selectedNode.kind === 'module' && selectedNode.symbol_count > 0 && (
                   <button
                     onClick={() => handleDrillDown(selectedNode.id)}
                     className="w-full mt-4 py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition-colors flex items-center justify-center space-x-2"
                   >
                     <Eye className="w-3.5 h-3.5" />
-                    <span>View Functions and Classes</span>
+                    <span>Open {selectedNode.symbol_count} functions / classes</span>
                   </button>
+                )}
+                {!selectedNode.is_external && selectedNode.kind === 'module' && selectedNode.symbol_count === 0 && (
+                  <div className="rounded-xl border border-slate-800 bg-slate-950 p-3 text-[11px] leading-5 text-slate-400">No functions or classes were detected in this file, so symbol-level drill-down is not available.</div>
                 )}
               </div>
             ) : (
               <div className="text-center py-12 text-slate-500 text-xs">
                 <Info className="w-6 h-6 mx-auto mb-2 opacity-50" />
-                <p>Tap a file to view details. Use the button that appears to open its functions and classes.</p>
+                <p>Tap a file to see what it depends on, which files use it, and whether symbol-level details are available.</p>
               </div>
             )}
           </div>
