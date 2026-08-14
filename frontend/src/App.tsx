@@ -9,13 +9,21 @@ import DependencyGraphTab from './components/DependencyGraphTab';
 import GeneratedTestsTab from './components/GeneratedTestsTab';
 import RefactoredCodeTab from './components/RefactoredCodeTab';
 import MigrationPlanTab from './components/MigrationPlanTab';
+import RecentProjects from './components/RecentProjects';
 import { useJobPoller } from './hooks/useJobPoller';
 import { TabType } from './types';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('explanation');
-  const { job, project, files, loading, error, errorCode, submitZip, submitGithub, loadDemo, reset } =
+  const [focusedFile, setFocusedFile] = useState<string>('');
+  const [overviewRevision, setOverviewRevision] = useState(0);
+  const { job, project, files, loading, error, errorCode, recentProjects, submitZip, submitGithub, loadDemo, openRecentProject, removeRecentProject, reset } =
     useJobPoller();
+  const resetWorkspace = () => {
+    setActiveTab('explanation');
+    setFocusedFile('');
+    reset();
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
@@ -35,11 +43,12 @@ export const App: React.FC = () => {
               loading={loading}
               error={error}
               errorCode={errorCode}
-              onRetry={reset}
+              onRetry={resetWorkspace}
             />
+            {!loading && !error && <RecentProjects projects={recentProjects} disabled={loading} onOpen={openRecentProject} onRemove={removeRecentProject} />}
           </>
         ) : (
-          <ProjectResultsView project={project} files={files} onReset={reset} />
+          <ProjectResultsView project={project} files={files} onReset={resetWorkspace} onNavigate={setActiveTab} refreshKey={overviewRevision} />
         )}
 
         {project && (
@@ -47,11 +56,11 @@ export const App: React.FC = () => {
             <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
             <div className="mt-4">
-              {activeTab === 'explanation' && <ExplanationTab projectId={project.project_id} />}
+              {activeTab === 'explanation' && <ExplanationTab projectId={project.project_id} onOpenImpact={(path) => { setFocusedFile(path); setActiveTab('migration'); }} />}
               {activeTab === 'graph' && <DependencyGraphTab projectId={project.project_id} />}
-              {activeTab === 'tests' && <GeneratedTestsTab projectId={project.project_id} trustedDemo={project.source_type === 'demo_benchmark'} />}
+              {activeTab === 'tests' && <GeneratedTestsTab projectId={project.project_id} trustedDemo={project.source_type === 'demo_benchmark'} onGenerated={() => setOverviewRevision((value) => value + 1)} />}
               {activeTab === 'refactor' && <RefactoredCodeTab projectId={project.project_id} />}
-              {activeTab === 'migration' && <MigrationPlanTab projectId={project.project_id} />}
+              {activeTab === 'migration' && <MigrationPlanTab projectId={project.project_id} focusPath={focusedFile} />}
             </div>
           </div>
         )}

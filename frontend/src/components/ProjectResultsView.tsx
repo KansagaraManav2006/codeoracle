@@ -1,20 +1,39 @@
-import React, { useState } from 'react';
-import { CheckCircle2, ChevronDown, Code2, FileCode, Hash, RotateCcw } from 'lucide-react';
-import { ProjectFileResponse, ProjectMetadataResponse } from '../types';
+import React, { useEffect, useState } from 'react';
+import { Activity, ArrowUpRight, CheckCircle2, ChevronDown, Code2, FileCode, GitFork, Hash, RotateCcw, ShieldCheck } from 'lucide-react';
+import { MigrationPlanResponse, ProjectAnalysis, ProjectFileResponse, ProjectMetadataResponse, TabType } from '../types';
 import { sourceLabel } from '../utils/presentation';
 
 interface ProjectResultsViewProps {
   project: ProjectMetadataResponse;
   files: ProjectFileResponse[];
   onReset: () => void;
+  onNavigate: (tab: TabType) => void;
+  refreshKey?: number;
 }
 
 export const ProjectResultsView: React.FC<ProjectResultsViewProps> = ({
   project,
   files,
   onReset,
+  onNavigate,
+  refreshKey = 0,
 }) => {
   const [showFiles, setShowFiles] = useState(false);
+  const [analysis, setAnalysis] = useState<ProjectAnalysis | null>(null);
+  const [plan, setPlan] = useState<MigrationPlanResponse | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      fetch(`/api/projects/${project.project_id}/analysis`).then((response) => response.ok ? response.json() : null),
+      fetch(`/api/projects/${project.project_id}/migration-plan`).then((response) => response.ok ? response.json() : null),
+    ]).then(([analysisData, planData]) => {
+      if (!active) return;
+      setAnalysis(analysisData);
+      setPlan(planData);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [project.project_id, refreshKey]);
   const formatBytes = (bytes: number): string => {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -24,7 +43,7 @@ export const ProjectResultsView: React.FC<ProjectResultsViewProps> = ({
   };
 
   return (
-    <div className="mx-auto mb-5 max-w-4xl space-y-4 sm:mb-8 sm:space-y-6">
+    <div className="mx-auto mb-5 max-w-7xl space-y-4 sm:mb-8 sm:space-y-6">
       {/* Project Summary Banner */}
       <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-xl sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4 mb-6">
@@ -47,8 +66,13 @@ export const ProjectResultsView: React.FC<ProjectResultsViewProps> = ({
           </button>
         </div>
 
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div><h3 className="text-sm font-semibold text-white">Project Overview</h3><p className="mt-0.5 text-[11px] text-slate-500">Repository scale, architecture and modernization posture</p></div>
+          {plan && <button type="button" onClick={() => onNavigate('migration')} className="hidden items-center gap-1.5 text-[11px] font-semibold text-indigo-300 hover:text-indigo-200 sm:inline-flex">Open migration intelligence<ArrowUpRight className="h-3.5 w-3.5"/></button>}
+        </div>
+
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-6">
           <div className="bg-slate-950/60 p-3 sm:p-4 rounded-xl border border-slate-800">
             <div className="flex items-center space-x-2 text-slate-400 text-xs mb-1">
               <FileCode className="w-4 h-4 text-indigo-400" />
@@ -82,6 +106,28 @@ export const ProjectResultsView: React.FC<ProjectResultsViewProps> = ({
             </div>
           </div>
 
+          <button type="button" onClick={() => onNavigate('graph')} className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-left transition-colors hover:border-indigo-500/40 sm:p-4">
+            <div className="mb-1 flex items-center gap-2 text-xs text-slate-400"><GitFork className="h-4 w-4 text-indigo-400"/><span>Connections</span></div>
+            <p className="text-xl font-bold text-white">{analysis ? analysis.dependency_edges.length : '—'}</p>
+          </button>
+
+          <button type="button" onClick={() => onNavigate('migration')} className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-left transition-colors hover:border-indigo-500/40 sm:p-4">
+            <div className="mb-1 flex items-center gap-2 text-xs text-slate-400"><ShieldCheck className="h-4 w-4 text-emerald-400"/><span>Readiness</span></div>
+            <p className="text-xl font-bold text-emerald-400">{plan ? `${plan.readiness_score}/100` : '—'}</p>
+          </button>
+
+          <button type="button" onClick={() => onNavigate('migration')} className="rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-3 text-left transition-colors hover:border-indigo-500/50 sm:p-4">
+            <div className="mb-1 flex items-center gap-2 text-xs text-indigo-200"><Activity className="h-4 w-4"/><span>Projected</span></div>
+            <p className="text-xl font-bold text-indigo-200">{plan ? `${plan.projected_readiness_score}/100` : '—'}</p>
+            {plan && <p className="mt-1 text-[9px] text-indigo-300">+{plan.projected_readiness_score - plan.readiness_score} roadmap gain</p>}
+          </button>
+
+        </div>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <button type="button" onClick={() => onNavigate('explanation')} className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-left text-[11px] text-slate-400 hover:bg-slate-800"><strong className="block text-slate-200">1. Understand</strong>Read business purpose and module responsibilities.</button>
+          <button type="button" onClick={() => onNavigate('tests')} className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-left text-[11px] text-slate-400 hover:bg-slate-800"><strong className="block text-slate-200">2. Protect</strong>Generate tests and identify coverage gaps.</button>
+          <button type="button" onClick={() => onNavigate('migration')} className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-left text-[11px] text-slate-400 hover:bg-slate-800"><strong className="block text-slate-200">3. Modernize safely</strong>Review impact, refactors and roadmap.</button>
         </div>
       </div>
 

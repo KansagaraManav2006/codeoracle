@@ -20,7 +20,7 @@ def _relative_path_to_module_import(rel_path: str) -> str:
 def _safe_test_filename(rel_path: str) -> str:
     """Generates a safe test file path like 'tests/test_math_helper.py'."""
     p = Path(rel_path)
-    clean_name = p.stem.replace(".", "_")
+    clean_name = "_".join(p.with_suffix("").parts).replace(".", "_").replace("-", "_")
     return f"tests/test_{clean_name}.py"
 
 
@@ -130,7 +130,7 @@ def generate_python_unit_tests(
                 lines.append("    try:")
                 lines.append(f"        res = {empty_call}")
                 lines.append("        assert res is not NotImplemented")
-                lines.append("    except (ValueError, ZeroDivisionError):")
+                lines.append("    except (TypeError, ValueError, ZeroDivisionError, KeyError, AttributeError):")
                 lines.append("        pytest.skip('Boundary input is rejected')")
                 lines.append("")
                 strategies_used.add("boundary_value")

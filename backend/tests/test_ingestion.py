@@ -59,6 +59,25 @@ def setup_db():
 client = TestClient(app)
 
 
+def test_realistic_mixed_language_demo_loads_and_analyzes(tmp_path):
+    workspace = tmp_path / "legacy_retail_workspace"
+    with patch("app.api.routes.get_workspace_dir", return_value=workspace), patch(
+        "app.analysis.service.get_workspace_dir", return_value=workspace
+    ):
+        response = client.post("/api/demo/benchmarks/legacy_retail")
+        assert response.status_code == 201
+        data = response.json()
+        assert 15 <= data["total_files"] <= 25
+        assert set(data["detected_languages"]) == {"python", "javascript"}
+
+        analysis = client.get(f"/api/projects/{data['project_id']}/analysis")
+        assert analysis.status_code == 200
+        payload = analysis.json()
+        assert payload["parse_success_count"] >= 20
+        assert len(payload["entry_points"]) >= 2
+        assert len(payload["dependency_edges"]) >= 12
+
+
 # --- 1. Valid ZIP Upload ---
 def test_01_valid_zip_upload(tmp_path):
     zip_bytes = io.BytesIO()

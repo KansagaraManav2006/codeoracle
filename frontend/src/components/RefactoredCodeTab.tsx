@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Clipboard, Download, FileDiff, Loader2, ShieldAlert, Wand2, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clipboard, Download, FileDiff, Loader2, Search, ShieldAlert, Wand2, XCircle } from 'lucide-react';
 import { ProjectRefactorResult } from '../types';
 import { cleanText, warningTitle } from '../utils/presentation';
 
@@ -17,6 +17,8 @@ export const RefactoredCodeTab: React.FC<Props> = ({ projectId }) => {
   const [mode, setMode] = useState<ViewMode>('diff');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fileSearch, setFileSearch] = useState('');
+  const [riskOnly, setRiskOnly] = useState(false);
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -49,6 +51,11 @@ export const RefactoredCodeTab: React.FC<Props> = ({ projectId }) => {
   };
 
   const files = useMemo(() => result?.files.filter((file) => file.changed) || [], [result]);
+  const visibleFiles = useMemo(() => files.filter((file) => {
+    const matchesSearch = file.relative_path.toLowerCase().includes(fileSearch.toLowerCase());
+    const hasRisk = file.warnings.some((warning) => warning.breaking_change || warning.severity === 'risk');
+    return matchesSearch && (!riskOnly || hasRisk);
+  }), [files, fileSearch, riskOnly]);
   const selected = files.find((file) => file.relative_path === selectedPath) || files[0];
   const displayedCode = selected ? (mode === 'diff' ? selected.unified_diff : mode === 'original' ? selected.original_code : selected.refactored_code) : '';
 
@@ -73,7 +80,7 @@ export const RefactoredCodeTab: React.FC<Props> = ({ projectId }) => {
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-xs leading-5 text-amber-100"><div className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0"/><div><p className="font-semibold">Human review required</p><p>{result.summary}</p></div></div></div>
         {files.length === 0 ? <div className="rounded-2xl border border-slate-800 bg-slate-900 p-10 text-center"><CheckCircle2 className="mx-auto mb-3 h-8 w-8 text-emerald-400"/><h3 className="font-medium text-white">No safe automatic updates found</h3><p className="mt-2 text-xs text-slate-400">The original code was left unchanged because no reliable modernization rule applied.</p></div> :
         <div className="grid min-h-[480px] gap-4 lg:grid-cols-[280px_1fr]">
-          <aside className="rounded-xl border border-slate-800 bg-slate-900 p-3"><p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Files with suggestions</p>{files.map((file) => <button key={file.relative_path} onClick={() => setSelectedPath(file.relative_path)} className={`mb-1 w-full rounded-lg p-3 text-left ${selected?.relative_path===file.relative_path?'bg-indigo-600/20 text-indigo-200':'text-slate-400 hover:bg-slate-800'}`}><div className="flex items-center gap-2 text-xs font-medium"><FileDiff className="h-4 w-4 shrink-0"/><span className="truncate">{file.relative_path}</span></div><div className="mt-1 text-[10px]">{file.changes.length} updates | {file.warnings.length} notes</div></button>)}</aside>
+          <aside className="rounded-xl border border-slate-800 bg-slate-900 p-3"><p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Files with suggestions</p><div className="relative mb-2"><Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500"/><input value={fileSearch} onChange={(event) => setFileSearch(event.target.value)} placeholder="Search changed files..." className="w-full rounded-lg border border-slate-800 bg-slate-950 py-2 pl-8 pr-2 text-[10px] text-slate-200 outline-none focus:border-indigo-500"/></div><button type="button" onClick={() => setRiskOnly((value) => !value)} className={`mb-2 w-full rounded-lg border px-2 py-1.5 text-[9px] font-bold uppercase ${riskOnly ? 'border-amber-500/30 bg-amber-500/10 text-amber-300' : 'border-slate-800 text-slate-500'}`}>{riskOnly ? 'Breaking risks shown' : 'Show breaking risks only'}</button>{visibleFiles.map((file) => <button key={file.relative_path} onClick={() => setSelectedPath(file.relative_path)} className={`mb-1 w-full rounded-lg p-3 text-left ${selected?.relative_path===file.relative_path?'bg-indigo-600/20 text-indigo-200':'text-slate-400 hover:bg-slate-800'}`}><div className="flex items-center gap-2 text-xs font-medium"><FileDiff className="h-4 w-4 shrink-0"/><span className="truncate">{file.relative_path}</span></div><div className="mt-1 text-[10px]">{file.changes.length} updates | {file.warnings.length} notes</div></button>)}{visibleFiles.length === 0 && <p className="p-4 text-center text-[10px] text-slate-600">No refactored files match these filters.</p>}</aside>
           {selected && <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950"><header className="flex flex-col gap-3 border-b border-slate-800 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="break-all text-xs font-medium text-white">{selected.relative_path}</p><p className={`text-[10px] ${selected.syntax_valid?'text-emerald-400':'text-red-400'}`}>{selected.syntax_valid ? 'Syntax check passed' : selected.syntax_error}</p></div><div className="flex flex-wrap gap-1">{(['diff','original','modernized'] as ViewMode[]).map((item) => <button key={item} onClick={() => setMode(item)} className={`rounded px-2 py-1 text-[10px] capitalize ${mode===item?'bg-indigo-600 text-white':'border border-slate-700 text-slate-400'}`}>{item}</button>)}<button onClick={() => navigator.clipboard.writeText(displayedCode)} className="ml-1 rounded border border-slate-700 p-1.5 text-slate-300" title="Copy"><Clipboard className="h-3 w-3"/></button></div></header>
             {selected.warnings.length > 0 && <div className="border-b border-slate-800 bg-slate-900/60 p-3">{selected.warnings.map((warning, index) => <div key={`${warning.code}-${index}`} className={`mb-1 flex gap-2 text-[10px] ${warning.breaking_change?'text-amber-300':'text-slate-400'}`}><AlertTriangle className="h-3 w-3 shrink-0"/><span><strong>{warningTitle(warning.code)}</strong>: {cleanText(warning.message)}</span></div>)}</div>}
             <pre className="max-h-[560px] overflow-auto p-4 text-xs leading-5 text-slate-300"><code>{displayedCode}</code></pre></section>}

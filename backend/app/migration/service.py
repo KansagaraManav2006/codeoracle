@@ -136,10 +136,10 @@ def build_migration_plan(db: Session, project_id: str) -> MigrationPlanResponse:
     high_complexity = sum(module.complexity.rating in {"high", "critical"} for module in modules)
     complexity_score = _bounded(100 - (high_complexity / total * 100))
     warning_weight = sum(sum({"risk": 3, "warning": 2, "info": 1}.get(item.severity, 1) for item in module.legacy_warnings) for module in modules)
-    maintainability_score = _bounded(100 - min(85, warning_weight * 3 / total))
+    maintainability_score = _bounded(100 - min(85, warning_weight * 12 / total))
     graph = build_project_dependency_graph(analysis, include_external=False)
     edge_density = graph.summary.internal_edges / total
-    coupling_score = _bounded(100 - min(85, edge_density * 18 + graph.summary.cycle_count * 12))
+    coupling_score = _bounded(100 - min(85, edge_density * 22 + graph.summary.cycle_count * 12))
     if test_result and test_result.test_files:
         syntax_ratio = test_result.syntax_valid_count / len(test_result.test_files)
         coverage = test_result.overall_line_coverage
@@ -160,6 +160,36 @@ def build_migration_plan(db: Session, project_id: str) -> MigrationPlanResponse:
     weights = {"analysis": .20, "complexity": .20, "coupling": .20, "maintainability": .20, "testability": .20}
     readiness_score = _bounded(sum(item.score * weights[item.key] for item in categories))
 
+    # Model the attainable state after the generated roadmap is completed. This
+    # is an explainable engineering projection, not a claim that code changed.
+    projected_scores = {
+        "analysis": _bounded(analysis_score + (100 - analysis_score) * 0.75),
+        "complexity": _bounded(complexity_score + (100 - complexity_score) * 0.80),
+        "coupling": _bounded(coupling_score + (100 - coupling_score) * 0.65),
+        "maintainability": _bounded(maintainability_score + (100 - maintainability_score) * 0.85),
+        "testability": max(testability_score, 80),
+    }
+    projected_reasons = {
+        "analysis": "After manually resolving partial parses and documenting unsupported behavior.",
+        "complexity": "After splitting the highest-complexity functions identified by CodeOracle.",
+        "coupling": "After removing dependency loops and introducing stable module boundaries.",
+        "maintainability": "After applying reviewed legacy-pattern replacements.",
+        "testability": "After adding tests for the recommended coverage gaps.",
+    }
+    projected_categories = [
+        ReadinessCategory(
+            key=item.key,
+            label=item.label,
+            score=projected_scores[item.key],
+            status=_status(projected_scores[item.key]),
+            reason=projected_reasons[item.key],
+        )
+        for item in categories
+    ]
+    projected_readiness_score = _bounded(
+        sum(item.score * weights[item.key] for item in projected_categories)
+    )
+
     low_risk_wins = [item for item in impacts if item.risk_level in {"low", "medium"} and "suggestion" in " ".join(item.reasons).lower()]
     core_items = [item for item in impacts if item.blast_radius > 0 or item.risk_level in {"high", "critical"}]
     entry_items = [item for item in impacts if item.affected_entry_points or module_by_id[item.module_id].is_entry_point]
@@ -179,8 +209,16 @@ def build_migration_plan(db: Session, project_id: str) -> MigrationPlanResponse:
         project_id=project_id,
         readiness_score=readiness_score,
         readiness_label=_status(readiness_score),
+        projected_readiness_score=projected_readiness_score,
+        projected_readiness_label=_status(projected_readiness_score),
+        projected_assumptions=[
+            "Priority test gaps are covered before behavior changes.",
+            "High-risk refactors receive human review and regression testing.",
+            "Dependency loops and legacy warnings are resolved phase by phase.",
+        ],
         executive_summary=executive_summary,
         categories=categories,
+        projected_categories=projected_categories,
         top_priorities=top_priorities,
         impacts=sorted(impacts, key=lambda item: item.relative_path),
         phases=phases,
@@ -192,6 +230,7 @@ def migration_plan_markdown(plan: MigrationPlanResponse, project_name: str) -> s
         f"# {project_name} Modernization Plan",
         "",
         f"**Readiness:** {plan.readiness_score}/100 — {plan.readiness_label}",
+        f"**Projected after roadmap:** {plan.projected_readiness_score}/100 — {plan.projected_readiness_label}",
         "",
         plan.executive_summary,
         "",

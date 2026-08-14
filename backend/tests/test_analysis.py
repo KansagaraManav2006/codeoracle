@@ -351,6 +351,16 @@ def test_12_api_analysis_endpoints(tmp_path):
         exp_json = res_exp.json()
         assert "languages_summary" in exp_json
 
+        explanation_download = client.get("/api/projects/proj_api_123/analysis/download")
+        assert explanation_download.status_code == 200
+        assert "text/markdown" in explanation_download.headers["content-type"]
+        assert "Module inventory" in explanation_download.text
+
+        graph_download = client.get("/api/projects/proj_api_123/graph/download")
+        assert graph_download.status_code == 200
+        assert "```mermaid" in graph_download.text
+        assert "attachment" in graph_download.headers["content-disposition"]
+
         # POST /api/projects/{id}/analyze (force=True) -> Returns HTTP 202 Accepted
         res_post = client.post("/api/projects/proj_api_123/analyze", json={"force": True})
         assert res_post.status_code == 202

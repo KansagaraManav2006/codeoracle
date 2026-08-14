@@ -42,6 +42,18 @@ def test_javascript_commonjs_generator_uses_require(tmp_path) -> None:
     assert "require('../math.cjs')" in generated.code
 
 
+def test_nested_modules_generate_unique_test_paths(tmp_path) -> None:
+    source = tmp_path / "pricing.py"
+    source.write_text("def total(value):\n    return value\n", encoding="utf-8")
+    service_module = analyze_python_source("proj_test", "services/pricing.py", source)
+    existing_test_module = analyze_python_source("proj_test", "tests/pricing.py", source)
+    service_test = generate_python_unit_tests(service_module, _project(service_module))
+    existing_test = generate_python_unit_tests(existing_test_module, _project(existing_test_module))
+    assert service_test.safe_test_path == "tests/test_services_pricing.py"
+    assert existing_test.safe_test_path == "tests/test_tests_pricing.py"
+    assert service_test.safe_test_path != existing_test.safe_test_path
+
+
 def test_generated_code_validators_reject_dangerous_calls() -> None:
     assert validate_python_test_code("import os\nos.system('bad')\n")[0] is False
     assert validate_javascript_test_code("const cp = require('child_process');")[0] is False

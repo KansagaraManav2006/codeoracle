@@ -18,7 +18,9 @@ import {
   AlertTriangle,
   ArrowLeft,
   Cpu,
+  Download,
   Eye,
+  Filter,
   Info,
   RefreshCw,
   Search,
@@ -46,6 +48,7 @@ const GraphCanvasContent: React.FC<{
   edgeTypeFilter: string;
   includeExternal: boolean;
   highlightCycles: boolean;
+  nodeFocusFilter: string;
   onSelectNode: (node: GraphNodeData | null) => void;
   onDrillDown: (moduleId: string) => void;
 }> = ({
@@ -54,6 +57,7 @@ const GraphCanvasContent: React.FC<{
   edgeTypeFilter,
   includeExternal,
   highlightCycles,
+  nodeFocusFilter,
   onSelectNode,
   onDrillDown,
 }) => {
@@ -68,6 +72,8 @@ const GraphCanvasContent: React.FC<{
   const initialNodes: Node[] = useMemo(() => {
     const filtered = graph.nodes.filter((n) => {
       if (!includeExternal && n.is_external) return false;
+      if (nodeFocusFilter === 'review' && n.warning_count === 0 && n.complexity_score <= 10 && !cycleNodeIds.has(n.id)) return false;
+      if (nodeFocusFilter === 'entry' && !n.is_entry_point) return false;
       if (searchQuery.trim()) {
         return n.label.toLowerCase().includes(searchQuery.toLowerCase());
       }
@@ -154,7 +160,7 @@ const GraphCanvasContent: React.FC<{
         ),
       };
     });
-  }, [graph.nodes, searchQuery, includeExternal, highlightCycles, cycleNodeIds, onSelectNode, onDrillDown]);
+  }, [graph.nodes, searchQuery, includeExternal, highlightCycles, nodeFocusFilter, cycleNodeIds, onSelectNode, onDrillDown]);
 
   // Transform React Flow Edges
   const initialEdges: Edge[] = useMemo(() => {
@@ -199,7 +205,8 @@ const GraphCanvasContent: React.FC<{
   );
 
   return (
-    <div className="relative h-[420px] w-full overflow-hidden rounded-xl border border-slate-800 bg-slate-950 sm:h-[520px]">
+    <div className="relative h-[460px] w-full touch-none overflow-hidden rounded-xl border border-slate-800 bg-slate-950 sm:h-[560px]">
+      {initialNodes.length === 0 && <div className="absolute inset-0 z-10 grid place-items-center p-8 text-center text-xs text-slate-500">No files match the active graph filters. Clear search or select “All files”.</div>}
       <ReactFlow
         nodes={renderedNodes}
         edges={edges}
@@ -207,6 +214,12 @@ const GraphCanvasContent: React.FC<{
         onEdgesChange={onEdgesChange}
         nodeTypes={GRAPH_NODE_TYPES}
         fitView
+        fitViewOptions={{ padding: 0.2 }}
+        minZoom={0.12}
+        maxZoom={2}
+        panOnScroll
+        zoomOnPinch
+        zoomOnDoubleClick={false}
         colorMode="dark"
       >
         <Background color="#334155" gap={16} />
@@ -220,10 +233,10 @@ const GraphCanvasContent: React.FC<{
             return '#64748b';
           }}
           maskColor="rgba(15, 23, 42, 0.7)"
-          className="bg-slate-900 border-slate-800 rounded-xl"
+          className="hidden bg-slate-900 border-slate-800 rounded-xl sm:block"
         />
 
-        <Panel position="bottom-left" className="bg-slate-900/90 border border-slate-800 p-2.5 rounded-xl text-[10px] text-slate-400 flex items-center space-x-3 backdrop-blur-md">
+        <Panel position="bottom-left" className="hidden bg-slate-900/90 border border-slate-800 p-2.5 rounded-xl text-[10px] text-slate-400 items-center space-x-3 backdrop-blur-md sm:flex">
           <span className="font-bold text-slate-300">Legend:</span>
           <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span><span>Python</span></span>
           <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span><span>JavaScript</span></span>
@@ -246,6 +259,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
   const [edgeTypeFilter, setEdgeTypeFilter] = useState<string>('all');
   const [includeExternal, setIncludeExternal] = useState<boolean>(false);
   const [highlightCycles, setHighlightCycles] = useState<boolean>(true);
+  const [nodeFocusFilter, setNodeFocusFilter] = useState<string>('all');
   const [selectedNode, setSelectedNode] = useState<GraphNodeData | null>(null);
   const [currentLevel, setCurrentLevel] = useState<'module' | 'symbol'>('module');
 
@@ -394,6 +408,8 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
             </div>
           </div>
 
+          <div className="flex flex-col gap-2 sm:flex-row">
+          <a href={`/api/projects/${projectId}/graph/download`} className="flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800"><Download className="h-3.5 w-3.5"/>Download Mermaid</a>
           {currentLevel === 'symbol' && (
             <button
               onClick={handleBackToModules}
@@ -403,6 +419,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
               <span>Back to Project View</span>
             </button>
           )}
+          </div>
         </div>
 
         {/* Graph Metrics Grid */}
@@ -435,7 +452,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
           </div>
 
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-            <span className="text-[11px] text-slate-400 block mb-1">Needs review</span>
+            <span className="text-[11px] text-slate-400 block mb-1">High complexity</span>
             <span className="text-lg font-bold text-orange-400">{graph.summary.high_complexity_module_count}</span>
           </div>
         </div>
@@ -466,6 +483,10 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3 text-xs">
+          <div className="flex items-center space-x-1 border border-slate-800 bg-slate-950 rounded-xl p-1" aria-label="File focus filter">
+            <Filter className="ml-1 h-3.5 w-3.5 text-slate-500"/>
+            {[['all','All files'],['review','Needs review'],['entry','Entry points']].map(([value,label]) => <button key={value} onClick={() => setNodeFocusFilter(value)} className={`rounded-lg px-2 py-1 text-[9px] font-bold uppercase ${nodeFocusFilter === value ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>{label}</button>)}
+          </div>
           {/* Edge Type Filter */}
           <div className="flex items-center space-x-1 border border-slate-800 bg-slate-950 rounded-xl p-1">
             {['all', 'import', 'require'].map((type) => (
@@ -519,6 +540,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
               edgeTypeFilter={edgeTypeFilter}
               includeExternal={includeExternal}
               highlightCycles={highlightCycles}
+              nodeFocusFilter={nodeFocusFilter}
               onSelectNode={setSelectedNode}
               onDrillDown={handleDrillDown}
             />
@@ -581,7 +603,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
             ) : (
               <div className="text-center py-12 text-slate-500 text-xs">
                 <Info className="w-6 h-6 mx-auto mb-2 opacity-50" />
-                <p>Select an item to view details. Double-click a file to see its functions and classes.</p>
+                <p>Tap a file to view details. Use the button that appears to open its functions and classes.</p>
               </div>
             )}
           </div>

@@ -101,7 +101,9 @@ def test_plan_scores_and_blast_radius():
     plan = build_migration_plan(db, "proj_migration")
     db.close()
     assert 0 <= plan.readiness_score <= 100
+    assert plan.readiness_score <= plan.projected_readiness_score <= 100
     assert len(plan.categories) == 5
+    assert len(plan.projected_categories) == 5
     core = next(item for item in plan.impacts if item.relative_path == "core.py")
     assert core.blast_radius == 2
     assert core.direct_dependents == ["app.py", "helper.py"]
@@ -118,6 +120,7 @@ def test_markdown_report_contains_decision_sections():
     assert "# Migration Sample Modernization Plan" in report
     assert "## Readiness breakdown" in report
     assert "## Highest-impact files" in report
+    assert "Projected after roadmap" in report
     assert "core.py" in report
 
 

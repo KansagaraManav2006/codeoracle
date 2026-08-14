@@ -294,6 +294,13 @@ export const InputSection: React.FC<InputSectionProps> = ({
           </button>
         </div>
       </form>
+
+      <section className="mt-6 border-t border-slate-800 pt-5" aria-labelledby="workflow-heading">
+        <div className="mb-3 flex items-center justify-between gap-3"><div><h3 id="workflow-heading" className="text-xs font-semibold text-white">How CodeOracle works</h3><p className="mt-0.5 text-[10px] text-slate-500">A safe, review-first modernization workflow</p></div><span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[8px] font-bold uppercase text-emerald-300">Uploaded code is not executed</span></div>
+        <ol className="grid gap-2 sm:grid-cols-4">
+          {[['1','Ingest','ZIP, GitHub or trusted demo'],['2','Understand','Explain files and dependencies'],['3','Protect','Generate tests and find gaps'],['4','Modernize','Review impact and migration plan']].map(([step,title,description]) => <li key={step} className="rounded-lg border border-slate-800 bg-slate-950/50 p-3"><div className="mb-2 grid h-5 w-5 place-items-center rounded-full bg-indigo-600 text-[9px] font-bold text-white">{step}</div><p className="text-[10px] font-semibold text-slate-200">{title}</p><p className="mt-0.5 text-[9px] leading-4 text-slate-500">{description}</p></li>)}
+        </ol>
+      </section>
     </div>
   );
 };

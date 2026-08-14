@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { JobResponse, ProjectFileResponse, ProjectMetadataResponse } from '../types';
+import { JobResponse, ProjectFileResponse, ProjectMetadataResponse, RecentProjectSummary } from '../types';
+
+const RECENT_PROJECTS_KEY = 'codeoracle.recent-projects.v1';
+
+const readRecentProjects = (): RecentProjectSummary[] => {
+  try { return JSON.parse(localStorage.getItem(RECENT_PROJECTS_KEY) || '[]').slice(0, 5); }
+  catch { return []; }
+};
 
 export interface UseJobPollerReturn {
   job: JobResponse | null;
@@ -8,9 +15,12 @@ export interface UseJobPollerReturn {
   loading: boolean;
   error: string | null;
   errorCode: string | null;
+  recentProjects: RecentProjectSummary[];
   submitZip: (file: File) => Promise<void>;
   submitGithub: (url: string) => Promise<void>;
   loadDemo: () => Promise<void>;
+  openRecentProject: (projectId: string) => Promise<void>;
+  removeRecentProject: (projectId: string) => void;
   reset: () => void;
 }
 
@@ -21,6 +31,7 @@ export const useJobPoller = (): UseJobPollerReturn => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [recentProjects, setRecentProjects] = useState<RecentProjectSummary[]>(readRecentProjects);
 
   const activeJobIdRef = useRef<string | null>(null);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -47,6 +58,26 @@ export const useJobPoller = (): UseJobPollerReturn => {
 
       setProject(metaData);
       setFiles(filesData.files || []);
+      let readinessScore: number | undefined;
+      try {
+        const planResponse = await fetch(`/api/projects/${projectId}/migration-plan`);
+        if (planResponse.ok) readinessScore = (await planResponse.json()).readiness_score;
+      } catch { /* Readiness is optional in recent-project history. */ }
+      setRecentProjects((current) => {
+        const entry: RecentProjectSummary = {
+          project_id: metaData.project_id,
+          display_name: metaData.display_name,
+          source_type: metaData.source_type,
+          detected_languages: metaData.detected_languages,
+          total_files: metaData.total_files,
+          total_lines: metaData.total_lines,
+          created_at: metaData.created_at,
+          readiness_score: readinessScore,
+        };
+        const next = [entry, ...current.filter((item) => item.project_id !== entry.project_id)].slice(0, 5);
+        localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(next));
+        return next;
+      });
     } catch (err: any) {
       setError(err.message || 'Failed to fetch project details.');
     }
@@ -167,7 +198,7 @@ export const useJobPoller = (): UseJobPollerReturn => {
     clearPolling();
     setLoading(true); setError(null); setErrorCode(null); setProject(null); setFiles([]);
     try {
-      const response = await fetch('/api/demo/benchmarks/python_legacy', { method: 'POST' });
+      const response = await fetch('/api/demo/benchmarks/legacy_retail', { method: 'POST' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || 'Unable to load the bundled demo.');
       await fetchProjectData(data.project_id);
@@ -188,6 +219,21 @@ export const useJobPoller = (): UseJobPollerReturn => {
     setErrorCode(null);
   };
 
+  const openRecentProject = async (projectId: string) => {
+    setLoading(true); setError(null); setErrorCode(null);
+    try { await fetchProjectData(projectId); }
+    catch { setErrorCode('RECENT_PROJECT_UNAVAILABLE'); }
+    finally { setLoading(false); }
+  };
+
+  const removeRecentProject = (projectId: string) => {
+    setRecentProjects((current) => {
+      const next = current.filter((item) => item.project_id !== projectId);
+      localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
   useEffect(() => {
     return () => {
       clearPolling();
@@ -201,9 +247,12 @@ export const useJobPoller = (): UseJobPollerReturn => {
     loading,
     error,
     errorCode,
+    recentProjects,
     submitZip,
     submitGithub,
     loadDemo,
+    openRecentProject,
+    removeRecentProject,
     reset,
   };
 };

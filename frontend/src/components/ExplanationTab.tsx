@@ -5,12 +5,14 @@ import {
   ChevronRight,
   Code2,
   Cpu,
+  Download,
   FileCode,
   FolderGit2,
   Hash,
   RefreshCw,
   Search,
   ShieldAlert,
+  Target,
   Zap,
 } from 'lucide-react';
 import { ProjectAnalysis, WarningInfo } from '../types';
@@ -18,9 +20,10 @@ import { cleanText, complexityLabel, severityLabel, warningTitle } from '../util
 
 interface ExplanationTabProps {
   projectId?: string | null;
+  onOpenImpact?: (relativePath: string) => void;
 }
 
-export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => {
+export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onOpenImpact }) => {
   const [analysis, setAnalysis] = useState<ProjectAnalysis | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -180,14 +183,17 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
             </div>
           </div>
 
-          <button
-            onClick={() => fetchAnalysis(true)}
-            disabled={loading}
-            className="flex items-center space-x-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 text-xs font-medium rounded-xl transition-colors border border-slate-700 self-start sm:self-auto"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh Explanation</span>
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <a href={`/api/projects/${projectId}/analysis/download`} className="flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800"><Download className="h-3.5 w-3.5"/>Download explanation</a>
+            <button
+              onClick={() => fetchAnalysis(true)}
+              disabled={loading}
+              className="flex items-center justify-center space-x-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 text-xs font-medium rounded-xl transition-colors border border-slate-700"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh Explanation</span>
+            </button>
+          </div>
         </div>
 
         {/* Executive Summary Cards */}
@@ -371,6 +377,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
                 {/* Expanded Details Body */}
                 {isExpanded && (
                   <div className="border-t border-slate-800 bg-slate-950/60 p-6 space-y-6">
+                    {onOpenImpact && <div className="flex justify-end"><button type="button" onClick={() => onOpenImpact(mod.relative_path)} className="inline-flex items-center gap-2 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-[10px] font-semibold text-indigo-200 hover:bg-indigo-500/20"><Target className="h-3.5 w-3.5"/>Check change impact</button></div>}
                     {mod.legacy_warnings.length > 0 && (
                       <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 space-y-2">
                         <div className="flex items-center space-x-2 text-amber-400 text-xs font-bold">

@@ -12,10 +12,11 @@ import {
   Search,
   ShieldCheck,
   Target,
+  TrendingUp,
 } from 'lucide-react';
 import { ChangeImpact, MigrationPlanResponse } from '../types';
 
-interface Props { projectId?: string | null }
+interface Props { projectId?: string | null; focusPath?: string }
 
 const errorMessage = async (response: Response): Promise<string> => {
   try {
@@ -35,12 +36,14 @@ const riskClass = (level: string): string => {
 
 const scoreColor = (score: number): string => score >= 80 ? '#34d399' : score >= 60 ? '#818cf8' : score >= 40 ? '#f59e0b' : '#f87171';
 
-export const MigrationPlanTab: React.FC<Props> = ({ projectId }) => {
+export const MigrationPlanTab: React.FC<Props> = ({ projectId, focusPath = '' }) => {
   const [plan, setPlan] = useState<MigrationPlanResponse | null>(null);
   const [selectedId, setSelectedId] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [riskFilter, setRiskFilter] = useState('all');
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     if (!projectId) return;
@@ -55,22 +58,23 @@ export const MigrationPlanTab: React.FC<Props> = ({ projectId }) => {
       .then((data) => {
         if (!active) return;
         setPlan(data);
-        setSelectedId(data.top_priorities[0]?.module_id || data.impacts[0]?.module_id || '');
+        const focused = data.impacts.find((item) => item.relative_path === focusPath);
+        setSelectedId(focused?.module_id || data.top_priorities[0]?.module_id || data.impacts[0]?.module_id || '');
       })
       .catch((reason) => active && setError(reason instanceof Error ? reason.message : 'Unable to create migration plan.'))
       .finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, [projectId]);
+  }, [projectId, focusPath, retryToken]);
 
   const filteredImpacts = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return plan?.impacts.filter((item) => !query || item.relative_path.toLowerCase().includes(query)) || [];
-  }, [plan, search]);
+    return plan?.impacts.filter((item) => (!query || item.relative_path.toLowerCase().includes(query)) && (riskFilter === 'all' || item.risk_level === riskFilter)) || [];
+  }, [plan, search, riskFilter]);
   const selected: ChangeImpact | undefined = plan?.impacts.find((item) => item.module_id === selectedId);
 
   if (!projectId) return null;
   if (loading) return <div className="flex min-h-[360px] items-center justify-center rounded-2xl border border-slate-800 bg-slate-900"><div className="text-center text-sm text-slate-400"><Loader2 className="mx-auto mb-3 h-7 w-7 animate-spin text-indigo-400"/>Building the safest migration path...</div></div>;
-  if (error) return <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-8 text-center text-sm text-red-300"><AlertTriangle className="mx-auto mb-3 h-7 w-7"/>{error}</div>;
+  if (error) return <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-8 text-center text-sm text-red-300"><AlertTriangle className="mx-auto mb-3 h-7 w-7"/><p>{error}</p><button type="button" onClick={() => setRetryToken((value) => value + 1)} className="mt-4 rounded-lg bg-red-500/20 px-4 py-2 text-xs font-semibold text-red-100 hover:bg-red-500/30">Retry migration analysis</button></div>;
   if (!plan) return null;
 
   const color = scoreColor(plan.readiness_score);
@@ -92,6 +96,27 @@ export const MigrationPlanTab: React.FC<Props> = ({ projectId }) => {
         </div>
       </section>
 
+      <section className="rounded-2xl border border-emerald-500/20 bg-slate-900 p-5 shadow-xl sm:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="max-w-xl">
+            <div className="mb-2 flex items-center gap-2"><TrendingUp className="h-5 w-5 text-emerald-400"/><h3 className="font-semibold text-white">Modernization Outcome Simulation</h3></div>
+            <p className="text-xs leading-5 text-slate-400">A transparent projection of readiness after completing the recommended roadmap. No source code has been changed.</p>
+            <ul className="mt-3 space-y-1">{plan.projected_assumptions.map((assumption) => <li key={assumption} className="flex gap-2 text-[10px] leading-4 text-slate-500"><CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-400"/>{assumption}</li>)}</ul>
+          </div>
+          <div className="flex items-center justify-center gap-3 rounded-xl border border-slate-800 bg-slate-950/70 p-4 sm:gap-6">
+            <div className="text-center"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Current</p><p className="mt-1 text-3xl font-black text-white">{plan.readiness_score}</p><p className="text-[10px] text-slate-500">{plan.readiness_label}</p></div>
+            <ArrowRight className="h-5 w-5 text-emerald-400"/>
+            <div className="text-center"><p className="text-[9px] font-bold uppercase tracking-wider text-emerald-400">Projected</p><p className="mt-1 text-3xl font-black text-emerald-400">{plan.projected_readiness_score}</p><p className="text-[10px] text-emerald-300">+{plan.projected_readiness_score - plan.readiness_score} points</p></div>
+          </div>
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {plan.categories.map((category, index) => {
+            const projected = plan.projected_categories[index];
+            return <div key={category.key} className="rounded-xl border border-slate-800 bg-slate-950/50 p-3"><div className="flex items-center justify-between gap-2"><span className="text-[10px] text-slate-400">{category.label}</span><span className="text-[10px] font-semibold text-emerald-400">{category.score} → {projected.score}</span></div><div className="relative mt-2 h-1.5 overflow-hidden rounded bg-slate-800"><div className="absolute h-full rounded bg-slate-600" style={{width:`${category.score}%`}}/><div className="absolute h-full rounded bg-emerald-400/60" style={{width:`${projected.score}%`}}/></div></div>;
+          })}
+        </div>
+      </section>
+
       <section>
         <div className="mb-3 flex items-center gap-2"><Gauge className="h-4 w-4 text-indigo-400"/><h3 className="text-sm font-semibold text-white">Readiness Breakdown</h3></div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -104,8 +129,10 @@ export const MigrationPlanTab: React.FC<Props> = ({ projectId }) => {
           <div className="mb-3 flex items-center gap-2"><Target className="h-4 w-4 text-rose-400"/><h3 className="text-sm font-semibold text-white">What Breaks If I Change This?</h3></div>
           <p className="mb-3 text-[11px] leading-5 text-slate-500">Select any file to reveal its downstream blast radius and the tests that protect it.</p>
           <div className="relative mb-3"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500"/><input value={search} onChange={(event)=>setSearch(event.target.value)} placeholder="Search source files..." className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2 pl-9 pr-3 text-xs text-slate-200 outline-none focus:border-indigo-500"/></div>
+          <div className="mb-3 flex flex-wrap gap-1">{['all','critical','high','medium','low'].map((level) => <button type="button" key={level} onClick={() => setRiskFilter(level)} className={`rounded border px-2 py-1 text-[8px] font-bold uppercase ${riskFilter === level ? riskClass(level === 'all' ? 'low' : level) : 'border-slate-800 text-slate-600'}`}>{level}</button>)}</div>
           <div className="max-h-[420px] space-y-1 overflow-y-auto pr-1">
             {filteredImpacts.map((item) => <button key={item.module_id} onClick={()=>setSelectedId(item.module_id)} className={`w-full rounded-lg border p-3 text-left transition-colors ${selectedId===item.module_id?'border-indigo-500/50 bg-indigo-500/10':'border-transparent hover:bg-slate-800'}`}><div className="flex items-center justify-between gap-2"><span className="min-w-0 truncate font-mono text-[11px] text-slate-200">{item.relative_path}</span><span className={`shrink-0 rounded border px-2 py-0.5 text-[9px] font-bold uppercase ${riskClass(item.risk_level)}`}>{item.risk_level}</span></div><p className="mt-1 text-[10px] text-slate-500">{item.blast_radius} downstream file(s)</p></button>)}
+            {filteredImpacts.length === 0 && <p className="p-5 text-center text-[10px] text-slate-600">No files match the selected search and risk filters.</p>}
           </div>
         </div>
 

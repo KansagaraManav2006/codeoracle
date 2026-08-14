@@ -3,7 +3,38 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    min-width: 320px;
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
     @apply bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white;
+    min-width: 320px;
+    overflow-x: hidden;
+  }
+
+  button,
+  a,
+  input {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@media (hover: none) {
+  .react-flow__controls-button {
+    width: 38px;
+    height: 38px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }
