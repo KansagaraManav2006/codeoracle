@@ -12,6 +12,9 @@ CodeOracle turns an unfamiliar Python or JavaScript codebase into an understanda
 - Real source-only coverage measurement for the trusted benchmark: **73.8%**, above the required 60%
 - Non-destructive Python 2 and legacy JavaScript modernization proposals
 - Unified diffs, static syntax checks, and explicit breaking-change warnings
+- Explainable 0-100 modernization readiness score across five engineering dimensions
+- Per-file change-impact simulation with downstream blast radius, affected entry points, and tests to run
+- Prioritized migration roadmap plus a downloadable executive Markdown report
 - Python and JavaScript support for repositories up to 100,000 relevant source lines
 - Higher-capacity ingestion: 200 MB ZIP, 500 MB extracted/clone size, 50 MB per file, and 10,000 archive entries
 - Secure ZIP extraction and bounded, non-interactive public GitHub cloning
@@ -56,7 +59,7 @@ cd ../frontend
 npm run build
 ```
 
-Current verification: **81 backend tests pass**, the TypeScript/Vite production build passes, and the browser-tested demo achieves **73.8% measured line coverage**.
+Current verification: **84 backend tests pass**, the TypeScript/Vite production build passes, and the browser-tested demo achieves **73.8% measured line coverage**.
 
 The extended benchmark also covers a synthetic 100,000-line mixed-language project plus the real [Flask](https://github.com/pallets/flask) and [Express](https://github.com/expressjs/express) repositories. See [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for reproducible results.
 
@@ -85,7 +88,8 @@ For Render, Railway, or another Docker host:
 2. Open **Dependency Graph** and point out the internal module edge.
 3. Open **Generated Tests**, click **Generate tests**, and show 73.8% measured coverage.
 4. Open **Refactored Code**, click **Generate proposal**, and show the syntax-valid `xrange` to `range` diff.
-5. Emphasize that uploads are statically analyzed but never executed, and all outputs can be downloaded for human review.
+5. Open **Migration Plan**, show the readiness score, and select a priority file to demonstrate its downstream blast radius.
+6. Download the executive report and emphasize that uploads are statically analyzed but never executed.
 
 ## Architecture
 

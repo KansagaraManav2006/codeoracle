@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
 from app.analysis.graph_models import GraphResponse
@@ -14,6 +15,8 @@ from app.analysis.service import process_analysis_job, run_analysis_for_project
 from app.config import settings
 from app.database import get_db
 from app.models.db import Job, JobState, Project, ProjectAnalysisRecord, ProjectFile, ProjectRefactorRecord
+from app.migration.models import MigrationPlanResponse
+from app.migration.service import build_migration_plan, migration_plan_markdown
 from app.models.schema import (
     AnalyzeRequest,
     GitHubIngestRequest,
@@ -32,6 +35,39 @@ from app.ingestion.zip_ingest import validate_zip_stream
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+@router.get("/projects/{project_id}/migration-plan", response_model=MigrationPlanResponse)
+def get_migration_plan(project_id: str, db: Session = Depends(get_db)) -> MigrationPlanResponse:
+    """Build an explainable modernization-readiness and change-impact plan."""
+    try:
+        return build_migration_plan(db, project_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    except Exception:
+        logger.exception("Migration plan generation failed for project %s", project_id)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unable to create migration plan.")
+
+
+@router.get("/projects/{project_id}/migration-plan/download", response_class=PlainTextResponse)
+def download_migration_plan(project_id: str, db: Session = Depends(get_db)) -> PlainTextResponse:
+    """Download the migration plan as a portable Markdown report."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    try:
+        plan = build_migration_plan(db, project_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    content = migration_plan_markdown(plan, project.display_name)
+    safe_name = "".join(character if character.isalnum() or character in "-_" else "-" for character in project.display_name).strip("-") or "project"
+    return PlainTextResponse(
+        content,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}-migration-plan.md"'},
+    )
 
 
 @router.get("/health", response_model=HealthResponse)

@@ -50,9 +50,49 @@ export interface ProjectFilesListResponse {
   files: ProjectFileResponse[];
 }
 
-export type TabType = 'explanation' | 'graph' | 'tests' | 'refactor';
+export type TabType = 'explanation' | 'graph' | 'tests' | 'refactor' | 'migration';
 
 export type IngestionMode = 'zip' | 'github';
+
+export interface ReadinessCategory {
+  key: string;
+  label: string;
+  score: number;
+  status: string;
+  reason: string;
+}
+
+export interface ChangeImpact {
+  module_id: string;
+  relative_path: string;
+  risk_level: 'low' | 'medium' | 'high' | 'critical';
+  blast_radius: number;
+  direct_dependents: string[];
+  direct_dependencies: string[];
+  affected_entry_points: string[];
+  suggested_tests: string[];
+  reasons: string[];
+}
+
+export interface MigrationPhase {
+  phase: number;
+  title: string;
+  goal: string;
+  risk_level: string;
+  files: string[];
+  actions: string[];
+}
+
+export interface MigrationPlanResponse {
+  project_id: string;
+  readiness_score: number;
+  readiness_label: string;
+  executive_summary: string;
+  categories: ReadinessCategory[];
+  top_priorities: ChangeImpact[];
+  impacts: ChangeImpact[];
+  phases: MigrationPhase[];
+}
 
 // --- Deterministic Analysis Interfaces ---
 

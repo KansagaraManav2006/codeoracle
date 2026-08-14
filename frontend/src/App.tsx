@@ -8,6 +8,7 @@ import ExplanationTab from './components/ExplanationTab';
 import DependencyGraphTab from './components/DependencyGraphTab';
 import GeneratedTestsTab from './components/GeneratedTestsTab';
 import RefactoredCodeTab from './components/RefactoredCodeTab';
+import MigrationPlanTab from './components/MigrationPlanTab';
 import { useJobPoller } from './hooks/useJobPoller';
 import { TabType } from './types';
 
@@ -50,6 +51,7 @@ export const App: React.FC = () => {
               {activeTab === 'graph' && <DependencyGraphTab projectId={project.project_id} />}
               {activeTab === 'tests' && <GeneratedTestsTab projectId={project.project_id} trustedDemo={project.source_type === 'demo_benchmark'} />}
               {activeTab === 'refactor' && <RefactoredCodeTab projectId={project.project_id} />}
+              {activeTab === 'migration' && <MigrationPlanTab projectId={project.project_id} />}
             </div>
           </div>
         )}
