@@ -45,6 +45,7 @@ const GraphNodeView = ({ data }: any) => (
 );
 
 const GRAPH_NODE_TYPES = { default: GraphNodeView };
+const LARGE_GRAPH_THRESHOLD = 36;
 
 const GraphCanvasContent: React.FC<{
   graph: GraphResponse;
@@ -100,34 +101,57 @@ const GraphCanvasContent: React.FC<{
       return true;
     });
 
-    const visibleIds = new Set(filtered.map((node) => node.id));
-    const outgoing = new Map<string, string[]>();
-    graph.edges.forEach((edge) => {
-      if (!visibleIds.has(edge.source) || !visibleIds.has(edge.target)) return;
-      outgoing.set(edge.source, [...(outgoing.get(edge.source) || []), edge.target]);
-    });
-    const depth = new Map<string, number>();
-    const roots = filtered.filter((node) => node.is_entry_point).map((node) => node.id);
-    const queue = (roots.length ? roots : filtered.slice(0, 1).map((node) => node.id)).map((id) => ({ id, level: 0 }));
-    while (queue.length) {
-      const current = queue.shift()!;
-      if ((depth.get(current.id) ?? Number.POSITIVE_INFINITY) <= current.level) continue;
-      depth.set(current.id, current.level);
-      (outgoing.get(current.id) || []).forEach((target) => queue.push({ id: target, level: current.level + 1 }));
-    }
-    const maxDepth = Math.max(0, ...depth.values());
-    filtered.forEach((node) => { if (!depth.has(node.id)) depth.set(node.id, maxDepth + 1); });
-    const rowsByDepth = new Map<number, string[]>();
-    filtered.forEach((node) => {
-      const level = depth.get(node.id) || 0;
-      rowsByDepth.set(level, [...(rowsByDepth.get(level) || []), node.id]);
-    });
+    const positions = new Map<string, { x: number; y: number }>();
     const xSpacing = 300;
     const ySpacing = 150;
 
+    if (filtered.length > LARGE_GRAPH_THRESHOLD && !focusSelected) {
+      // A deep import chain can create a single extremely tall column. For large
+      // repositories, use a bounded architecture overview ordered by importance.
+      const degree = new Map<string, number>();
+      graph.edges.forEach((edge) => {
+        degree.set(edge.source, (degree.get(edge.source) || 0) + 1);
+        degree.set(edge.target, (degree.get(edge.target) || 0) + 1);
+      });
+      const ordered = [...filtered].sort((left, right) =>
+        Number(right.is_entry_point) - Number(left.is_entry_point)
+        || (degree.get(right.id) || 0) - (degree.get(left.id) || 0)
+        || left.label.localeCompare(right.label)
+      );
+      const columns = Math.min(10, Math.max(4, Math.ceil(Math.sqrt(ordered.length * 1.35))));
+      ordered.forEach((node, index) => {
+        positions.set(node.id, { x: (index % columns) * 270 + 40, y: Math.floor(index / columns) * 140 + 40 });
+      });
+    } else {
+      const visibleIds = new Set(filtered.map((node) => node.id));
+      const outgoing = new Map<string, string[]>();
+      graph.edges.forEach((edge) => {
+        if (!visibleIds.has(edge.source) || !visibleIds.has(edge.target)) return;
+        outgoing.set(edge.source, [...(outgoing.get(edge.source) || []), edge.target]);
+      });
+      const depth = new Map<string, number>();
+      const roots = filtered.filter((node) => node.is_entry_point).map((node) => node.id);
+      const queue = (roots.length ? roots : filtered.slice(0, 1).map((node) => node.id)).map((id) => ({ id, level: 0 }));
+      while (queue.length) {
+        const current = queue.shift()!;
+        if ((depth.get(current.id) ?? Number.POSITIVE_INFINITY) <= current.level) continue;
+        depth.set(current.id, current.level);
+        (outgoing.get(current.id) || []).forEach((target) => queue.push({ id: target, level: current.level + 1 }));
+      }
+      const maxDepth = Math.max(0, ...depth.values());
+      filtered.forEach((node) => { if (!depth.has(node.id)) depth.set(node.id, maxDepth + 1); });
+      const rowsByDepth = new Map<number, string[]>();
+      filtered.forEach((node) => {
+        const level = depth.get(node.id) || 0;
+        rowsByDepth.set(level, [...(rowsByDepth.get(level) || []), node.id]);
+      });
+      filtered.forEach((node) => {
+        const column = depth.get(node.id) || 0;
+        positions.set(node.id, { x: column * xSpacing + 40, y: (rowsByDepth.get(column) || []).indexOf(node.id) * ySpacing + 40 });
+      });
+    }
+
     return filtered.map((n) => {
-      const col = depth.get(n.id) || 0;
-      const row = (rowsByDepth.get(col) || []).indexOf(n.id);
       const isCycle = cycleNodeIds.has(n.id);
       const isSelected = selectedNodeId === n.id;
       const isRelated = !selectedNodeId || connectedNodeIds.has(n.id);
@@ -146,7 +170,7 @@ const GraphCanvasContent: React.FC<{
 
       return {
         id: n.id,
-        position: { x: col * xSpacing + 40, y: row * ySpacing + 40 },
+        position: positions.get(n.id) || { x: 40, y: 40 },
         data: { raw: n },
         style: {
           background: 'transparent',
@@ -215,6 +239,7 @@ const GraphCanvasContent: React.FC<{
       .map((e) => {
         const isCycleEdge = cycleNodeIds.has(e.source) && cycleNodeIds.has(e.target);
         const isSelectedEdge = Boolean(selectedNodeId && (e.source === selectedNodeId || e.target === selectedNodeId));
+        const isLargeOverview = initialNodes.length > LARGE_GRAPH_THRESHOLD && !focusSelected;
         const isDimmed = Boolean(selectedNodeId && !isSelectedEdge);
         const strokeColor = isCycleEdge && highlightCycles ? '#f43f5e' : e.type === 'require' ? '#f59e0b' : '#6366f1';
 
@@ -227,7 +252,7 @@ const GraphCanvasContent: React.FC<{
           style: {
             stroke: strokeColor,
             strokeWidth: isSelectedEdge ? 3 : isCycleEdge && highlightCycles ? 2.5 : 1.5,
-            opacity: isDimmed ? 0.18 : 1,
+            opacity: isDimmed ? 0.12 : isLargeOverview ? 0.28 : 1,
             strokeDasharray: e.type === 'require' ? '4,4' : undefined,
           },
           markerEnd: { type: MarkerType.ArrowClosed, color: strokeColor, width: 18, height: 18 },
@@ -236,7 +261,7 @@ const GraphCanvasContent: React.FC<{
           labelBgStyle: { fill: '#0f172a' },
         };
       });
-  }, [graph.edges, initialNodes, edgeTypeFilter, highlightCycles, cycleNodeIds, selectedNodeId]);
+  }, [graph.edges, initialNodes, edgeTypeFilter, highlightCycles, cycleNodeIds, selectedNodeId, focusSelected]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -253,6 +278,7 @@ const GraphCanvasContent: React.FC<{
     () => nodes.map((node: any) => ({ ...node, data: { ...node.data, nodeContent: node.nodeContent } })),
     [nodes]
   );
+  const isLargeOverview = initialNodes.length > LARGE_GRAPH_THRESHOLD && !focusSelected;
 
   return (
     <div className="relative h-[460px] w-full touch-none overflow-hidden rounded-xl border border-slate-800 bg-slate-950 sm:h-[560px]">
@@ -285,6 +311,8 @@ const GraphCanvasContent: React.FC<{
           maskColor="rgba(15, 23, 42, 0.7)"
           className="hidden bg-slate-900 border-slate-800 rounded-xl sm:block"
         />
+
+        {isLargeOverview && <Panel position="top-left" className="max-w-[260px] rounded-xl border border-indigo-500/20 bg-slate-950/90 p-3 text-[10px] leading-4 text-slate-300 shadow-xl backdrop-blur-md"><strong className="block text-indigo-300">Large-project overview</strong>Files are balanced across the canvas so the whole architecture remains navigable. Select a file, then choose <strong>Focus direct connections</strong> for a readable dependency path.</Panel>}
 
         <Panel position="bottom-left" className="hidden bg-slate-900/90 border border-slate-800 p-2.5 rounded-xl text-[10px] text-slate-400 items-center space-x-3 backdrop-blur-md sm:flex">
           <span className="font-bold text-slate-300">Legend:</span>
