@@ -24,6 +24,7 @@ import {
   Search,
 } from 'lucide-react';
 import { GraphNodeData, GraphResponse } from '../types';
+import { complexityLabel, titleCase } from '../utils/presentation';
 
 interface DependencyGraphTabProps {
   projectId?: string | null;
@@ -128,7 +129,7 @@ const GraphCanvasContent: React.FC<{
 
             <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono mt-2">
               <span>{n.kind}</span>
-              {n.line_count > 0 && <span>{n.line_count} LOC</span>}
+              {n.line_count > 0 && <span>{n.line_count.toLocaleString()} lines</span>}
             </div>
 
             {/* Badges footer */}
@@ -140,12 +141,12 @@ const GraphCanvasContent: React.FC<{
               )}
               {n.warning_count > 0 && (
                 <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                  {n.warning_count} Warn
+                  {n.warning_count} {n.warning_count === 1 ? 'note' : 'notes'}
                 </span>
               )}
               {n.complexity_score > 10 && (
                 <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">
-                  Comp: {n.complexity_score}
+                  {complexityLabel(n.complexity_rating, n.complexity_score)} complexity
                 </span>
               )}
             </div>
@@ -379,17 +380,17 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h2 className="text-base font-bold text-white">Interactive Dependency Graph</h2>
+                <h2 className="text-base font-bold text-white">Code Relationships</h2>
                 <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                  {currentLevel === 'module' ? 'Module Level' : 'Symbol Drill-down'}
+                  {currentLevel === 'module' ? 'Project View' : 'File Details'}
                 </span>
                 {graph.cycles.length > 0 && (
                   <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                    {graph.cycles.length} Architectural Cycles
+                    {graph.cycles.length} Dependency {graph.cycles.length === 1 ? 'Loop' : 'Loops'}
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">Explore module relationships and architectural hotspots.</p>
+              <p className="text-xs text-slate-400 mt-0.5">See how files connect and identify areas that need attention.</p>
             </div>
           </div>
 
@@ -399,7 +400,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
               className="flex items-center space-x-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-xl transition-colors border border-slate-700"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Module Graph</span>
+              <span>Back to Project View</span>
             </button>
           )}
         </div>
@@ -407,24 +408,24 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
         {/* Graph Metrics Grid */}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-6">
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-            <span className="text-[11px] text-slate-400 block mb-1">Total Nodes</span>
+            <span className="text-[11px] text-slate-400 block mb-1">Files shown</span>
             <span className="text-lg font-bold text-white">{graph.summary.total_nodes}</span>
           </div>
 
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-            <span className="text-[11px] text-slate-400 block mb-1">Edges</span>
+            <span className="text-[11px] text-slate-400 block mb-1">Connections</span>
             <span className="text-lg font-bold text-indigo-300">{graph.summary.total_edges}</span>
           </div>
 
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-            <span className="text-[11px] text-slate-400 block mb-1">Cycles</span>
+            <span className="text-[11px] text-slate-400 block mb-1">Dependency loops</span>
             <span className={`text-lg font-bold ${graph.summary.cycle_count > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
               {graph.summary.cycle_count}
             </span>
           </div>
 
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-            <span className="text-[11px] text-slate-400 block mb-1">Orphans</span>
+            <span className="text-[11px] text-slate-400 block mb-1">Standalone files</span>
             <span className="text-lg font-bold text-amber-400">{graph.summary.orphan_count}</span>
           </div>
 
@@ -434,7 +435,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
           </div>
 
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-            <span className="text-[11px] text-slate-400 block mb-1">High Complexity</span>
+            <span className="text-[11px] text-slate-400 block mb-1">Needs review</span>
             <span className="text-lg font-bold text-orange-400">{graph.summary.high_complexity_module_count}</span>
           </div>
         </div>
@@ -443,7 +444,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
           <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-300 flex items-center space-x-2">
             <Info className="w-4 h-4 shrink-0" />
             <span>
-              Call edges capped at deterministic limit. {graph.summary.truncated_edges_count} additional call edge(s) truncated for clarity.
+              {graph.summary.truncated_edges_count} additional function call connection(s) are hidden to keep the graph readable.
             </span>
           </div>
         )}
@@ -456,7 +457,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search node label..."
+            placeholder="Search files and modules..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
@@ -528,33 +529,33 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between min-h-[400px]">
           <div>
             <h3 className="text-xs uppercase font-bold text-slate-400 tracking-wider mb-4 border-b border-slate-800 pb-2">
-              Node Details
+              Selected Item
             </h3>
 
             {selectedNode ? (
               <div className="space-y-4">
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-indigo-400 block mb-1">{selectedNode.kind}</span>
+                  <span className="text-[10px] uppercase font-bold text-indigo-400 block mb-1">{titleCase(selectedNode.kind)}</span>
                   <p className="font-mono text-sm font-bold text-white break-all">{selectedNode.label}</p>
                 </div>
 
                 <div className="space-y-2 text-xs text-slate-300">
                   <div className="flex justify-between border-b border-slate-800/60 pb-1">
                     <span className="text-slate-400">Language:</span>
-                    <span className="font-semibold uppercase">{selectedNode.language}</span>
+                    <span className="font-semibold">{titleCase(selectedNode.language)}</span>
                   </div>
                   {selectedNode.line_count > 0 && (
                     <div className="flex justify-between border-b border-slate-800/60 pb-1">
-                      <span className="text-slate-400">Line Count:</span>
-                      <span className="font-mono">{selectedNode.line_count} LOC</span>
+                      <span className="text-slate-400">Lines:</span>
+                      <span>{selectedNode.line_count.toLocaleString()}</span>
                     </div>
                   )}
                   <div className="flex justify-between border-b border-slate-800/60 pb-1">
                     <span className="text-slate-400">Complexity:</span>
-                    <span className="font-semibold">{selectedNode.complexity_score} ({selectedNode.complexity_rating})</span>
+                    <span className="font-semibold" title={`Score ${selectedNode.complexity_score}`}>{complexityLabel(selectedNode.complexity_rating, selectedNode.complexity_score)}</span>
                   </div>
                   <div className="flex justify-between border-b border-slate-800/60 pb-1">
-                    <span className="text-slate-400">Warnings:</span>
+                    <span className="text-slate-400">Suggestions:</span>
                     <span className="font-semibold">{selectedNode.warning_count}</span>
                   </div>
                   <div className="flex justify-between border-b border-slate-800/60 pb-1">
@@ -562,7 +563,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
                     <span className="font-semibold">{selectedNode.is_entry_point ? 'Yes' : 'No'}</span>
                   </div>
                   <div className="flex justify-between border-b border-slate-800/60 pb-1">
-                    <span className="text-slate-400">External:</span>
+                    <span className="text-slate-400">Third-party:</span>
                     <span className="font-semibold">{selectedNode.is_external ? 'Yes' : 'No'}</span>
                   </div>
                 </div>
@@ -573,14 +574,14 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
                     className="w-full mt-4 py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition-colors flex items-center justify-center space-x-2"
                   >
                     <Eye className="w-3.5 h-3.5" />
-                    <span>Drill Down Symbols</span>
+                    <span>View Functions and Classes</span>
                   </button>
                 )}
               </div>
             ) : (
               <div className="text-center py-12 text-slate-500 text-xs">
                 <Info className="w-6 h-6 mx-auto mb-2 opacity-50" />
-                <p>Click any node in the graph to view details or double click a module to drill down into its symbols.</p>
+                <p>Select an item to view details. Double-click a file to see its functions and classes.</p>
               </div>
             )}
           </div>

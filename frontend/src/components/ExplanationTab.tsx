@@ -13,7 +13,8 @@ import {
   ShieldAlert,
   Zap,
 } from 'lucide-react';
-import { ProjectAnalysis } from '../types';
+import { ProjectAnalysis, WarningInfo } from '../types';
+import { cleanText, complexityLabel, severityLabel, warningTitle } from '../utils/presentation';
 
 interface ExplanationTabProps {
   projectId?: string | null;
@@ -50,12 +51,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
 
       const data: ProjectAnalysis = await res.json();
       setAnalysis(data);
-      // Auto-expand first 2 modules by default
-      if (data.modules && data.modules.length > 0) {
-        const initialSet = new Set<string>();
-        data.modules.slice(0, 2).forEach((m) => initialSet.add(m.module_id));
-        setExpandedModules(initialSet);
-      }
+      setExpandedModules(new Set());
     } catch (err: any) {
       setError(err.message || 'Failed to load codebase static analysis.');
     } finally {
@@ -91,7 +87,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
         </div>
         <h3 className="text-lg font-bold text-white mb-2">No Repository Ingested</h3>
         <p className="text-xs text-slate-400 max-w-md">
-          Please upload a legacy codebase ZIP archive or submit a public GitHub repository URL above to view deterministic static code analysis.
+          Upload a ZIP archive or enter a public GitHub repository to begin.
         </p>
       </div>
     );
@@ -123,7 +119,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
           onClick={() => fetchAnalysis(true)}
           className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition-colors"
         >
-          Retry Static Analysis
+          Retry Analysis
         </button>
       </div>
     );
@@ -199,7 +195,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
           <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800">
             <div className="flex items-center space-x-2 text-slate-400 text-xs mb-1">
               <FileCode className="w-4 h-4 text-indigo-400" />
-              <span>Parse Success</span>
+              <span>Files Understood</span>
             </div>
             <p className="text-xl font-bold text-emerald-400">
               {analysis.parse_success_count} / {analysis.total_files}
@@ -217,7 +213,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
           <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800">
             <div className="flex items-center space-x-2 text-slate-400 text-xs mb-1">
               <ShieldAlert className="w-4 h-4 text-amber-400" />
-              <span>Legacy & Risk Warnings</span>
+              <span>Suggestions</span>
             </div>
             <p className="text-xl font-bold text-amber-400">{analysis.project_warnings.length}</p>
           </div>
@@ -225,7 +221,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
           <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800">
             <div className="flex items-center space-x-2 text-slate-400 text-xs mb-1">
               <Cpu className="w-4 h-4 text-indigo-400" />
-              <span>Dependencies</span>
+              <span>Connections</span>
             </div>
             <p className="text-xl font-bold text-indigo-300">{analysis.dependency_edges.length} edges</p>
           </div>
@@ -235,19 +231,19 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
         {analysis.explanation && (
           <div className="bg-slate-950/80 rounded-xl p-5 border border-slate-800/80 space-y-3">
             <h3 className="text-sm font-semibold text-white">In simple words</h3>
-            <p className="text-sm leading-6 text-slate-200">{analysis.explanation.languages_summary}</p>
+            <p className="text-sm leading-6 text-slate-200">{cleanText(analysis.explanation.languages_summary)}</p>
             <div className="grid gap-3 md:grid-cols-3">
               <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
                 <span className="mb-1 block text-[11px] font-semibold text-indigo-400">How it starts</span>
-                <p className="text-xs leading-5 text-slate-300">{analysis.explanation.entry_points_summary}</p>
+                <p className="text-xs leading-5 text-slate-300">{cleanText(analysis.explanation.entry_points_summary)}</p>
               </div>
               <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
                 <span className="mb-1 block text-[11px] font-semibold text-indigo-400">Important files</span>
-                <p className="text-xs leading-5 text-slate-300">{analysis.explanation.major_modules_summary}</p>
+                <p className="text-xs leading-5 text-slate-300">{cleanText(analysis.explanation.major_modules_summary)}</p>
               </div>
               <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
                 <span className="mb-1 block text-[11px] font-semibold text-indigo-400">How files connect</span>
-                <p className="text-xs leading-5 text-slate-300">{analysis.explanation.dependencies_summary}</p>
+                <p className="text-xs leading-5 text-slate-300">{cleanText(analysis.explanation.dependencies_summary)}</p>
               </div>
             </div>
 
@@ -256,7 +252,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
                 <span className="text-[11px] font-semibold text-indigo-400 block mb-1">What CodeOracle noticed</span>
                 <ul className="list-disc list-inside text-xs text-slate-400 space-y-0.5">
                   {analysis.explanation.architectural_observations.map((obs, idx) => (
-                    <li key={idx}>{obs}</li>
+                    <li key={idx}>{cleanText(obs)}</li>
                   ))}
                 </ul>
               </div>
@@ -305,23 +301,29 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
         ) : (
           filteredModules.map((mod) => {
             const isExpanded = expandedModules.has(mod.module_id);
+            const warningGroups = mod.legacy_warnings.reduce<Record<string, WarningInfo[]>>((groups, warning) => {
+              (groups[warning.code] ||= []).push(warning);
+              return groups;
+            }, {});
             return (
               <div
                 key={mod.module_id}
                 className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden transition-all shadow-lg"
               >
                 {/* Module Header Header Row */}
-                <div
+                <button
+                  type="button"
+                  aria-expanded={isExpanded}
                   onClick={() => toggleModuleExpand(mod.module_id)}
-                  className="p-5 cursor-pointer hover:bg-slate-800/40 transition-colors flex items-center justify-between"
+                  className="flex w-full cursor-pointer flex-col gap-3 p-4 text-left transition-colors hover:bg-slate-800/40 sm:flex-row sm:items-center sm:justify-between sm:p-5"
                 >
-                  <div className="flex items-center space-x-3">
-                    <button className="text-slate-400">
+                  <div className="flex min-w-0 items-start space-x-3">
+                    <span className="text-slate-400">
                       {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                    </button>
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-mono text-xs font-bold text-indigo-300">{mod.relative_path}</span>
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="break-all font-mono text-xs font-bold text-indigo-300">{mod.relative_path}</span>
                         <span
                           className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded border ${
                             mod.language === 'python'
@@ -341,7 +343,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
                               : 'bg-red-500/10 text-red-400 border-red-500/20'
                           }`}
                         >
-                          {mod.parse_status}
+                          {mod.parse_status === 'complete' ? 'Analyzed' : mod.parse_status}
                         </span>
 
                         {mod.is_entry_point && (
@@ -351,41 +353,50 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
                         )}
                       </div>
                       {mod.explanation && (
-                        <p className="text-xs text-slate-400 mt-1">{mod.explanation.responsibility}</p>
+                        <p className="text-xs text-slate-400 mt-1">{cleanText(mod.explanation.responsibility)}</p>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-4 text-xs font-mono text-slate-400">
-                    <span>{mod.line_count} LOC</span>
-                    <span>{mod.classes.length} Classes</span>
-                    <span>{mod.functions.length} Functions</span>
-                    <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase ${getComplexityBadgeClass(mod.complexity.rating)}`}>
-                      Comp: {mod.complexity.cyclomatic_complexity}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pl-7 text-xs text-slate-400 sm:justify-end sm:pl-0">
+                    <span>{mod.line_count.toLocaleString()} lines</span>
+                    <span>{mod.classes.length} classes</span>
+                    <span>{mod.functions.length} functions</span>
+                    <span title={`Score ${mod.complexity.cyclomatic_complexity}`} className={`px-2 py-0.5 rounded border text-[10px] font-bold ${getComplexityBadgeClass(mod.complexity.rating)}`}>
+                      Complexity: {complexityLabel(mod.complexity.rating)}
                     </span>
                   </div>
-                </div>
+                </button>
 
                 {/* Expanded Details Body */}
                 {isExpanded && (
                   <div className="border-t border-slate-800 bg-slate-950/60 p-6 space-y-6">
-                    {/* Warnings & Risk Banner */}
                     {mod.legacy_warnings.length > 0 && (
                       <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 space-y-2">
                         <div className="flex items-center space-x-2 text-amber-400 text-xs font-bold">
                           <AlertTriangle className="w-4 h-4" />
-                          <span>Module Legacy & Risk Warnings ({mod.legacy_warnings.length})</span>
+                          <span>Modernization Suggestions ({mod.legacy_warnings.length})</span>
                         </div>
-                        <div className="space-y-1">
-                          {mod.legacy_warnings.map((w, idx) => (
-                            <div key={idx} className="flex items-center justify-between text-xs text-slate-300">
-                              <span>
-                                &bull; <strong className="text-amber-300">[{w.code}]</strong> Line {w.line || 1}: {w.message}
-                              </span>
-                              <span className={`text-[9px] uppercase px-2 py-0.5 rounded border ${getSeverityBadge(w.severity)}`}>
-                                {w.severity}
-                              </span>
-                            </div>
+                        <p className="text-[11px] text-slate-400">Similar findings are grouped. Open a suggestion to see exact lines.</p>
+                        <div className="space-y-2 pt-1">
+                          {Object.entries(warningGroups).map(([code, warnings]) => (
+                            <details key={code} className="group rounded-lg border border-amber-500/15 bg-slate-950/40">
+                              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3 text-xs text-slate-200">
+                                <span className="font-medium text-amber-200">{warningTitle(code)}</span>
+                                <span className="flex shrink-0 items-center gap-2">
+                                  <span className="text-[10px] text-slate-400">{warnings.length} {warnings.length === 1 ? 'finding' : 'findings'}</span>
+                                  <span className={`rounded border px-2 py-0.5 text-[9px] ${getSeverityBadge(warnings[0].severity)}`}>{severityLabel(warnings[0].severity)}</span>
+                                  <ChevronRight className="h-3.5 w-3.5 text-slate-500 transition-transform group-open:rotate-90" />
+                                </span>
+                              </summary>
+                              <div className="space-y-2 border-t border-amber-500/10 px-3 py-2">
+                                {warnings.map((warning, index) => (
+                                  <p key={`${warning.line}-${index}`} className="text-[11px] leading-5 text-slate-400">
+                                    <span className="font-medium text-slate-300">Line {warning.line || 1}:</span> {cleanText(warning.message)}
+                                  </p>
+                                ))}
+                              </div>
+                            </details>
                           ))}
                         </div>
                       </div>
@@ -406,7 +417,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
                                 </div>
                               </div>
                               {cls.explanation && (
-                                <p className="text-xs text-slate-400">{cls.explanation.summary}</p>
+                                <p className="text-xs text-slate-400">{cleanText(cls.explanation.summary)}</p>
                               )}
                             </div>
                           ))}
@@ -435,7 +446,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
                                 </div>
                                 <div className="flex items-center space-x-2">
                                   <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded border ${getComplexityBadgeClass(fn.complexity > 10 ? 'high' : 'low')}`}>
-                                    Complexity: {fn.complexity}
+                                    Complexity: {complexityLabel(undefined, fn.complexity)}
                                   </span>
                                 </div>
                               </div>
@@ -444,10 +455,10 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
                               <div className="text-xs text-slate-300 space-y-1">
                                 {fn.explanation && (
                                   <>
-                                    <p className="text-slate-400">{fn.explanation.summary}</p>
-                                    <p><strong className="text-slate-400">Inputs:</strong> {fn.explanation.inputs_summary}</p>
-                                    <p><strong className="text-slate-400">Returns:</strong> {fn.explanation.returns_summary}</p>
-                                    <p className="text-slate-500 text-[11px]"><strong className="text-slate-400">Calls:</strong> {fn.explanation.side_effects}</p>
+                                    <p className="text-slate-400">{cleanText(fn.explanation.summary)}</p>
+                                    <p><strong className="text-slate-400">Inputs:</strong> {cleanText(fn.explanation.inputs_summary)}</p>
+                                    <p><strong className="text-slate-400">Returns:</strong> {cleanText(fn.explanation.returns_summary)}</p>
+                                    <p className="text-slate-500 text-[11px]"><strong className="text-slate-400">Calls:</strong> {cleanText(fn.explanation.side_effects)}</p>
                                   </>
                                 )}
                               </div>

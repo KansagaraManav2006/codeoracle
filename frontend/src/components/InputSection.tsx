@@ -115,7 +115,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
       <div className="flex flex-col gap-4 border-b border-slate-800 pb-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-white">Codebase Ingestion</h2>
-          <p className="text-xs text-slate-400">Select a ZIP archive or public GitHub repo (up to 100,000 LOC)</p>
+          <p className="text-xs text-slate-400">Select a ZIP archive or public GitHub repo (up to 100,000 source lines)</p>
         </div>
         <div className="grid w-full grid-cols-3 bg-slate-950 p-1 rounded-xl border border-slate-800 sm:w-auto">
           <button

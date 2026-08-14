@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CheckCircle2, ChevronDown, Code2, FileCode, Hash, RotateCcw } from 'lucide-react';
 import { ProjectFileResponse, ProjectMetadataResponse } from '../types';
+import { sourceLabel } from '../utils/presentation';
 
 interface ProjectResultsViewProps {
   project: ProjectMetadataResponse;
@@ -33,7 +34,7 @@ export const ProjectResultsView: React.FC<ProjectResultsViewProps> = ({
             </div>
             <div className="min-w-0">
               <h2 className="truncate text-base font-bold text-white sm:text-lg" title={project.display_name}>{project.display_name}</h2>
-              <p className="text-xs text-slate-400">Source: {project.source_type.toUpperCase()}</p>
+              <p className="text-xs text-slate-400">Source: {sourceLabel(project.source_type)}</p>
             </div>
           </div>
 
@@ -42,7 +43,7 @@ export const ProjectResultsView: React.FC<ProjectResultsViewProps> = ({
             className="flex w-full items-center justify-center space-x-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-xl transition-colors border border-slate-700 sm:w-auto sm:self-auto"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Ingest Another Repository</span>
+            <span>Analyze Another Project</span>
           </button>
         </div>
 
@@ -59,7 +60,7 @@ export const ProjectResultsView: React.FC<ProjectResultsViewProps> = ({
           <div className="bg-slate-950/60 p-3 sm:p-4 rounded-xl border border-slate-800">
             <div className="flex items-center space-x-2 text-slate-400 text-xs mb-1">
               <Hash className="w-4 h-4 text-emerald-400" />
-              <span>Total LOC</span>
+              <span>Code Lines</span>
             </div>
             <p className="text-xl font-bold text-white">{project.total_lines.toLocaleString()}</p>
           </div>

@@ -33,7 +33,7 @@ export const HealthIndicator: React.FC = () => {
     return (
       <div className="flex items-center space-x-2 text-xs text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-lg border border-slate-700">
         <Activity className="w-3.5 h-3.5 animate-spin text-indigo-400" />
-        <span className="hidden sm:inline">Checking backend health...</span>
+        <span className="hidden sm:inline">Connecting...</span>
       </div>
     );
   }
@@ -42,7 +42,7 @@ export const HealthIndicator: React.FC = () => {
     return (
       <div className="flex items-center space-x-2 text-xs text-red-400 bg-red-950/40 px-3 py-1.5 rounded-lg border border-red-800/40">
         <AlertCircle className="w-3.5 h-3.5" />
-        <span className="hidden sm:inline">Backend Disconnected</span>
+        <span className="hidden sm:inline">Service unavailable</span>
       </div>
     );
   }
@@ -50,9 +50,7 @@ export const HealthIndicator: React.FC = () => {
   return (
     <div className="flex items-center space-x-2 text-xs text-emerald-400 bg-emerald-950/40 px-3 py-1.5 rounded-lg border border-emerald-800/40">
       <CheckCircle2 className="w-3.5 h-3.5" />
-      <span className="hidden sm:inline">
-        API Online v{health.version} ({health.app_name})
-      </span>
+      <span className="hidden sm:inline">Service ready</span>
     </div>
   );
 };
