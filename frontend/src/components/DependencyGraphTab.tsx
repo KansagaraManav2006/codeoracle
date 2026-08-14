@@ -47,6 +47,14 @@ const GraphNodeView = ({ data }: any) => (
 const GRAPH_NODE_TYPES = { default: GraphNodeView };
 const LARGE_GRAPH_THRESHOLD = 36;
 
+const graphLabelParts = (label: string) => {
+  const parts = label.replace(/\\/g, '/').split('/').filter(Boolean);
+  const filename = parts.pop() || label;
+  return { filename, directory: parts.join('/') };
+};
+
+const relationshipLabel = (type: string) => type === 'require' ? 'requires' : type === 'call' ? 'calls' : type === 'contains' ? 'contains' : 'imports';
+
 const GraphCanvasContent: React.FC<{
   graph: GraphResponse;
   searchQuery: string;
@@ -56,6 +64,7 @@ const GraphCanvasContent: React.FC<{
   nodeFocusFilter: string;
   selectedNodeId: string | null;
   focusSelected: boolean;
+  showAllEdgeLabels: boolean;
   onSelectNode: (node: GraphNodeData | null) => void;
   onDrillDown: (moduleId: string) => void;
 }> = ({
@@ -67,6 +76,7 @@ const GraphCanvasContent: React.FC<{
   nodeFocusFilter,
   selectedNodeId,
   focusSelected,
+  showAllEdgeLabels,
   onSelectNode,
   onDrillDown,
 }) => {
@@ -120,7 +130,7 @@ const GraphCanvasContent: React.FC<{
       );
       const columns = Math.min(10, Math.max(4, Math.ceil(Math.sqrt(ordered.length * 1.35))));
       ordered.forEach((node, index) => {
-        positions.set(node.id, { x: (index % columns) * 270 + 40, y: Math.floor(index / columns) * 140 + 40 });
+        positions.set(node.id, { x: (index % columns) * 280 + 40, y: Math.floor(index / columns) * 150 + 100 });
       });
     } else {
       const visibleIds = new Set(filtered.map((node) => node.id));
@@ -152,6 +162,7 @@ const GraphCanvasContent: React.FC<{
     }
 
     return filtered.map((n) => {
+      const labelParts = graphLabelParts(n.label);
       const isCycle = cycleNodeIds.has(n.id);
       const isSelected = selectedNodeId === n.id;
       const isRelated = !selectedNodeId || connectedNodeIds.has(n.id);
@@ -178,15 +189,18 @@ const GraphCanvasContent: React.FC<{
           padding: 0,
         },
         nodeContent: (
-          <div
+          <button
+            type="button"
             onClick={() => onSelectNode(n)}
             onDoubleClick={() => !n.is_external && n.kind === 'module' && onDrillDown(n.id)}
-            className={`min-w-[210px] cursor-pointer rounded-xl border p-3 shadow-md transition-all duration-200 hover:z-20 hover:scale-[1.02] ${borderClass} ${isSelected ? 'ring-2 ring-indigo-400 ring-offset-2 ring-offset-slate-950' : ''} ${!isRelated ? 'opacity-35' : ''}`}
+            aria-label={`Select ${n.label}`}
+            className={`w-[220px] cursor-pointer rounded-xl border p-3 text-left shadow-md transition-all duration-200 hover:z-20 hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-indigo-400 ${borderClass} ${isSelected ? 'ring-2 ring-indigo-400 ring-offset-2 ring-offset-slate-950' : ''} ${!isRelated ? 'opacity-35' : ''}`}
           >
-            <div className="flex items-center justify-between gap-2 mb-1">
-              <span className="font-mono text-xs font-bold text-white truncate max-w-[140px]" title={n.label}>
-                {n.label}
-              </span>
+            <div className="mb-1 flex items-start justify-between gap-2">
+              <div className="min-w-0" title={n.label}>
+                <span className="block truncate font-mono text-xs font-bold text-white">{labelParts.filename}</span>
+                {labelParts.directory && <span className="mt-0.5 block truncate font-mono text-[9px] text-slate-500">{labelParts.directory}/</span>}
+              </div>
               <span
                 className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border ${
                   n.is_external
@@ -223,7 +237,7 @@ const GraphCanvasContent: React.FC<{
                 </span>
               )}
             </div>
-          </div>
+          </button>
         ),
       };
     });
@@ -256,12 +270,14 @@ const GraphCanvasContent: React.FC<{
             strokeDasharray: e.type === 'require' ? '4,4' : undefined,
           },
           markerEnd: { type: MarkerType.ArrowClosed, color: strokeColor, width: 18, height: 18 },
-          label: isSelectedEdge ? (e.type === 'require' ? 'requires' : e.type === 'call' ? 'calls' : 'imports') : undefined,
+          label: showAllEdgeLabels || isSelectedEdge ? relationshipLabel(e.type) : undefined,
           labelStyle: { fill: '#94a3b8', fontSize: 10, fontFamily: 'monospace' },
           labelBgStyle: { fill: '#0f172a' },
+          labelBgPadding: [5, 3] as [number, number],
+          labelBgBorderRadius: 4,
         };
       });
-  }, [graph.edges, initialNodes, edgeTypeFilter, highlightCycles, cycleNodeIds, selectedNodeId, focusSelected]);
+  }, [graph.edges, initialNodes, edgeTypeFilter, highlightCycles, cycleNodeIds, selectedNodeId, focusSelected, showAllEdgeLabels]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -312,7 +328,7 @@ const GraphCanvasContent: React.FC<{
           className="hidden bg-slate-900 border-slate-800 rounded-xl sm:block"
         />
 
-        {isLargeOverview && <Panel position="top-left" className="max-w-[260px] rounded-xl border border-indigo-500/20 bg-slate-950/90 p-3 text-[10px] leading-4 text-slate-300 shadow-xl backdrop-blur-md"><strong className="block text-indigo-300">Large-project overview</strong>Files are balanced across the canvas so the whole architecture remains navigable. Select a file, then choose <strong>Focus direct connections</strong> for a readable dependency path.</Panel>}
+        {isLargeOverview && <Panel position="top-center" className="pointer-events-none rounded-xl border border-indigo-500/20 bg-slate-950/90 px-3 py-2 text-center text-[10px] text-slate-300 shadow-xl backdrop-blur-md"><strong className="text-indigo-300">Large-project overview:</strong> select a file, then use <strong>Focus direct connections</strong>.</Panel>}
 
         <Panel position="bottom-left" className="hidden bg-slate-900/90 border border-slate-800 p-2.5 rounded-xl text-[10px] text-slate-400 items-center space-x-3 backdrop-blur-md sm:flex">
           <span className="font-bold text-slate-300">Legend:</span>
@@ -359,6 +375,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
   const [nodeFocusFilter, setNodeFocusFilter] = useState<string>('all');
   const [selectedNode, setSelectedNode] = useState<GraphNodeData | null>(null);
   const [focusSelected, setFocusSelected] = useState<boolean>(false);
+  const [showAllEdgeLabels, setShowAllEdgeLabels] = useState<boolean>(false);
   const [currentLevel, setCurrentLevel] = useState<'module' | 'symbol'>('module');
 
   const nodeById = useMemo(() => new Map((graph?.nodes || []).map((node) => [node.id, node])), [graph]);
@@ -626,6 +643,15 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
             {includeExternal ? 'External: On' : 'External: Off'}
           </button>
 
+          <button
+            type="button"
+            onClick={() => setShowAllEdgeLabels((value) => !value)}
+            className={`rounded-xl border px-3 py-1.5 text-[10px] font-bold uppercase transition-colors ${showAllEdgeLabels ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-slate-800 bg-slate-950 text-slate-400 hover:bg-slate-800'}`}
+            title="Selected connections are always labeled. Enable this to label every visible connection."
+          >
+            Edge labels: {showAllEdgeLabels ? 'All' : 'Smart'}
+          </button>
+
           {/* Highlight Cycles Toggle */}
           <button
             onClick={() => setHighlightCycles(!highlightCycles)}
@@ -643,7 +669,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
       <div className="grid gap-3 rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4 text-xs text-slate-300 sm:grid-cols-3">
         <div className="flex gap-2"><ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-indigo-400"/><span><strong className="text-white">Follow the arrow:</strong> the file at the tail imports, requires, or calls the file at the arrowhead.</span></div>
         <div className="flex gap-2"><Network className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400"/><span><strong className="text-white">Tap a file:</strong> its direct connections become brighter and are explained in the side panel.</span></div>
-        <div className="flex gap-2"><Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-400"/><span><strong className="text-white">Connection styles:</strong> solid purple means import; dashed amber means CommonJS require; red marks a loop.</span></div>
+        <div className="flex gap-2"><Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-400"/><span><strong className="text-white">Connection labels:</strong> Smart labels appear for the selected file. Choose All to label every visible edge. Dashed amber means CommonJS require; red marks a loop.</span></div>
       </div>
 
       {/* Main Canvas & Details Drawer */}
@@ -659,6 +685,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
               nodeFocusFilter={nodeFocusFilter}
               selectedNodeId={selectedNode?.id || null}
               focusSelected={focusSelected}
+              showAllEdgeLabels={showAllEdgeLabels}
               onSelectNode={setSelectedNode}
               onDrillDown={handleDrillDown}
             />
