@@ -20,6 +20,8 @@ export const JobProgressView: React.FC<JobProgressViewProps> = ({
   if (!loading && !job && !error) return null;
 
   if (error || (job && job.state === 'failed')) {
+    const recentProjectUnavailable = errorCode === 'RECENT_PROJECT_UNAVAILABLE';
+
     return (
       <div className="bg-red-950/30 border border-red-800/40 rounded-2xl p-4 sm:p-6 shadow-xl max-w-4xl mx-auto mb-5 sm:mb-8">
         <div className="flex items-start gap-3 sm:gap-4">
@@ -28,7 +30,9 @@ export const JobProgressView: React.FC<JobProgressViewProps> = ({
           </div>
           <div className="flex-1">
             <div className="flex items-center space-x-2 mb-1">
-              <h3 className="text-base font-semibold text-white">Ingestion Failed</h3>
+              <h3 className="text-base font-semibold text-white">
+                {recentProjectUnavailable ? 'Saved Analysis Unavailable' : 'Ingestion Failed'}
+              </h3>
               {errorCode && (
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-red-900/60 text-red-300 border border-red-700/40">
                   {errorCode}
@@ -41,7 +45,7 @@ export const JobProgressView: React.FC<JobProgressViewProps> = ({
               className="inline-flex items-center space-x-2 px-4 py-2 bg-red-900/60 hover:bg-red-800/80 text-white text-xs font-medium rounded-lg transition-colors border border-red-700/50"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Retry Ingestion</span>
+              <span>{recentProjectUnavailable ? 'Back to Analyses' : 'Retry Ingestion'}</span>
             </button>
           </div>
         </div>

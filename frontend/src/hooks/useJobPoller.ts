@@ -3,6 +3,8 @@ import { JobResponse, ProjectFileResponse, ProjectMetadataResponse, RecentProjec
 
 const RECENT_PROJECTS_KEY = 'codeoracle.recent-projects.v1';
 
+type ProjectLoadError = Error & { status?: number };
+
 const readRecentProjects = (): RecentProjectSummary[] => {
   try { return JSON.parse(localStorage.getItem(RECENT_PROJECTS_KEY) || '[]').slice(0, 5); }
   catch { return []; }
@@ -43,15 +45,23 @@ export const useJobPoller = (): UseJobPollerReturn => {
     }
   }, []);
 
-  const fetchProjectData = useCallback(async (projectId: string) => {
+  const fetchProjectData = useCallback(async (projectId: string, fromRecent: boolean = false) => {
     try {
       const [resMeta, resFiles] = await Promise.all([
         fetch(`/api/projects/${projectId}`),
         fetch(`/api/projects/${projectId}/files`),
       ]);
 
-      if (!resMeta.ok) throw new Error('Failed to load project metadata.');
-      if (!resFiles.ok) throw new Error('Failed to load project file inventory.');
+      if (!resMeta.ok) {
+        const loadError: ProjectLoadError = new Error('Failed to load project metadata.');
+        loadError.status = resMeta.status;
+        throw loadError;
+      }
+      if (!resFiles.ok) {
+        const loadError: ProjectLoadError = new Error('Failed to load project file inventory.');
+        loadError.status = resFiles.status;
+        throw loadError;
+      }
 
       const metaData: ProjectMetadataResponse = await resMeta.json();
       const filesData = await resFiles.json();
@@ -79,6 +89,17 @@ export const useJobPoller = (): UseJobPollerReturn => {
         return next;
       });
     } catch (err: any) {
+      if (fromRecent && err.status === 404) {
+        setRecentProjects((current) => {
+          const next = current.filter((item) => item.project_id !== projectId);
+          localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(next));
+          return next;
+        });
+        setErrorCode('RECENT_PROJECT_UNAVAILABLE');
+        setError('This saved analysis is no longer available. Please analyze the repository again.');
+        return;
+      }
+
       setError(err.message || 'Failed to fetch project details.');
     }
   }, []);
@@ -221,8 +242,7 @@ export const useJobPoller = (): UseJobPollerReturn => {
 
   const openRecentProject = async (projectId: string) => {
     setLoading(true); setError(null); setErrorCode(null);
-    try { await fetchProjectData(projectId); }
-    catch { setErrorCode('RECENT_PROJECT_UNAVAILABLE'); }
+    try { await fetchProjectData(projectId, true); }
     finally { setLoading(false); }
   };
 
