@@ -111,6 +111,8 @@ const GraphCanvasContent: React.FC<{
         borderClass = 'border-[#C8DCE4] bg-[#FFFDFC] text-[#292622]';
       } else if (n.language === 'javascript') {
         borderClass = 'border-[#E6D3A9] bg-[#FFFDFC] text-[#292622]';
+      } else if (n.language === 'typescript') {
+        borderClass = 'border-[#C7C4F7] bg-[#FFFDFC] text-[#292622]';
       }
 
       return {
@@ -237,6 +239,7 @@ const GraphCanvasContent: React.FC<{
             if (raw?.is_external) return '#5D8194';
             if (raw?.language === 'python') return '#4C4FD6';
             if (raw?.language === 'javascript') return '#C7953D';
+            if (raw?.language === 'typescript') return '#7B61D1';
             return '#948C81';
           }}
           maskColor="rgba(247, 244, 238, 0.7)"
@@ -255,6 +258,10 @@ const GraphCanvasContent: React.FC<{
           <span className="flex items-center space-x-1">
             <span className="w-2.5 h-2.5 rounded-full bg-[#C7953D]"></span>
             <span>JavaScript</span>
+          </span>
+          <span className="flex items-center space-x-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#7B61D1]"></span>
+            <span>TypeScript</span>
           </span>
           <span className="flex items-center space-x-1">
             <span className="w-2.5 h-2.5 rounded-full bg-[#5D8194]"></span>

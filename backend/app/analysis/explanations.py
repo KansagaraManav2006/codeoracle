@@ -109,7 +109,7 @@ def generate_module_explanation(mod: ModuleAnalysis) -> ModuleExplanation:
 
 def generate_project_explanation(proj: ProjectAnalysis) -> ProjectExplanation:
     """Generates a grounded deterministic project-level explanation synthesis."""
-    language_names = {"python": "Python", "javascript": "JavaScript"}
+    language_names = {"python": "Python", "javascript": "JavaScript", "typescript": "TypeScript"}
     langs = " and ".join(language_names.get(lang, lang.title()) for lang in proj.languages) or "an unknown language"
     file_word = "file" if proj.total_files == 1 else "files"
     lang_summary = f"This is a {langs} project with {proj.total_files} code {file_word} and {proj.total_lines} lines of code."
@@ -137,12 +137,16 @@ def generate_project_explanation(proj: ProjectAnalysis) -> ProjectExplanation:
 
     # Architectural observations
     arch_obs = []
-    if "python" in proj.languages and "javascript" in proj.languages:
-        arch_obs.append("The project combines Python and JavaScript code.")
+    web_languages = [lang for lang in ("javascript", "typescript") if lang in proj.languages]
+    if "python" in proj.languages and web_languages:
+        labels = " and ".join(language_names[lang] for lang in web_languages)
+        arch_obs.append(f"The project combines Python with {labels} code.")
     elif "python" in proj.languages:
         arch_obs.append("The project is organized as Python modules that share functions and data.")
     elif "javascript" in proj.languages:
         arch_obs.append("The project is organized as JavaScript modules that import and export code.")
+    elif "typescript" in proj.languages:
+        arch_obs.append("The project is organized as TypeScript modules that import and export code.")
 
     # Hotspots
     hotspots = []

@@ -3,6 +3,7 @@ import os
 import shutil
 import time
 import zipfile
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
@@ -605,11 +606,63 @@ def test_13_synthetic_100k_line_performance_benchmark(tmp_path):
 def test_typescript_files_are_discovered_and_analyzed(tmp_path) -> None:
     from app.ingestion.discovery import discover_source_files
 
-    ts_file = tmp_path / "app.tsx"
-    ts_file.write_text("import React from 'react';\nexport const App = () => <div>Hello TSX</div>;\n", encoding="utf-8")
+    ts_file = tmp_path / "app.ts"
+    ts_file.write_text("export const message: string = 'Hello TypeScript';\n", encoding="utf-8")
 
     discovery = discover_source_files(tmp_path)
     assert discovery.total_files == 1
     assert "typescript" in discovery.detected_languages
     assert discovery.files[0].language == "typescript"
-    assert discovery.files[0].relative_path == "app.tsx"
+    assert discovery.files[0].relative_path == "app.ts"
+
+    workspace_dir = tmp_path / "workspace"
+    raw_dir = workspace_dir / "raw"
+    raw_dir.mkdir(parents=True)
+    (raw_dir / "app.ts").write_text(ts_file.read_text(encoding="utf-8"), encoding="utf-8")
+
+    db = TestingSessionLocal()
+    project_id = "proj_typescript"
+    db.add(Project(
+        id=project_id,
+        display_name="TypeScript Sample",
+        source_type="zip",
+        detected_languages=["typescript"],
+        total_files=1,
+        total_lines=1,
+        content_hash="typescript_hash",
+        workspace_id="ws_typescript",
+        created_at=datetime.now(timezone.utc),
+    ))
+    db.add(ProjectFile(
+        id="file_typescript",
+        project_id=project_id,
+        relative_path="app.ts",
+        language="typescript",
+        size_bytes=ts_file.stat().st_size,
+        line_count=1,
+        sha256_hash="typescript_file_hash",
+    ))
+    db.commit()
+
+    with patch("app.analysis.service.get_workspace_dir", return_value=workspace_dir):
+        analysis = run_analysis_for_project(db, project_id, force=True)
+        assert analysis.languages == ["typescript"]
+        assert analysis.modules[0].language == "typescript"
+        assert "TypeScript" in analysis.explanation.languages_summary
+
+        # Simulate a cached record created before TypeScript language preservation.
+        record = db.query(ProjectAnalysisRecord).filter(ProjectAnalysisRecord.project_id == project_id).one()
+        stale_data = deepcopy(record.analysis_data)
+        stale_data["languages"] = ["javascript"]
+        stale_data["modules"][0]["language"] = "javascript"
+        record.analysis_data = stale_data
+        db.commit()
+
+        refreshed = client.get(f"/api/projects/{project_id}/analysis")
+        graph = client.get(f"/api/projects/{project_id}/graph")
+
+    assert refreshed.status_code == 200
+    assert refreshed.json()["languages"] == ["typescript"]
+    assert graph.status_code == 200
+    assert graph.json()["nodes"][0]["language"] == "typescript"
+    db.close()

@@ -31,6 +31,15 @@ from app.models.db import Job, JobState, Project, ProjectAnalysisRecord, Project
 logger = logging.getLogger(__name__)
 
 
+def analysis_languages_are_current(analysis: ProjectAnalysis, project_files: List[ProjectFile]) -> bool:
+    """Detect persisted analyses made before TypeScript language preservation."""
+    expected_by_path = {project_file.relative_path: project_file.language for project_file in project_files}
+    return all(
+        expected_by_path.get(module.relative_path, module.language) == module.language
+        for module in analysis.modules
+    )
+
+
 def process_analysis_job(job_id: str, project_id: str, force: bool = False) -> None:
     """
     Background worker for executing static analysis jobs asynchronously.
@@ -77,7 +86,7 @@ def _analyze_single_file(project_id: str, rel_path: str, abs_path: Path, lang: s
     if lang == "python":
         mod = analyze_python_source(project_id, rel_path, abs_path)
     elif lang in ("javascript", "typescript"):
-        mod = analyze_javascript_source(project_id, rel_path, abs_path)
+        mod = analyze_javascript_source(project_id, rel_path, abs_path, language=lang)
     else:
         mod = ModuleAnalysis(
             module_id=generate_module_id(project_id, rel_path),

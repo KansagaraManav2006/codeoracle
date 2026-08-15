@@ -404,10 +404,16 @@ class JavaScriptTreeSitterVisitor:
             self._scan_node_risks_and_calls(child, target_fn_warnings)
 
 
-def analyze_javascript_source(project_id: str, relative_path: str, absolute_path: Path) -> ModuleAnalysis:
+def analyze_javascript_source(
+    project_id: str,
+    relative_path: str,
+    absolute_path: Path,
+    language: str = "javascript",
+) -> ModuleAnalysis:
     """
-    Primary entry point for analyzing a JavaScript source file using tree-sitter-javascript.
-    Supports .js, .jsx, .mjs, .cjs.
+    Analyze JavaScript or TypeScript source using the compatible static parser.
+    The caller-provided language is preserved in the result so the UI does not
+    relabel TypeScript files as JavaScript.
     """
     module_id = generate_module_id(project_id, relative_path)
 
@@ -418,7 +424,7 @@ def analyze_javascript_source(project_id: str, relative_path: str, absolute_path
         return ModuleAnalysis(
             module_id=module_id,
             relative_path=relative_path,
-            language="javascript",
+            language=language,
             line_count=0,
             parse_status="failed",
             parse_errors=[f"Failed to read file: {str(e)}"],
@@ -458,7 +464,7 @@ def analyze_javascript_source(project_id: str, relative_path: str, absolute_path
         return ModuleAnalysis(
             module_id=module_id,
             relative_path=relative_path,
-            language="javascript",
+            language=language,
             line_count=line_count,
             parse_status=parse_status,
             parse_errors=parse_errors,
@@ -481,7 +487,7 @@ def analyze_javascript_source(project_id: str, relative_path: str, absolute_path
         return ModuleAnalysis(
             module_id=module_id,
             relative_path=relative_path,
-            language="javascript",
+            language=language,
             line_count=line_count,
             parse_status="failed",
             parse_errors=[safe_err],
