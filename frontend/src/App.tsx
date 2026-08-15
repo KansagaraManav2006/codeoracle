@@ -9,6 +9,7 @@ import DependencyGraphTab from './components/DependencyGraphTab';
 import GeneratedTestsTab from './components/GeneratedTestsTab';
 import RefactoredCodeTab from './components/RefactoredCodeTab';
 import MigrationPlanTab from './components/MigrationPlanTab';
+import RecentProjectsSection from './components/RecentProjectsSection';
 import { useJobPoller } from './hooks/useJobPoller';
 import { TabType } from './types';
 
@@ -18,7 +19,7 @@ export const App: React.FC = () => {
   const [isGeneratingTests, setIsGeneratingTests] = useState(false);
   const [testGenError, setTestGenError] = useState<string | null>(null);
 
-  const { job, project, files, loading, error, errorCode, submitZip, submitGithub, loadDemo, reset } =
+  const { job, project, files, loading, error, errorCode, submitZip, submitGithub, loadDemo, openProject, reset } =
     useJobPoller();
 
   const handleTestsUpdated = () => {
@@ -31,7 +32,7 @@ export const App: React.FC = () => {
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 py-4 sm:px-4 sm:py-6 lg:px-6 lg:py-8">
         {!project ? (
-          <>
+          <div className="space-y-6 sm:space-y-8">
             <InputSection
               onAnalyzeZip={submitZip}
               onAnalyzeGithub={submitGithub}
@@ -45,7 +46,13 @@ export const App: React.FC = () => {
               errorCode={errorCode}
               onRetry={reset}
             />
-          </>
+            {!loading && (
+              <RecentProjectsSection
+                onOpenProject={openProject}
+                disabled={loading}
+              />
+            )}
+          </div>
         ) : (
           <ProjectResultsView project={project} files={files} onReset={reset} />
         )}

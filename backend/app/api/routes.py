@@ -25,6 +25,7 @@ from app.models.schema import (
     ProjectFileResponse,
     ProjectFilesListResponse,
     ProjectMetadataResponse,
+    RecentProjectsListResponse,
 )
 from app.ingestion.discovery import IngestionError
 from app.ingestion.github_ingest import validate_github_url
@@ -231,6 +232,35 @@ def get_job_status(job_id: str, db: Session = Depends(get_db)) -> JobResponse:
         created_at=job.created_at,
         updated_at=job.updated_at,
     )
+
+
+@router.get("/projects", response_model=RecentProjectsListResponse)
+def get_recent_projects(
+    limit: int = Query(12, ge=1, le=50, description="Max number of recent projects to retrieve"),
+    db: Session = Depends(get_db),
+) -> RecentProjectsListResponse:
+    """Lists recent stored projects from the database ordered by creation date."""
+    projects = (
+        db.query(Project)
+        .order_by(Project.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    items = [
+        ProjectMetadataResponse(
+            project_id=p.id,
+            display_name=p.display_name,
+            source_type=p.source_type,
+            source_url=p.source_url,
+            detected_languages=p.detected_languages or [],
+            total_files=p.total_files,
+            total_lines=p.total_lines,
+            content_hash=p.content_hash,
+            created_at=p.created_at,
+        )
+        for p in projects
+    ]
+    return RecentProjectsListResponse(total=len(items), projects=items)
 
 
 @router.get("/projects/{project_id}", response_model=ProjectMetadataResponse)

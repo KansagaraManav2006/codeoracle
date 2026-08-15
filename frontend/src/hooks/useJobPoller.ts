@@ -11,6 +11,7 @@ export interface UseJobPollerReturn {
   submitZip: (file: File) => Promise<void>;
   submitGithub: (url: string) => Promise<void>;
   loadDemo: (benchmarkName?: string) => Promise<void>;
+  openProject: (projectId: string) => Promise<void>;
   reset: () => void;
 }
 
@@ -177,6 +178,26 @@ export const useJobPoller = (): UseJobPollerReturn => {
     } finally { setLoading(false); }
   };
 
+  const openProject = useCallback(
+    async (projectId: string) => {
+      clearPolling();
+      setLoading(true);
+      setError(null);
+      setErrorCode(null);
+      setProject(null);
+      setFiles([]);
+      try {
+        await fetchProjectData(projectId);
+      } catch (err: any) {
+        setErrorCode('PROJECT_LOAD_FAILED');
+        setError(err.message || 'Unable to load saved project.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [clearPolling, fetchProjectData]
+  );
+
   const reset = () => {
     clearPolling();
     activeJobIdRef.current = null;
@@ -204,6 +225,7 @@ export const useJobPoller = (): UseJobPollerReturn => {
     submitZip,
     submitGithub,
     loadDemo,
+    openProject,
     reset,
   };
 };

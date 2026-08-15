@@ -64,6 +64,11 @@ class ProjectMetadataResponse(BaseModel):
     created_at: datetime
 
 
+class RecentProjectsListResponse(BaseModel):
+    total: int
+    projects: List[ProjectMetadataResponse] = Field(default_factory=list)
+
+
 class ProjectFilesListResponse(BaseModel):
     project_id: str
     total_files: int
