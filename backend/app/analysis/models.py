@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
-ANALYZER_VERSION = "1.0.0"
+ANALYZER_VERSION = "1.1.0"
 
 
 def generate_module_id(project_id: str, relative_path: str) -> str:
@@ -98,7 +98,7 @@ class ModuleExplanation(BaseModel):
 class ModuleAnalysis(BaseModel):
     module_id: str
     relative_path: str
-    language: str  # python, javascript
+    language: str  # python, javascript, typescript
     line_count: int
     parse_status: str  # complete, partial, failed
     parse_errors: List[str] = Field(default_factory=list)

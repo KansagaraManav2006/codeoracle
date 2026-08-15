@@ -5,6 +5,7 @@ from typing import Any, List, Optional, Set, Tuple
 
 import tree_sitter
 import tree_sitter_javascript
+import tree_sitter_typescript
 
 from app.analysis.complexity import calculate_javascript_treesitter_complexity, summarize_module_complexity
 from app.analysis.models import (
@@ -23,10 +24,13 @@ logger = logging.getLogger(__name__)
 
 # Initialize tree-sitter JavaScript parser
 JS_LANGUAGE = tree_sitter.Language(tree_sitter_javascript.language())
+TS_LANGUAGE = tree_sitter.Language(tree_sitter_typescript.language_typescript())
+TSX_LANGUAGE = tree_sitter.Language(tree_sitter_typescript.language_tsx())
 
 
-def _get_ts_parser() -> tree_sitter.Parser:
-    return tree_sitter.Parser(JS_LANGUAGE)
+def _get_ts_parser(language: str = "javascript", is_tsx: bool = False) -> tree_sitter.Parser:
+    grammar = TSX_LANGUAGE if is_tsx else TS_LANGUAGE if language == "typescript" else JS_LANGUAGE
+    return tree_sitter.Parser(grammar)
 
 
 ENTRY_POINT_FILENAMES = {
@@ -404,11 +408,19 @@ class JavaScriptTreeSitterVisitor:
             self._scan_node_risks_and_calls(child, target_fn_warnings)
 
 
-def analyze_javascript_source(project_id: str, relative_path: str, absolute_path: Path) -> ModuleAnalysis:
+def analyze_javascript_source(
+    project_id: str,
+    relative_path: str,
+    absolute_path: Path,
+    language: str = "javascript",
+) -> ModuleAnalysis:
     """
-    Primary entry point for analyzing a JavaScript source file using tree-sitter-javascript.
-    Supports .js, .jsx, .mjs, .cjs.
+    Primary entry point for analyzing JavaScript and TypeScript source files.
+    Selects the TypeScript or TSX grammar for typed source extensions.
     """
+    if language not in {"javascript", "typescript"}:
+        raise ValueError(f"Unsupported ECMAScript language: {language}")
+
     module_id = generate_module_id(project_id, relative_path)
 
     try:
@@ -418,7 +430,7 @@ def analyze_javascript_source(project_id: str, relative_path: str, absolute_path
         return ModuleAnalysis(
             module_id=module_id,
             relative_path=relative_path,
-            language="javascript",
+            language=language,
             line_count=0,
             parse_status="failed",
             parse_errors=[f"Failed to read file: {str(e)}"],
@@ -432,7 +444,7 @@ def analyze_javascript_source(project_id: str, relative_path: str, absolute_path
     is_filename_entry = fname in ENTRY_POINT_FILENAMES
 
     try:
-        parser = _get_ts_parser()
+        parser = _get_ts_parser(language, Path(relative_path).suffix.lower() == ".tsx")
         tree = parser.parse(code_bytes)
         root_node = tree.root_node
 
@@ -458,7 +470,7 @@ def analyze_javascript_source(project_id: str, relative_path: str, absolute_path
         return ModuleAnalysis(
             module_id=module_id,
             relative_path=relative_path,
-            language="javascript",
+            language=language,
             line_count=line_count,
             parse_status=parse_status,
             parse_errors=parse_errors,
@@ -476,12 +488,13 @@ def analyze_javascript_source(project_id: str, relative_path: str, absolute_path
         )
 
     except Exception as e:
-        logger.warning("Tree-sitter JS parser failed on %s: %s", relative_path, str(e))
-        safe_err = f"JavaScript parse error: {str(e)}"
+        language_label = "TypeScript" if language == "typescript" else "JavaScript"
+        logger.warning("Tree-sitter %s parser failed on %s: %s", language_label, relative_path, str(e))
+        safe_err = f"{language_label} parse error: {str(e)}"
         return ModuleAnalysis(
             module_id=module_id,
             relative_path=relative_path,
-            language="javascript",
+            language=language,
             line_count=line_count,
             parse_status="failed",
             parse_errors=[safe_err],

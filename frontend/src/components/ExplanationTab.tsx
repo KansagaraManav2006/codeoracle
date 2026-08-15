@@ -282,7 +282,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onOpe
 
         <div className="flex items-center space-x-2 text-xs">
           <span className="text-slate-400 font-medium">Filter Language:</span>
-          {['all', 'python', 'javascript'].map((lang) => (
+          {['all', 'python', 'javascript', 'typescript'].map((lang) => (
             <button
               key={lang}
               onClick={() => setLanguageFilter(lang)}

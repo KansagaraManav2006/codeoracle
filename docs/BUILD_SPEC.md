@@ -18,7 +18,7 @@
 | **Containerization** | Multi-stage Dockerfile | Serves Vite frontend static assets via FastAPI static mount |
 
 ## 3. Scope & Constraints
-- **Supported Languages**: Python (.py) and JavaScript (.js, .jsx, .mjs, .cjs).
+- **Supported Languages**: Python (.py), JavaScript (.js, .jsx, .mjs, .cjs), and TypeScript (.ts, .tsx, .mts, .cts).
 - **Codebase Capacity**: Repositories up to **50,000 relevant lines of code (LOC)**, exceeding the 10,000-line benchmark requirement.
 - **LLM Key Independence**: Static AST analysis and dependency graph generation work **deterministically without an LLM key**. LLM key enables explanations, deep test synthesis, and refactoring recommendations.
 - **Job Execution Model**: Asynchronous job queue running background tasks with granular state tracking.

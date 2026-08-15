@@ -76,8 +76,8 @@ def _analyze_single_file(project_id: str, rel_path: str, abs_path: Path, lang: s
     """Worker function for analyzing a single source file."""
     if lang == "python":
         mod = analyze_python_source(project_id, rel_path, abs_path)
-    elif lang == "javascript":
-        mod = analyze_javascript_source(project_id, rel_path, abs_path)
+    elif lang in {"javascript", "typescript"}:
+        mod = analyze_javascript_source(project_id, rel_path, abs_path, language=lang)
     else:
         mod = ModuleAnalysis(
             module_id=generate_module_id(project_id, rel_path),

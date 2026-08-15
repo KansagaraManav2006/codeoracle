@@ -226,6 +226,41 @@ def test_08_jsx_handling(tmp_path):
     assert len(mod.exports) >= 1
 
 
+def test_typescript_analysis_and_dependency_resolution(tmp_path):
+    service_code = """import { User } from './models';
+export interface Result { ok: boolean }
+export function loadUser(id: string): Result { return { ok: id.length > 0 }; }
+"""
+    models_code = "export interface User { id: string; name: string }\n"
+    service_file = tmp_path / "service.ts"
+    models_file = tmp_path / "models.ts"
+    service_file.write_text(service_code, encoding="utf-8")
+    models_file.write_text(models_code, encoding="utf-8")
+
+    service_module = analyze_javascript_source("proj_ts", "src/service.ts", service_file, language="typescript")
+    models_module = analyze_javascript_source("proj_ts", "src/models.ts", models_file, language="typescript")
+
+    assert service_module.language == "typescript"
+    assert service_module.parse_status == "complete"
+    assert service_module.functions[0].name == "loadUser"
+    edges = resolve_project_dependencies([service_module, models_module])
+    assert any(edge.resolved and edge.target_module_id == models_module.module_id for edge in edges)
+
+
+def test_tsx_analysis(tmp_path):
+    component_file = tmp_path / "Card.tsx"
+    component_file.write_text(
+        "import React from 'react';\nexport const Card = ({ title }: { title: string }) => <div>{title}</div>;\n",
+        encoding="utf-8",
+    )
+
+    module = analyze_javascript_source("proj_tsx", "src/Card.tsx", component_file, language="typescript")
+
+    assert module.language == "typescript"
+    assert module.parse_status == "complete"
+    assert len(module.exports) >= 1
+
+
 # --- 9. Dependency Resolution ---
 def test_09_dependency_resolution(tmp_path):
     file_main = tmp_path / "main.py"

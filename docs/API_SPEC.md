@@ -135,7 +135,7 @@ Retrieves metadata for an ingested project. Never exposes server filesystem path
 ---
 
 ### `GET /api/projects/{project_id}/files`
-Retrieves the list of discovered Python and JavaScript source files.
+Retrieves the list of discovered Python, JavaScript, and TypeScript source files.
 
 #### Response `200 OK`
 ```json

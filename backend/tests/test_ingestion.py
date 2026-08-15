@@ -260,9 +260,10 @@ def test_12_encrypted_archive(mock_zipfile_cls, tmp_path):
 def test_13_relevant_file_discovery(tmp_path):
     (tmp_path / "main.py").write_text("print('hello')", encoding="utf-8")
     (tmp_path / "app.jsx").write_text("export default () => <div/>;", encoding="utf-8")
+    (tmp_path / "types.ts").write_text("export type ProjectId = string;", encoding="utf-8")
     res = discover_source_files(tmp_path)
-    assert res.total_files == 2
-    assert set(res.detected_languages) == {"python", "javascript"}
+    assert res.total_files == 3
+    assert set(res.detected_languages) == {"python", "javascript", "typescript"}
 
 
 # --- 14. Ignored Directory Filtering ---

@@ -89,7 +89,7 @@ class ClassNode(BaseModel):
 
 class FileNode(BaseModel):
     path: str
-    language: str  # 'python' | 'javascript'
+    language: str  # 'python' | 'javascript' | 'typescript'
     loc: int
     classes: List[ClassNode] = Field(default_factory=list)
     functions: List[FunctionNode] = Field(default_factory=list)

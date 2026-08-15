@@ -1,6 +1,6 @@
 # CodeOracle
 
-CodeOracle turns an unfamiliar Python or JavaScript codebase into an understandable, reviewable modernization plan. Upload a ZIP, connect a public GitHub repository, or use the bundled demo.
+CodeOracle turns an unfamiliar Python, JavaScript, or TypeScript codebase into an understandable, reviewable modernization plan. Upload a ZIP, connect a public GitHub repository, or use the bundled demo.
 
 **Live application:** [https://codeoracle-zker.onrender.com](https://codeoracle-zker.onrender.com)
 
@@ -17,7 +17,7 @@ CodeOracle turns an unfamiliar Python or JavaScript codebase into an understanda
 - Per-file change-impact simulation with downstream blast radius, affected entry points, and tests to run
 - Cross-tab file drill-down, browser-local recent projects, clear loading/empty/error states, and filtering
 - Downloads for explanations, Mermaid graphs, generated tests, refactors, and the executive report
-- Python and JavaScript support for repositories up to 100,000 relevant source lines
+- Python, JavaScript, and TypeScript analysis for repositories up to 100,000 relevant source lines
 - Higher-capacity ingestion: 200 MB ZIP, 500 MB extracted/clone size, 50 MB per file, and 10,000 archive entries
 - Secure ZIP extraction and bounded, non-interactive public GitHub cloning
 

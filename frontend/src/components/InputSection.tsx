@@ -232,7 +232,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
                   <p className="text-sm font-medium text-slate-200">
                     Drag and drop your legacy codebase <code className="text-indigo-400">.zip</code> archive here
                   </p>
-                  <p className="text-xs text-slate-500 mt-1 mb-4">Supports Python (.py) and JavaScript (.js, .jsx) projects</p>
+                  <p className="text-xs text-slate-500 mt-1 mb-4">Supports Python, JavaScript, and TypeScript projects</p>
                   <label className="inline-flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg cursor-pointer transition-colors shadow-md">
                     <span>Browse File</span>
                     <input type="file" accept=".zip" onChange={handleFileInputChange} className="hidden" />

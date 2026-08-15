@@ -53,6 +53,14 @@ const graphLabelParts = (label: string) => {
   return { filename, directory: parts.join('/') };
 };
 
+const languageTheme = (language: string, isExternal: boolean = false) => {
+  if (isExternal) return { border: 'border-purple-500/60 border-dashed', badge: 'bg-purple-500/10 text-purple-400 border-purple-500/20', dot: '#a855f7' };
+  if (language === 'python') return { border: 'border-blue-500/50', badge: 'bg-blue-500/10 text-blue-400 border-blue-500/20', dot: '#3b82f6' };
+  if (language === 'typescript') return { border: 'border-cyan-500/50', badge: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20', dot: '#06b6d4' };
+  if (language === 'javascript') return { border: 'border-amber-500/50', badge: 'bg-amber-500/10 text-amber-400 border-amber-500/20', dot: '#f59e0b' };
+  return { border: 'border-slate-700', badge: 'bg-slate-500/10 text-slate-300 border-slate-500/20', dot: '#64748b' };
+};
+
 const relationshipLabel = (type: string) => type === 'require' ? 'requires' : type === 'call' ? 'calls' : type === 'contains' ? 'contains' : 'imports';
 
 const GraphCanvasContent: React.FC<{
@@ -112,54 +120,73 @@ const GraphCanvasContent: React.FC<{
     });
 
     const positions = new Map<string, { x: number; y: number }>();
-    const xSpacing = 300;
-    const ySpacing = 150;
+    const visibleIds = new Set(filtered.map((node) => node.id));
+    const visibleEdges = graph.edges.filter((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target));
+    const outgoing = new Map<string, string[]>();
+    const incoming = new Map<string, string[]>();
+    visibleEdges.forEach((edge) => {
+      outgoing.set(edge.source, [...(outgoing.get(edge.source) || []), edge.target]);
+      incoming.set(edge.target, [...(incoming.get(edge.target) || []), edge.source]);
+    });
 
-    if (filtered.length > LARGE_GRAPH_THRESHOLD && !focusSelected) {
-      // A deep import chain can create a single extremely tall column. For large
-      // repositories, use a bounded architecture overview ordered by importance.
-      const degree = new Map<string, number>();
-      graph.edges.forEach((edge) => {
-        degree.set(edge.source, (degree.get(edge.source) || 0) + 1);
-        degree.set(edge.target, (degree.get(edge.target) || 0) + 1);
-      });
-      const ordered = [...filtered].sort((left, right) =>
-        Number(right.is_entry_point) - Number(left.is_entry_point)
-        || (degree.get(right.id) || 0) - (degree.get(left.id) || 0)
-        || left.label.localeCompare(right.label)
-      );
-      const columns = Math.min(10, Math.max(4, Math.ceil(Math.sqrt(ordered.length * 1.35))));
-      ordered.forEach((node, index) => {
-        positions.set(node.id, { x: (index % columns) * 280 + 40, y: Math.floor(index / columns) * 150 + 100 });
-      });
-    } else {
-      const visibleIds = new Set(filtered.map((node) => node.id));
-      const outgoing = new Map<string, string[]>();
-      graph.edges.forEach((edge) => {
-        if (!visibleIds.has(edge.source) || !visibleIds.has(edge.target)) return;
-        outgoing.set(edge.source, [...(outgoing.get(edge.source) || []), edge.target]);
-      });
-      const depth = new Map<string, number>();
-      const roots = filtered.filter((node) => node.is_entry_point).map((node) => node.id);
-      const queue = (roots.length ? roots : filtered.slice(0, 1).map((node) => node.id)).map((id) => ({ id, level: 0 }));
-      while (queue.length) {
-        const current = queue.shift()!;
-        if ((depth.get(current.id) ?? Number.POSITIVE_INFINITY) <= current.level) continue;
-        depth.set(current.id, current.level);
-        (outgoing.get(current.id) || []).forEach((target) => queue.push({ id: target, level: current.level + 1 }));
-      }
-      const maxDepth = Math.max(0, ...depth.values());
-      filtered.forEach((node) => { if (!depth.has(node.id)) depth.set(node.id, maxDepth + 1); });
-      const rowsByDepth = new Map<number, string[]>();
-      filtered.forEach((node) => {
-        const level = depth.get(node.id) || 0;
-        rowsByDepth.set(level, [...(rowsByDepth.get(level) || []), node.id]);
-      });
-      filtered.forEach((node) => {
-        const column = depth.get(node.id) || 0;
-        positions.set(node.id, { x: column * xSpacing + 40, y: (rowsByDepth.get(column) || []).indexOf(node.id) * ySpacing + 40 });
+    // Build dependency columns, then order each column by the average row of
+    // its parents. This lightweight Sugiyama-style pass keeps related files
+    // close and makes smooth-step edges substantially easier to follow.
+    const depth = new Map<string, number>();
+    const entryRoots = filtered.filter((node) => node.is_entry_point).map((node) => node.id);
+    const sourceRoots = filtered.filter((node) => !(incoming.get(node.id) || []).length).map((node) => node.id);
+    const roots = [...new Set([...entryRoots, ...sourceRoots])];
+    const queue = (roots.length ? roots : filtered.slice(0, 1).map((node) => node.id)).map((id) => ({ id, level: 0 }));
+    while (queue.length) {
+      const current = queue.shift()!;
+      if ((depth.get(current.id) ?? Number.POSITIVE_INFINITY) <= current.level) continue;
+      depth.set(current.id, current.level);
+      (outgoing.get(current.id) || []).forEach((target) => queue.push({ id: target, level: current.level + 1 }));
+    }
+
+    const nextDisconnectedDepth = Math.max(0, ...depth.values()) + 1;
+    filtered.forEach((node) => {
+      if (!depth.has(node.id)) depth.set(node.id, nextDisconnectedDepth);
+    });
+
+    const rowsByDepth = new Map<number, string[]>();
+    filtered.forEach((node) => {
+      const level = depth.get(node.id) || 0;
+      rowsByDepth.set(level, [...(rowsByDepth.get(level) || []), node.id]);
+    });
+    const maxDepth = Math.max(0, ...rowsByDepth.keys());
+    for (let level = 0; level <= maxDepth; level += 1) {
+      const row = rowsByDepth.get(level) || [];
+      row.sort((left, right) => {
+        const parentAverage = (id: string) => {
+          const parents = (incoming.get(id) || []).filter((parent) => depth.get(parent) === level - 1);
+          if (!parents.length) return Number.POSITIVE_INFINITY;
+          const priorRow = rowsByDepth.get(level - 1) || [];
+          return parents.reduce((sum, parent) => sum + priorRow.indexOf(parent), 0) / parents.length;
+        };
+        const averageDifference = parentAverage(left) - parentAverage(right);
+        if (Number.isFinite(averageDifference) && averageDifference !== 0) return averageDifference;
+        const leftNode = filtered.find((node) => node.id === left)!;
+        const rightNode = filtered.find((node) => node.id === right)!;
+        return Number(rightNode.is_entry_point) - Number(leftNode.is_entry_point) || leftNode.label.localeCompare(rightNode.label);
       });
     }
+
+    const xSpacing = 285;
+    const ySpacing = 135;
+    const maxRowsPerColumn = filtered.length > 18 ? 6 : 7;
+    const visualColumns: string[][] = [];
+    for (let level = 0; level <= maxDepth; level += 1) {
+      const row = rowsByDepth.get(level) || [];
+      for (let start = 0; start < row.length; start += maxRowsPerColumn) {
+        visualColumns.push(row.slice(start, start + maxRowsPerColumn));
+      }
+    }
+    const tallestColumn = Math.max(1, ...visualColumns.map((column) => column.length));
+    visualColumns.forEach((column, columnIndex) => {
+      const verticalOffset = ((tallestColumn - column.length) * ySpacing) / 2;
+      column.forEach((id, index) => positions.set(id, { x: columnIndex * xSpacing + 48, y: index * ySpacing + verticalOffset + 48 }));
+    });
 
     return filtered.map((n) => {
       const labelParts = graphLabelParts(n.label);
@@ -168,15 +195,11 @@ const GraphCanvasContent: React.FC<{
       const isRelated = !selectedNodeId || connectedNodeIds.has(n.id);
 
       // Color coding & borders
-      let borderClass = 'border-slate-700 bg-slate-900';
+      let borderClass = `${languageTheme(n.language, n.is_external).border} bg-slate-900`;
       if (isCycle && highlightCycles) {
         borderClass = 'border-rose-500 bg-rose-950/40 shadow-rose-500/20 shadow-lg';
       } else if (n.is_external) {
         borderClass = 'border-purple-500/60 border-dashed bg-slate-950';
-      } else if (n.language === 'python') {
-        borderClass = 'border-blue-500/50 bg-slate-900';
-      } else if (n.language === 'javascript') {
-        borderClass = 'border-amber-500/50 bg-slate-900';
       }
 
       return {
@@ -202,13 +225,7 @@ const GraphCanvasContent: React.FC<{
                 {labelParts.directory && <span className="mt-0.5 block truncate font-mono text-[9px] text-slate-500">{labelParts.directory}/</span>}
               </div>
               <span
-                className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border ${
-                  n.is_external
-                    ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
-                    : n.language === 'python'
-                    ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                    : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                }`}
+                className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border ${languageTheme(n.language, n.is_external).badge}`}
               >
                 {n.is_external ? 'EXT' : n.language}
               </span>
@@ -314,15 +331,12 @@ const GraphCanvasContent: React.FC<{
         zoomOnDoubleClick={false}
         colorMode="dark"
       >
-        <Background color="#334155" gap={16} />
+        <Background color="#334155" gap={18} size={1} />
         <Controls className="bg-slate-900 border-slate-800 text-slate-200 fill-slate-200" />
         <MiniMap
           nodeColor={(node: any) => {
             const raw = node.data?.raw;
-            if (raw?.is_external) return '#a855f7';
-            if (raw?.language === 'python') return '#3b82f6';
-            if (raw?.language === 'javascript') return '#f59e0b';
-            return '#64748b';
+            return languageTheme(raw?.language || 'unknown', Boolean(raw?.is_external)).dot;
           }}
           maskColor="rgba(15, 23, 42, 0.7)"
           className="hidden bg-slate-900 border-slate-800 rounded-xl sm:block"
@@ -334,6 +348,7 @@ const GraphCanvasContent: React.FC<{
           <span className="font-bold text-slate-300">Legend:</span>
           <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span><span>Python</span></span>
           <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span><span>JavaScript</span></span>
+          <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-cyan-500"></span><span>TypeScript</span></span>
           <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span><span>External</span></span>
           <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span><span>Entry Point</span></span>
         </Panel>
@@ -674,7 +689,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
 
       {/* Main Canvas & Details Drawer */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-3">
+        <div className={selectedNode ? 'lg:col-span-3' : 'lg:col-span-4'}>
           <ReactFlowProvider>
             <GraphCanvasContent
               graph={graph}
@@ -693,14 +708,13 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
         </div>
 
         {/* Selected Node Detail Drawer */}
-        <div className="min-h-[400px] rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl">
+        {selectedNode && <div className="min-h-[400px] rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl">
           <div>
             <h3 className="text-xs uppercase font-bold text-slate-400 tracking-wider mb-4 border-b border-slate-800 pb-2">
               Selected Item
             </h3>
 
-            {selectedNode ? (
-              <div className="space-y-4">
+            <div className="space-y-4">
                 <div>
                   <span className="text-[10px] uppercase font-bold text-indigo-400 block mb-1">{titleCase(selectedNode.kind)}</span>
                   <p className="font-mono text-sm font-bold text-white break-all">{selectedNode.label}</p>
@@ -766,14 +780,8 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
                   <div className="rounded-xl border border-slate-800 bg-slate-950 p-3 text-[11px] leading-5 text-slate-400">No functions or classes were detected in this file, so symbol-level drill-down is not available.</div>
                 )}
               </div>
-            ) : (
-              <div className="text-center py-12 text-slate-500 text-xs">
-                <Info className="w-6 h-6 mx-auto mb-2 opacity-50" />
-                <p>Tap a file to see what it depends on, which files use it, and whether symbol-level details are available.</p>
-              </div>
-            )}
           </div>
-        </div>
+        </div>}
       </div>
     </div>
   );

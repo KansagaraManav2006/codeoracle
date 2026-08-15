@@ -120,7 +120,8 @@ def build_project_dependency_graph(
             # Create external package node
             ext_id = f"ext:{edge.target_module_id}"
             if ext_id not in nodes_map:
-                lang = "python" if "py" in edge.source_module_id else "javascript"
+                source_node = nodes_map.get(edge.source_module_id)
+                lang = source_node.language if source_node else "unknown"
                 nodes_map[ext_id] = GraphNode(
                     id=ext_id,
                     label=edge.target_module_id,
