@@ -1,14 +1,23 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Clipboard, Download, FileDiff, Loader2, Search, ShieldAlert, Wand2, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clipboard, Download, FileDiff, Loader2, ShieldAlert, Wand2, XCircle } from 'lucide-react';
 import { ProjectRefactorResult } from '../types';
 import { cleanText, warningTitle } from '../utils/presentation';
+import EmptyState from './common/EmptyState';
+import StatCard from './common/StatCard';
 
-interface Props { projectId?: string | null }
+interface Props {
+  projectId?: string | null;
+}
+
 type ViewMode = 'diff' | 'original' | 'modernized';
 
 const errorMessage = async (response: Response) => {
-  try { const body = await response.json(); return body.detail || `Request failed (${response.status})`; }
-  catch { return `Request failed (${response.status})`; }
+  try {
+    const body = await response.json();
+    return body.detail || `Request failed (${response.status})`;
+  } catch {
+    return `Request failed (${response.status})`;
+  }
 };
 
 export const RefactoredCodeTab: React.FC<Props> = ({ projectId }) => {
@@ -17,8 +26,6 @@ export const RefactoredCodeTab: React.FC<Props> = ({ projectId }) => {
   const [mode, setMode] = useState<ViewMode>('diff');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [fileSearch, setFileSearch] = useState('');
-  const [riskOnly, setRiskOnly] = useState(false);
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -27,69 +34,260 @@ export const RefactoredCodeTab: React.FC<Props> = ({ projectId }) => {
     if (!response.ok) throw new Error(await errorMessage(response));
     const data: ProjectRefactorResult = await response.json();
     setResult(data);
-    setSelectedPath((current) => current || data.files.find((file) => file.changed)?.relative_path || data.files[0]?.relative_path || '');
+    setSelectedPath(
+      (current) =>
+        current ||
+        data.files.find((file) => file.changed)?.relative_path ||
+        data.files[0]?.relative_path ||
+        ''
+    );
   }, [projectId]);
 
   useEffect(() => {
-    setResult(null); setSelectedPath(''); setError(null);
-    load().catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load proposal.'));
+    setResult(null);
+    setSelectedPath('');
+    setError(null);
+    load().catch((reason) =>
+      setError(reason instanceof Error ? reason.message : 'Unable to load proposal.')
+    );
   }, [load]);
 
   const generate = async () => {
     if (!projectId || loading) return;
-    setLoading(true); setError(null);
+    setLoading(true);
+    setError(null);
     try {
       const response = await fetch(`/api/projects/${projectId}/refactor`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ force: true }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: true }),
       });
       if (!response.ok) throw new Error(await errorMessage(response));
       const data: ProjectRefactorResult = await response.json();
       setResult(data);
-      setSelectedPath(data.files.find((file) => file.changed)?.relative_path || data.files[0]?.relative_path || '');
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Refactor generation failed.'); }
-    finally { setLoading(false); }
+      setSelectedPath(
+        data.files.find((file) => file.changed)?.relative_path || data.files[0]?.relative_path || ''
+      );
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Refactor generation failed.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const files = useMemo(() => result?.files.filter((file) => file.changed) || [], [result]);
-  const visibleFiles = useMemo(() => files.filter((file) => {
-    const matchesSearch = file.relative_path.toLowerCase().includes(fileSearch.toLowerCase());
-    const hasRisk = file.warnings.some((warning) => warning.breaking_change || warning.severity === 'risk');
-    return matchesSearch && (!riskOnly || hasRisk);
-  }), [files, fileSearch, riskOnly]);
   const selected = files.find((file) => file.relative_path === selectedPath) || files[0];
-  const displayedCode = selected ? (mode === 'diff' ? selected.unified_diff : mode === 'original' ? selected.original_code : selected.refactored_code) : '';
+  const displayedCode = selected
+    ? mode === 'diff'
+      ? selected.unified_diff
+      : mode === 'original'
+      ? selected.original_code
+      : selected.refactored_code
+    : '';
 
-  if (!projectId) return <div className="rounded-2xl border border-slate-800 bg-slate-900 p-10 text-center text-sm text-slate-400">Analyze a repository to create a modernization proposal.</div>;
+  if (!projectId)
+    return (
+      <div className="rounded-[24px] border border-[#D8CFC2] bg-[#FFFDFC] p-10 text-center text-sm font-medium text-[#6B645A]">
+        Analyze a repository to create a modernization proposal.
+      </div>
+    );
 
   return (
-    <div className="space-y-4">
-      <section className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-900 p-5 md:flex-row md:items-center md:justify-between">
-        <div><div className="flex items-center gap-2"><Wand2 className="h-5 w-5 text-indigo-400"/><h2 className="font-semibold text-white">Modernization Proposal</h2></div><p className="mt-1 text-xs text-slate-400">Suggested updates shown as reviewable before-and-after changes.</p></div>
+    <div className="space-y-5">
+      {/* Header Action Strip */}
+      <section className="flex flex-col gap-4 rounded-[24px] border border-[#D8CFC2] bg-[#FFFDFC] p-5 md:flex-row md:items-center md:justify-between shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-[#E0EFEB] text-[#368A80] rounded-2xl border border-[#BEE0D6]">
+            <Wand2 className="h-6 w-6" />
+          </div>
+          <div>
+            <h2 className="text-base font-extrabold text-[#292622]">Modernization Proposal</h2>
+            <p className="mt-0.5 text-xs text-[#6B645A]">
+              Suggested updates shown as reviewable before-and-after changes.
+            </p>
+          </div>
+        </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          {result && <a href={`/api/projects/${projectId}/refactor/download`} className="inline-flex items-center gap-2 rounded-lg border border-slate-700 px-4 py-2 text-xs text-slate-200 hover:bg-slate-800"><Download className="h-4 w-4"/>Download proposal</a>}
-          <button onClick={generate} disabled={loading} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-60">{loading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Wand2 className="h-4 w-4"/>}{result ? 'Regenerate' : 'Generate proposal'}</button>
+          {result && (
+            <a
+              href={`/api/projects/${projectId}/refactor/download`}
+              className="btn-brand-outline-pill px-4 py-2 text-xs inline-flex items-center gap-1.5"
+            >
+              <Download className="h-4 w-4" />
+              <span>Download proposal</span>
+            </a>
+          )}
+          <button
+            onClick={generate}
+            disabled={loading}
+            className="btn-brand-pill px-5 py-2.5 text-xs inline-flex items-center gap-1.5 shadow-sm"
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+            <span>{result ? 'Regenerate' : 'Generate proposal'}</span>
+          </button>
         </div>
       </section>
 
-      {error && <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-xs text-red-300"><XCircle className="h-4 w-4"/>{error}</div>}
-      {loading && <div className="flex items-center gap-3 rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-4 text-xs text-indigo-200"><Loader2 className="h-4 w-4 animate-spin"/>Analyzing safe modernization opportunities...</div>}
-      {!result && !loading && <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/50 p-12 text-center"><ShieldAlert className="mx-auto mb-3 h-9 w-9 text-amber-400"/><h3 className="font-medium text-white">Source code stays untouched</h3><p className="mx-auto mt-2 max-w-lg text-xs leading-5 text-slate-400">CodeOracle creates a separate proposal. Nothing is written back to the uploaded repository.</p></div>}
+      {error && (
+        <div className="flex items-center gap-2 rounded-2xl border border-[#ECC7C3] bg-[#F6E5E2] p-4 text-xs font-bold text-[#8F3F3A]">
+          <XCircle className="h-4 w-4 text-[#C45F58] shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
 
-      {result && <>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Metric label="Files reviewed" value={String(result.analyzed_files)}/><Metric label="Files with suggestions" value={String(result.changed_files)}/><Metric label="Suggested updates" value={String(result.total_changes)}/><Metric label="Breaking-change risks" value={String(result.breaking_warning_count)} warning={result.breaking_warning_count > 0}/></div>
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-xs leading-5 text-amber-100"><div className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0"/><div><p className="font-semibold">Human review required</p><p>{result.summary}</p></div></div></div>
-        {files.length === 0 ? <div className="rounded-2xl border border-slate-800 bg-slate-900 p-10 text-center"><CheckCircle2 className="mx-auto mb-3 h-8 w-8 text-emerald-400"/><h3 className="font-medium text-white">No safe automatic updates found</h3><p className="mt-2 text-xs text-slate-400">The original code was left unchanged because no reliable modernization rule applied.</p></div> :
-        <div className="grid min-h-[480px] gap-4 lg:grid-cols-[280px_1fr]">
-          <aside className="rounded-xl border border-slate-800 bg-slate-900 p-3"><p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Files with suggestions</p><div className="relative mb-2"><Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500"/><input value={fileSearch} onChange={(event) => setFileSearch(event.target.value)} placeholder="Search changed files..." className="w-full rounded-lg border border-slate-800 bg-slate-950 py-2 pl-8 pr-2 text-[10px] text-slate-200 outline-none focus:border-indigo-500"/></div><button type="button" onClick={() => setRiskOnly((value) => !value)} className={`mb-2 w-full rounded-lg border px-2 py-1.5 text-[9px] font-bold uppercase ${riskOnly ? 'border-amber-500/30 bg-amber-500/10 text-amber-300' : 'border-slate-800 text-slate-500'}`}>{riskOnly ? 'Breaking risks shown' : 'Show breaking risks only'}</button>{visibleFiles.map((file) => <button key={file.relative_path} onClick={() => setSelectedPath(file.relative_path)} className={`mb-1 w-full rounded-lg p-3 text-left ${selected?.relative_path===file.relative_path?'bg-indigo-600/20 text-indigo-200':'text-slate-400 hover:bg-slate-800'}`}><div className="flex items-center gap-2 text-xs font-medium"><FileDiff className="h-4 w-4 shrink-0"/><span className="truncate">{file.relative_path}</span></div><div className="mt-1 text-[10px]">{file.changes.length} updates | {file.warnings.length} notes</div></button>)}{visibleFiles.length === 0 && <p className="p-4 text-center text-[10px] text-slate-600">No refactored files match these filters.</p>}</aside>
-          {selected && <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950"><header className="flex flex-col gap-3 border-b border-slate-800 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="break-all text-xs font-medium text-white">{selected.relative_path}</p><p className={`text-[10px] ${selected.syntax_valid?'text-emerald-400':'text-red-400'}`}>{selected.syntax_valid ? 'Syntax check passed' : selected.syntax_error}</p></div><div className="flex flex-wrap gap-1">{(['diff','original','modernized'] as ViewMode[]).map((item) => <button key={item} onClick={() => setMode(item)} className={`rounded px-2 py-1 text-[10px] capitalize ${mode===item?'bg-indigo-600 text-white':'border border-slate-700 text-slate-400'}`}>{item}</button>)}<button onClick={() => navigator.clipboard.writeText(displayedCode)} className="ml-1 rounded border border-slate-700 p-1.5 text-slate-300" title="Copy"><Clipboard className="h-3 w-3"/></button></div></header>
-            {selected.warnings.length > 0 && <div className="border-b border-slate-800 bg-slate-900/60 p-3">{selected.warnings.map((warning, index) => <div key={`${warning.code}-${index}`} className={`mb-1 flex gap-2 text-[10px] ${warning.breaking_change?'text-amber-300':'text-slate-400'}`}><AlertTriangle className="h-3 w-3 shrink-0"/><span><strong>{warningTitle(warning.code)}</strong>: {cleanText(warning.message)}</span></div>)}</div>}
-            <pre className="max-h-[560px] overflow-auto p-4 text-xs leading-5 text-slate-300"><code>{displayedCode}</code></pre></section>}
-        </div>}
-      </>}
+      {loading && (
+        <div className="flex items-center gap-3 rounded-2xl border border-[#C7C4F7] bg-[#EAE9FB]/70 p-4 text-xs font-bold text-[#4340A0]">
+          <Loader2 className="h-4 w-4 animate-spin text-[#4C4FD6]" />
+          <span>Analyzing safe modernization opportunities...</span>
+        </div>
+      )}
+
+      {/* Shared Empty State */}
+      {!result && !loading && (
+        <EmptyState
+          icon={ShieldAlert}
+          iconVariant="success"
+          headline="Source code stays untouched"
+          description="CodeOracle constructs a separate refactor proposal to modernize legacy patterns without mutating original files."
+          actionText="Generate Refactor Proposal"
+          onAction={generate}
+          trustCopy="Nothing is written back to the uploaded repository. All proposed changes can be downloaded as a reviewable diff."
+        />
+      )}
+
+      {/* Result Metrics & Proposal Viewer */}
+      {result && (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="Files reviewed" value={String(result.analyzed_files)} />
+            <StatCard label="Files with suggestions" value={String(result.changed_files)} />
+            <StatCard label="Suggested updates" value={String(result.total_changes)} />
+            <StatCard
+              label="Breaking-change risks"
+              value={String(result.breaking_warning_count)}
+              signalAmber={result.breaking_warning_count > 0}
+            />
+          </div>
+
+          <div className="rounded-2xl border border-[#E6D3A9] bg-[#F5E8CC] p-4 text-xs leading-5 text-[#76561B]">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#C7953D]" />
+              <div>
+                <p className="font-extrabold text-[#292622]">Human review required</p>
+                <p className="mt-0.5 font-medium">{result.summary}</p>
+              </div>
+            </div>
+          </div>
+
+          {files.length === 0 ? (
+            <div className="rounded-[24px] border border-[#D8CFC2] bg-[#FFFDFC] p-10 text-center shadow-xs">
+              <CheckCircle2 className="mx-auto mb-3 h-8 w-8 text-[#368A80]" />
+              <h3 className="text-base font-bold text-[#292622]">No safe automatic updates found</h3>
+              <p className="mt-1 text-xs text-[#6B645A]">
+                The original code was left unchanged because no reliable modernization rule applied.
+              </p>
+            </div>
+          ) : (
+            <div className="grid min-h-[480px] gap-4 lg:grid-cols-[280px_1fr]">
+              <aside className="rounded-[20px] border border-[#D8CFC2] bg-[#FFFDFC] p-3 shadow-xs">
+                <p className="mb-2 px-2 text-[10px] font-extrabold uppercase tracking-wider text-[#6B645A]">
+                  Files with suggestions
+                </p>
+                {files.map((file) => (
+                  <button
+                    key={file.relative_path}
+                    onClick={() => setSelectedPath(file.relative_path)}
+                    className={`mb-1.5 w-full rounded-xl p-3 text-left transition-all ${
+                      selected?.relative_path === file.relative_path
+                        ? 'bg-[#EAE9FB] text-[#4340A0] font-bold shadow-xs'
+                        : 'text-[#4D4842] hover:bg-[#F0EBE2]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 text-xs font-bold">
+                      <FileDiff className="h-4 w-4 shrink-0 text-[#4C4FD6]" />
+                      <span className="truncate">{file.relative_path}</span>
+                    </div>
+                    <div className="mt-1 text-[10px] text-[#6B645A]">
+                      {file.changes.length} updates | {file.warnings.length} notes
+                    </div>
+                  </button>
+                ))}
+              </aside>
+
+              <section className="overflow-hidden rounded-[20px] border-2 border-[#181715] bg-[#1C1A17] shadow-md">
+                {selected && (
+                  <>
+                    <header className="flex flex-col gap-3 border-b border-[#3B3733] bg-[#181715] px-4 py-3 sm:flex-row sm:items-center sm:justify-between text-white">
+                      <div>
+                        <p className="break-all text-xs font-extrabold text-indigo-300">
+                          {selected.relative_path}
+                        </p>
+                        <p
+                          className={`text-[10px] font-bold ${
+                            selected.syntax_valid ? 'text-emerald-400' : 'text-rose-400'
+                          }`}
+                        >
+                          {selected.syntax_valid
+                            ? 'Syntax check passed'
+                            : selected.syntax_error}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="inline-flex rounded-full border border-[#3B3733] bg-[#2D2A26] p-0.5">
+                          {(['diff', 'original', 'modernized'] as ViewMode[]).map((item) => (
+                            <button
+                              key={item}
+                              onClick={() => setMode(item)}
+                              className={`rounded-full px-3 py-1 text-[10px] capitalize font-extrabold transition-all ${
+                                mode === item
+                                  ? 'bg-[#4C4FD6] text-white shadow-xs'
+                                  : 'text-[#A3998E] hover:text-white'
+                              }`}
+                            >
+                              {item}
+                            </button>
+                          ))}
+                        </div>
+
+                        <button
+                          onClick={() => navigator.clipboard.writeText(displayedCode)}
+                          className="px-2.5 py-1 text-[10px] font-bold rounded-full bg-[#383BA8] text-white hover:bg-[#4C4FD6] transition-colors border border-indigo-400/30 inline-flex items-center gap-1"
+                          title="Copy code"
+                        >
+                          <Clipboard className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </header>
+
+                    {selected.warnings.length > 0 && (
+                      <div className="border-b border-[#3B3733] bg-[#76561B]/40 p-3 text-amber-200">
+                        {selected.warnings.map((warning, index) => (
+                          <div
+                            key={`${warning.code}-${index}`}
+                            className="mb-1 flex gap-2 text-[10px] font-semibold text-amber-300"
+                          >
+                            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                            <span>
+                              <strong>{warningTitle(warning.code)}</strong>: {cleanText(warning.message)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <pre className="max-h-[560px] overflow-auto p-4 text-xs font-mono leading-6 text-[#F3F0EB] bg-[#1C1A17]">
+                      <code>{displayedCode}</code>
+                    </pre>
+                  </>
+                )}
+              </section>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 };
-
-const Metric: React.FC<{label:string;value:string;warning?:boolean}> = ({label,value,warning}) => <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4"><p className="text-[10px] uppercase tracking-wider text-slate-500">{label}</p><p className={`mt-1 text-lg font-bold ${warning?'text-amber-400':'text-white'}`}>{value}</p></div>;
 
 export default RefactoredCodeTab;

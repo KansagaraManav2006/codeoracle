@@ -12,8 +12,7 @@ from app.ingestion.discovery import IngestionError
 logger = logging.getLogger(__name__)
 
 GITHUB_URL_REGEX = re.compile(
-    r"^https://github\.com/([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+?)(?:\.git)?$",
-    re.IGNORECASE,
+    r"^https://github\.com/([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+?)(?:\.git)?$"
 )
 
 
@@ -25,22 +24,20 @@ def validate_github_url(url_str: str) -> str:
     if not url_str or not isinstance(url_str, str):
         raise IngestionError(code="INVALID_GITHUB_URL", message="GitHub URL must be a non-empty string.")
 
-    # Host names and URL schemes are case-insensitive. Mobile keyboards and
-    # copied GitHub links also commonly leave a harmless trailing slash.
-    url_str = url_str.strip().rstrip("/")
+    url_str = url_str.strip()
 
     if "?" in url_str or "#" in url_str:
         raise IngestionError(code="INVALID_GITHUB_URL", message="GitHub URL must not contain query strings or fragments.")
 
     parsed = urlparse(url_str)
 
-    if parsed.scheme.lower() != "https":
+    if parsed.scheme != "https":
         raise IngestionError(code="INVALID_GITHUB_URL", message="Only HTTPS scheme is supported for GitHub repository URLs.")
 
     if parsed.username or parsed.password:
         raise IngestionError(code="INVALID_GITHUB_URL", message="Embedded credentials in GitHub URL are prohibited.")
 
-    if (parsed.hostname or "").lower() != "github.com":
+    if parsed.hostname != "github.com":
         raise IngestionError(code="INVALID_GITHUB_URL", message="Only github.com repository URLs are supported.")
 
     match = GITHUB_URL_REGEX.match(url_str)

@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 class GraphNode(BaseModel):
     id: str
     label: str  # Safe relative path for modules or symbol name
-    language: str = "unknown"  # python, javascript, typescript, external
+    language: str = "unknown"  # python, javascript, external
     kind: str = "module"  # module, class, function, method, external
     parse_status: Optional[str] = None  # complete, partial, failed
     line_count: int = 0

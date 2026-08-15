@@ -32,8 +32,7 @@ IGNORED_FILE_EXACT: Set[str] = {
 
 PYTHON_EXTENSIONS: Set[str] = {".py"}
 JAVASCRIPT_EXTENSIONS: Set[str] = {".js", ".jsx", ".mjs", ".cjs"}
-TYPESCRIPT_EXTENSIONS: Set[str] = {".ts", ".tsx", ".mts", ".cts"}
-SUPPORTED_EXTENSIONS = PYTHON_EXTENSIONS | JAVASCRIPT_EXTENSIONS | TYPESCRIPT_EXTENSIONS
+SUPPORTED_EXTENSIONS = PYTHON_EXTENSIONS | JAVASCRIPT_EXTENSIONS
 
 
 @dataclass
@@ -108,8 +107,6 @@ def discover_source_files(root_dir: Path) -> DiscoveryResult:
                 language = "python"
             elif ext in JAVASCRIPT_EXTENSIONS:
                 language = "javascript"
-            elif ext in TYPESCRIPT_EXTENSIONS:
-                language = "typescript"
             else:
                 continue
 
@@ -128,7 +125,7 @@ def discover_source_files(root_dir: Path) -> DiscoveryResult:
                 lines = content_str.splitlines()
                 line_count = len(lines)
 
-                if language in {"javascript", "typescript"} and lines:
+                if language == "javascript" and lines:
                     avg_len = sum(len(l) for l in lines) / max(len(lines), 1)
                     if is_minified_javascript(fname, lines[0], avg_len):
                         continue
@@ -167,7 +164,7 @@ def discover_source_files(root_dir: Path) -> DiscoveryResult:
     if not discovered:
         raise IngestionError(
             code="NO_SOURCE_FILES",
-            message="No supported Python, JavaScript, or TypeScript source files found in repository.",
+            message="No supported Python or JavaScript source files found in repository.",
         )
 
     # Calculate global project content hash using sorted (rel_path:file_hash) entry hashes

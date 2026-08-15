@@ -4,32 +4,27 @@ import {
   Controls,
   Edge,
   Handle,
-  MarkerType,
   MiniMap,
   Node,
   Panel,
   ReactFlow,
   useEdgesState,
   useNodesState,
-  useReactFlow,
   ReactFlowProvider,
   Position,
+  useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import {
   AlertTriangle,
   ArrowLeft,
-  ArrowRight,
   Cpu,
-  Download,
   Eye,
-  Filter,
   Info,
-  Network,
   RefreshCw,
   Search,
 } from 'lucide-react';
-import { GraphEdgeData, GraphNodeData, GraphResponse } from '../types';
+import { GraphNodeData, GraphResponse } from '../types';
 import { complexityLabel, titleCase } from '../utils/presentation';
 
 interface DependencyGraphTabProps {
@@ -38,30 +33,29 @@ interface DependencyGraphTabProps {
 
 const GraphNodeView = ({ data }: any) => (
   <>
-    <Handle type="target" position={Position.Left} className="!h-2 !w-2 !border-slate-950 !bg-indigo-400" />
+    <Handle type="target" position={Position.Left} className="!h-2.5 !w-2.5 !border-[#FFFDFC] !bg-[#4C4FD6]" />
     {data.nodeContent}
-    <Handle type="source" position={Position.Right} className="!h-2 !w-2 !border-slate-950 !bg-indigo-400" />
+    <Handle type="source" position={Position.Right} className="!h-2.5 !w-2.5 !border-[#FFFDFC] !bg-[#4C4FD6]" />
   </>
 );
 
 const GRAPH_NODE_TYPES = { default: GraphNodeView };
-const LARGE_GRAPH_THRESHOLD = 36;
 
-const graphLabelParts = (label: string) => {
-  const parts = label.replace(/\\/g, '/').split('/').filter(Boolean);
-  const filename = parts.pop() || label;
-  return { filename, directory: parts.join('/') };
+// Helper component to trigger auto-fit zoom on load/updates
+const AutoFitController: React.FC<{ nodesLength: number }> = ({ nodesLength }) => {
+  const { fitView } = useReactFlow();
+
+  useEffect(() => {
+    if (nodesLength > 0) {
+      const timer = setTimeout(() => {
+        fitView({ padding: 0.2, duration: 400 });
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [nodesLength, fitView]);
+
+  return null;
 };
-
-const languageTheme = (language: string, isExternal: boolean = false) => {
-  if (isExternal) return { border: 'border-purple-500/60 border-dashed', badge: 'bg-purple-500/10 text-purple-400 border-purple-500/20', dot: '#a855f7' };
-  if (language === 'python') return { border: 'border-blue-500/50', badge: 'bg-blue-500/10 text-blue-400 border-blue-500/20', dot: '#3b82f6' };
-  if (language === 'typescript') return { border: 'border-cyan-500/50', badge: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20', dot: '#06b6d4' };
-  if (language === 'javascript') return { border: 'border-amber-500/50', badge: 'bg-amber-500/10 text-amber-400 border-amber-500/20', dot: '#f59e0b' };
-  return { border: 'border-slate-700', badge: 'bg-slate-500/10 text-slate-300 border-slate-500/20', dot: '#64748b' };
-};
-
-const relationshipLabel = (type: string) => type === 'require' ? 'requires' : type === 'call' ? 'calls' : type === 'contains' ? 'contains' : 'imports';
 
 const GraphCanvasContent: React.FC<{
   graph: GraphResponse;
@@ -69,10 +63,6 @@ const GraphCanvasContent: React.FC<{
   edgeTypeFilter: string;
   includeExternal: boolean;
   highlightCycles: boolean;
-  nodeFocusFilter: string;
-  selectedNodeId: string | null;
-  focusSelected: boolean;
-  showAllEdgeLabels: boolean;
   onSelectNode: (node: GraphNodeData | null) => void;
   onDrillDown: (moduleId: string) => void;
 }> = ({
@@ -81,10 +71,6 @@ const GraphCanvasContent: React.FC<{
   edgeTypeFilter,
   includeExternal,
   highlightCycles,
-  nodeFocusFilter,
-  selectedNodeId,
-  focusSelected,
-  showAllEdgeLabels,
   onSelectNode,
   onDrillDown,
 }) => {
@@ -95,116 +81,40 @@ const GraphCanvasContent: React.FC<{
     return set;
   }, [graph.cycles]);
 
-  const connectedNodeIds = useMemo(() => {
-    if (!selectedNodeId) return new Set<string>();
-    const ids = new Set<string>([selectedNodeId]);
-    graph.edges.forEach((edge) => {
-      if (edge.source === selectedNodeId) ids.add(edge.target);
-      if (edge.target === selectedNodeId) ids.add(edge.source);
-    });
-    return ids;
-  }, [graph.edges, selectedNodeId]);
-
-  // Place entry points on the left and dependencies in successive columns.
-  // This makes an arrow read naturally as "source depends on target".
+  // Layout Nodes Deterministically in a multi-row grid
   const initialNodes: Node[] = useMemo(() => {
     const filtered = graph.nodes.filter((n) => {
       if (!includeExternal && n.is_external) return false;
-      if (focusSelected && selectedNodeId && !connectedNodeIds.has(n.id)) return false;
-      if (nodeFocusFilter === 'review' && n.warning_count === 0 && n.complexity_score <= 10 && !cycleNodeIds.has(n.id)) return false;
-      if (nodeFocusFilter === 'entry' && !n.is_entry_point) return false;
       if (searchQuery.trim()) {
         return n.label.toLowerCase().includes(searchQuery.toLowerCase());
       }
       return true;
     });
 
-    const positions = new Map<string, { x: number; y: number }>();
-    const visibleIds = new Set(filtered.map((node) => node.id));
-    const visibleEdges = graph.edges.filter((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target));
-    const outgoing = new Map<string, string[]>();
-    const incoming = new Map<string, string[]>();
-    visibleEdges.forEach((edge) => {
-      outgoing.set(edge.source, [...(outgoing.get(edge.source) || []), edge.target]);
-      incoming.set(edge.target, [...(incoming.get(edge.target) || []), edge.source]);
-    });
+    const columns = Math.ceil(Math.sqrt(filtered.length * 1.5)) || 1;
+    const xSpacing = 280;
+    const ySpacing = 160;
 
-    // Build dependency columns, then order each column by the average row of
-    // its parents. This lightweight Sugiyama-style pass keeps related files
-    // close and makes smooth-step edges substantially easier to follow.
-    const depth = new Map<string, number>();
-    const entryRoots = filtered.filter((node) => node.is_entry_point).map((node) => node.id);
-    const sourceRoots = filtered.filter((node) => !(incoming.get(node.id) || []).length).map((node) => node.id);
-    const roots = [...new Set([...entryRoots, ...sourceRoots])];
-    const queue = (roots.length ? roots : filtered.slice(0, 1).map((node) => node.id)).map((id) => ({ id, level: 0 }));
-    while (queue.length) {
-      const current = queue.shift()!;
-      if ((depth.get(current.id) ?? Number.POSITIVE_INFINITY) <= current.level) continue;
-      depth.set(current.id, current.level);
-      (outgoing.get(current.id) || []).forEach((target) => queue.push({ id: target, level: current.level + 1 }));
-    }
-
-    const nextDisconnectedDepth = Math.max(0, ...depth.values()) + 1;
-    filtered.forEach((node) => {
-      if (!depth.has(node.id)) depth.set(node.id, nextDisconnectedDepth);
-    });
-
-    const rowsByDepth = new Map<number, string[]>();
-    filtered.forEach((node) => {
-      const level = depth.get(node.id) || 0;
-      rowsByDepth.set(level, [...(rowsByDepth.get(level) || []), node.id]);
-    });
-    const maxDepth = Math.max(0, ...rowsByDepth.keys());
-    for (let level = 0; level <= maxDepth; level += 1) {
-      const row = rowsByDepth.get(level) || [];
-      row.sort((left, right) => {
-        const parentAverage = (id: string) => {
-          const parents = (incoming.get(id) || []).filter((parent) => depth.get(parent) === level - 1);
-          if (!parents.length) return Number.POSITIVE_INFINITY;
-          const priorRow = rowsByDepth.get(level - 1) || [];
-          return parents.reduce((sum, parent) => sum + priorRow.indexOf(parent), 0) / parents.length;
-        };
-        const averageDifference = parentAverage(left) - parentAverage(right);
-        if (Number.isFinite(averageDifference) && averageDifference !== 0) return averageDifference;
-        const leftNode = filtered.find((node) => node.id === left)!;
-        const rightNode = filtered.find((node) => node.id === right)!;
-        return Number(rightNode.is_entry_point) - Number(leftNode.is_entry_point) || leftNode.label.localeCompare(rightNode.label);
-      });
-    }
-
-    const xSpacing = 285;
-    const ySpacing = 135;
-    const maxRowsPerColumn = filtered.length > 18 ? 6 : 7;
-    const visualColumns: string[][] = [];
-    for (let level = 0; level <= maxDepth; level += 1) {
-      const row = rowsByDepth.get(level) || [];
-      for (let start = 0; start < row.length; start += maxRowsPerColumn) {
-        visualColumns.push(row.slice(start, start + maxRowsPerColumn));
-      }
-    }
-    const tallestColumn = Math.max(1, ...visualColumns.map((column) => column.length));
-    visualColumns.forEach((column, columnIndex) => {
-      const verticalOffset = ((tallestColumn - column.length) * ySpacing) / 2;
-      column.forEach((id, index) => positions.set(id, { x: columnIndex * xSpacing + 48, y: index * ySpacing + verticalOffset + 48 }));
-    });
-
-    return filtered.map((n) => {
-      const labelParts = graphLabelParts(n.label);
+    return filtered.map((n, idx) => {
+      const col = idx % columns;
+      const row = Math.floor(idx / columns);
       const isCycle = cycleNodeIds.has(n.id);
-      const isSelected = selectedNodeId === n.id;
-      const isRelated = !selectedNodeId || connectedNodeIds.has(n.id);
 
-      // Color coding & borders
-      let borderClass = `${languageTheme(n.language, n.is_external).border} bg-slate-900`;
+      // Color coding & borders for light theme
+      let borderClass = 'border-[#D8CFC2] bg-[#FFFDFC] text-[#292622]';
       if (isCycle && highlightCycles) {
-        borderClass = 'border-rose-500 bg-rose-950/40 shadow-rose-500/20 shadow-lg';
+        borderClass = 'border-[#C45F58] bg-[#F6E5E2] text-[#8F3F3A] shadow-[0_4px_16px_rgba(196,95,88,0.15)]';
       } else if (n.is_external) {
-        borderClass = 'border-purple-500/60 border-dashed bg-slate-950';
+        borderClass = 'border-[#5D8194]/60 border-dashed bg-[#E6EFF2]/60 text-[#3D657A]';
+      } else if (n.language === 'python') {
+        borderClass = 'border-[#C8DCE4] bg-[#FFFDFC] text-[#292622]';
+      } else if (n.language === 'javascript') {
+        borderClass = 'border-[#E6D3A9] bg-[#FFFDFC] text-[#292622]';
       }
 
       return {
         id: n.id,
-        position: positions.get(n.id) || { x: 40, y: 40 },
+        position: { x: col * xSpacing + 50, y: row * ySpacing + 50 },
         data: { raw: n },
         style: {
           background: 'transparent',
@@ -212,53 +122,56 @@ const GraphCanvasContent: React.FC<{
           padding: 0,
         },
         nodeContent: (
-          <button
-            type="button"
+          <div
             onClick={() => onSelectNode(n)}
             onDoubleClick={() => !n.is_external && n.kind === 'module' && onDrillDown(n.id)}
-            aria-label={`Select ${n.label}`}
-            className={`w-[220px] cursor-pointer rounded-xl border p-3 text-left shadow-md transition-all duration-200 hover:z-20 hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-indigo-400 ${borderClass} ${isSelected ? 'ring-2 ring-indigo-400 ring-offset-2 ring-offset-slate-950' : ''} ${!isRelated ? 'opacity-35' : ''}`}
+            className={`p-3.5 rounded-2xl border ${borderClass} transition-all duration-200 hover:scale-105 hover:shadow-warm hover:z-20 cursor-pointer min-w-[210px] shadow-sm`}
           >
-            <div className="mb-1 flex items-start justify-between gap-2">
-              <div className="min-w-0" title={n.label}>
-                <span className="block truncate font-mono text-xs font-bold text-white">{labelParts.filename}</span>
-                {labelParts.directory && <span className="mt-0.5 block truncate font-mono text-[9px] text-slate-500">{labelParts.directory}/</span>}
-              </div>
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <span className="font-mono text-xs font-bold truncate max-w-[140px]" title={n.label}>
+                {n.label}
+              </span>
               <span
-                className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border ${languageTheme(n.language, n.is_external).badge}`}
+                className={`text-[9px] uppercase font-extrabold px-1.5 py-0.5 rounded-full border ${
+                  n.is_external
+                    ? 'bg-[#E6EFF2] text-[#3D657A] border-[#C8DCE4]'
+                    : n.language === 'python'
+                    ? 'bg-[#E6EFF2] text-[#3D657A] border-[#C8DCE4]'
+                    : 'bg-[#F5E8CC] text-[#76561B] border-[#E6D3A9]'
+                }`}
               >
                 {n.is_external ? 'EXT' : n.language}
               </span>
             </div>
 
-            <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono mt-2">
-              <span>{n.kind}</span>
+            <div className="flex items-center justify-between text-[10px] text-[#6B645A] font-mono mt-2">
+              <span className="capitalize">{n.kind}</span>
               {n.line_count > 0 && <span>{n.line_count.toLocaleString()} lines</span>}
             </div>
 
             {/* Badges footer */}
-            <div className="flex flex-wrap gap-1 mt-2">
+            <div className="flex flex-wrap gap-1 mt-2.5 pt-2 border-t border-[#D8CFC2]/50">
               {n.is_entry_point && (
-                <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-[#E0EFEB] text-[#245F59] border border-[#BEE0D6]">
                   Entry
                 </span>
               )}
               {n.warning_count > 0 && (
-                <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-[#F5E8CC] text-[#76561B] border border-[#E6D3A9]">
                   {n.warning_count} {n.warning_count === 1 ? 'note' : 'notes'}
                 </span>
               )}
               {n.complexity_score > 10 && (
-                <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">
-                  {complexityLabel(n.complexity_rating, n.complexity_score)} complexity
+                <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-[#F6E5E2] text-[#8F3F3A] border border-[#ECC7C3]">
+                  {complexityLabel(n.complexity_rating, n.complexity_score)}
                 </span>
               )}
             </div>
-          </button>
+          </div>
         ),
       };
     });
-  }, [graph.nodes, graph.edges, searchQuery, includeExternal, highlightCycles, nodeFocusFilter, cycleNodeIds, onSelectNode, onDrillDown, selectedNodeId, connectedNodeIds, focusSelected]);
+  }, [graph.nodes, searchQuery, includeExternal, highlightCycles, cycleNodeIds, onSelectNode, onDrillDown]);
 
   // Transform React Flow Edges
   const initialEdges: Edge[] = useMemo(() => {
@@ -269,53 +182,43 @@ const GraphCanvasContent: React.FC<{
       .filter((e) => edgeTypeFilter === 'all' || e.type === edgeTypeFilter)
       .map((e) => {
         const isCycleEdge = cycleNodeIds.has(e.source) && cycleNodeIds.has(e.target);
-        const isSelectedEdge = Boolean(selectedNodeId && (e.source === selectedNodeId || e.target === selectedNodeId));
-        const isLargeOverview = initialNodes.length > LARGE_GRAPH_THRESHOLD && !focusSelected;
-        const isDimmed = Boolean(selectedNodeId && !isSelectedEdge);
-        const strokeColor = isCycleEdge && highlightCycles ? '#f43f5e' : e.type === 'require' ? '#f59e0b' : '#6366f1';
+        const strokeColor =
+          isCycleEdge && highlightCycles ? '#C45F58' : e.type === 'require' ? '#C7953D' : '#4C4FD6';
 
         return {
           id: e.id,
           source: e.source,
           target: e.target,
           type: 'smoothstep',
-          animated: isSelectedEdge || (isCycleEdge && highlightCycles),
+          animated: isCycleEdge && highlightCycles,
           style: {
             stroke: strokeColor,
-            strokeWidth: isSelectedEdge ? 3 : isCycleEdge && highlightCycles ? 2.5 : 1.5,
-            opacity: isDimmed ? 0.12 : isLargeOverview ? 0.28 : 1,
+            strokeWidth: isCycleEdge && highlightCycles ? 2.5 : 1.5,
             strokeDasharray: e.type === 'require' ? '4,4' : undefined,
           },
-          markerEnd: { type: MarkerType.ArrowClosed, color: strokeColor, width: 18, height: 18 },
-          label: showAllEdgeLabels || isSelectedEdge ? relationshipLabel(e.type) : undefined,
-          labelStyle: { fill: '#94a3b8', fontSize: 10, fontFamily: 'monospace' },
-          labelBgStyle: { fill: '#0f172a' },
-          labelBgPadding: [5, 3] as [number, number],
-          labelBgBorderRadius: 4,
+          label: e.type !== 'import' ? e.type : undefined,
+          labelStyle: { fill: '#4D4842', fontSize: 10, fontFamily: 'monospace' },
+          labelBgStyle: { fill: '#FFFDFC' },
         };
       });
-  }, [graph.edges, initialNodes, edgeTypeFilter, highlightCycles, cycleNodeIds, selectedNodeId, focusSelected, showAllEdgeLabels]);
+  }, [graph.edges, initialNodes, edgeTypeFilter, highlightCycles, cycleNodeIds]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-  const { fitView } = useReactFlow();
 
   useEffect(() => {
     setNodes(initialNodes);
     setEdges(initialEdges);
-    const fitTimer = window.setTimeout(() => fitView({ padding: 0.25, duration: 350 }), 60);
-    return () => window.clearTimeout(fitTimer);
-  }, [initialNodes, initialEdges, setNodes, setEdges, fitView]);
+  }, [initialNodes, initialEdges, setNodes, setEdges]);
 
   const renderedNodes = useMemo(
     () => nodes.map((node: any) => ({ ...node, data: { ...node.data, nodeContent: node.nodeContent } })),
     [nodes]
   );
-  const isLargeOverview = initialNodes.length > LARGE_GRAPH_THRESHOLD && !focusSelected;
 
   return (
-    <div className="relative h-[460px] w-full touch-none overflow-hidden rounded-xl border border-slate-800 bg-slate-950 sm:h-[560px]">
-      {initialNodes.length === 0 && <div className="absolute inset-0 z-10 grid place-items-center p-8 text-center text-xs text-slate-500">No files match the active graph filters. Clear search or select “All files”.</div>}
+    <div className="relative h-[420px] w-full overflow-hidden rounded-[20px] border border-[#D8CFC2] bg-[#EFE9DD]/50 graph-dot-grid sm:h-[520px]">
+      <AutoFitController nodesLength={renderedNodes.length} />
       <ReactFlow
         nodes={renderedNodes}
         edges={edges}
@@ -323,58 +226,48 @@ const GraphCanvasContent: React.FC<{
         onEdgesChange={onEdgesChange}
         nodeTypes={GRAPH_NODE_TYPES}
         fitView
-        fitViewOptions={{ padding: 0.2 }}
-        minZoom={0.12}
-        maxZoom={2}
-        panOnScroll
-        zoomOnPinch
-        zoomOnDoubleClick={false}
-        colorMode="dark"
+        colorMode="light"
       >
-        <Background color="#334155" gap={18} size={1} />
-        <Controls className="bg-slate-900 border-slate-800 text-slate-200 fill-slate-200" />
+        <Background color="#D8CFC2" gap={20} size={1.5} />
+        <Controls className="bg-[#FFFDFC] border-[#D8CFC2] text-[#292622] fill-[#292622] shadow-sm rounded-xl" />
         <MiniMap
           nodeColor={(node: any) => {
             const raw = node.data?.raw;
-            return languageTheme(raw?.language || 'unknown', Boolean(raw?.is_external)).dot;
+            if (raw?.is_external) return '#5D8194';
+            if (raw?.language === 'python') return '#4C4FD6';
+            if (raw?.language === 'javascript') return '#C7953D';
+            return '#948C81';
           }}
-          maskColor="rgba(15, 23, 42, 0.7)"
-          className="hidden bg-slate-900 border-slate-800 rounded-xl sm:block"
+          maskColor="rgba(247, 244, 238, 0.7)"
+          className="bg-[#FFFDFC] border-[#D8CFC2] rounded-xl shadow-sm"
         />
 
-        {isLargeOverview && <Panel position="top-center" className="pointer-events-none rounded-xl border border-indigo-500/20 bg-slate-950/90 px-3 py-2 text-center text-[10px] text-slate-300 shadow-xl backdrop-blur-md"><strong className="text-indigo-300">Large-project overview:</strong> select a file, then use <strong>Focus direct connections</strong>.</Panel>}
-
-        <Panel position="bottom-left" className="hidden bg-slate-900/90 border border-slate-800 p-2.5 rounded-xl text-[10px] text-slate-400 items-center space-x-3 backdrop-blur-md sm:flex">
-          <span className="font-bold text-slate-300">Legend:</span>
-          <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span><span>Python</span></span>
-          <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span><span>JavaScript</span></span>
-          <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-cyan-500"></span><span>TypeScript</span></span>
-          <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span><span>External</span></span>
-          <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span><span>Entry Point</span></span>
+        <Panel
+          position="bottom-left"
+          className="bg-[#FFFDFC]/95 border border-[#D8CFC2] p-2.5 rounded-xl text-[10px] text-[#4D4842] flex items-center space-x-3 backdrop-blur-md shadow-xs"
+        >
+          <span className="font-bold text-[#292622]">Legend:</span>
+          <span className="flex items-center space-x-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#4C4FD6]"></span>
+            <span>Python</span>
+          </span>
+          <span className="flex items-center space-x-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#C7953D]"></span>
+            <span>JavaScript</span>
+          </span>
+          <span className="flex items-center space-x-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#5D8194]"></span>
+            <span>External</span>
+          </span>
+          <span className="flex items-center space-x-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#368A80]"></span>
+            <span>Entry Point</span>
+          </span>
         </Panel>
       </ReactFlow>
     </div>
   );
 };
-
-const RelationshipList: React.FC<{
-  title: string;
-  tone: 'indigo' | 'emerald';
-  items: Array<{ edge: GraphEdgeData; node: GraphNodeData }>;
-  onSelect: (node: GraphNodeData) => void;
-}> = ({ title, tone, items, onSelect }) => (
-  <div>
-    <h4 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">{title}</h4>
-    <div className="max-h-44 space-y-1.5 overflow-y-auto pr-1">
-      {items.map(({ edge, node }) => (
-        <button key={edge.id} type="button" onClick={() => onSelect(node)} className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-2 text-left hover:border-slate-600 hover:bg-slate-800">
-          <span className="min-w-0"><span className="block truncate font-mono text-[10px] text-slate-200" title={node.label}>{node.label}</span><span className={`mt-0.5 block text-[9px] ${tone === 'indigo' ? 'text-indigo-300' : 'text-emerald-300'}`}>{edge.type === 'require' ? 'requires' : edge.type === 'call' ? 'calls' : edge.type}</span></span>
-          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-500"/>
-        </button>
-      ))}
-    </div>
-  </div>
-);
 
 export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectId }) => {
   const [graph, setGraph] = useState<GraphResponse | null>(null);
@@ -387,21 +280,8 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
   const [edgeTypeFilter, setEdgeTypeFilter] = useState<string>('all');
   const [includeExternal, setIncludeExternal] = useState<boolean>(false);
   const [highlightCycles, setHighlightCycles] = useState<boolean>(true);
-  const [nodeFocusFilter, setNodeFocusFilter] = useState<string>('all');
   const [selectedNode, setSelectedNode] = useState<GraphNodeData | null>(null);
-  const [focusSelected, setFocusSelected] = useState<boolean>(false);
-  const [showAllEdgeLabels, setShowAllEdgeLabels] = useState<boolean>(false);
   const [currentLevel, setCurrentLevel] = useState<'module' | 'symbol'>('module');
-
-  const nodeById = useMemo(() => new Map((graph?.nodes || []).map((node) => [node.id, node])), [graph]);
-  const outgoingRelations = useMemo<Array<{ edge: GraphEdgeData; node: GraphNodeData }>>(
-    () => selectedNode && graph ? graph.edges.filter((edge) => edge.source === selectedNode.id).flatMap((edge) => { const node = nodeById.get(edge.target); return node ? [{ edge, node }] : []; }) : [],
-    [graph, selectedNode, nodeById]
-  );
-  const incomingRelations = useMemo<Array<{ edge: GraphEdgeData; node: GraphNodeData }>>(
-    () => selectedNode && graph ? graph.edges.filter((edge) => edge.target === selectedNode.id).flatMap((edge) => { const node = nodeById.get(edge.source); return node ? [{ edge, node }] : []; }) : [],
-    [graph, selectedNode, nodeById]
-  );
 
   const fetchGraph = useCallback(
     async (lvl: 'module' | 'symbol' = 'module', modId: string | null = null) => {
@@ -459,20 +339,18 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
   };
 
   const handleBackToModules = () => {
-    setSelectedNode(null);
-    setFocusSelected(false);
     fetchGraph('module', null);
   };
 
   if (!projectId) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center min-h-[350px] flex flex-col items-center justify-center">
-        <div className="p-4 bg-indigo-500/10 text-indigo-400 rounded-2xl border border-indigo-500/20 mb-4">
-          <Cpu className="w-8 h-8" />
+      <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[24px] p-10 text-center min-h-[350px] flex flex-col items-center justify-center">
+        <div className="p-3.5 bg-[#EAE9FB] text-[#4340A0] rounded-2xl border border-[#C7C4F7] mb-3">
+          <Cpu className="w-7 h-7" />
         </div>
-        <h3 className="text-lg font-bold text-white mb-2">No Repository Ingested</h3>
-        <p className="text-xs text-slate-400 max-w-md">
-          Please upload a legacy codebase archive or submit a GitHub repository to visualize its architecture and dependency graph.
+        <h3 className="text-lg font-bold text-[#292622] mb-1">No Repository Ingested</h3>
+        <p className="text-xs text-[#6B645A] max-w-md">
+          Upload a legacy codebase archive or submit a GitHub repository to visualize its architecture and dependency graph.
         </p>
       </div>
     );
@@ -480,25 +358,22 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
 
   if (loading && !graph) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 space-y-6 animate-pulse">
-        <div className="h-8 bg-slate-800 rounded-xl w-1/3"></div>
-        <div className="h-[450px] bg-slate-800/40 rounded-xl"></div>
+      <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[24px] p-8 space-y-6 animate-pulse">
+        <div className="h-8 bg-[#F0EBE2] rounded-xl w-1/3"></div>
+        <div className="h-[450px] bg-[#EFE9DD]/60 rounded-[20px]"></div>
       </div>
     );
   }
 
   if (pending) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center min-h-[350px] flex flex-col items-center justify-center">
-        <div className="p-4 bg-amber-500/10 text-amber-400 rounded-2xl border border-amber-500/20 mb-4 animate-spin">
-          <RefreshCw className="w-8 h-8" />
+      <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[24px] p-10 text-center min-h-[350px] flex flex-col items-center justify-center">
+        <div className="p-3.5 bg-[#F5E8CC] text-[#C7953D] rounded-2xl border border-[#E6D3A9] mb-3 animate-spin">
+          <RefreshCw className="w-7 h-7" />
         </div>
-        <h3 className="text-lg font-bold text-white mb-2">Analysis Pending or In Progress</h3>
-        <p className="text-xs text-slate-400 max-w-md mb-6">{error}</p>
-        <button
-          onClick={() => fetchGraph('module', null)}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition-colors"
-        >
+        <h3 className="text-lg font-bold text-[#292622] mb-1">Analysis Pending or In Progress</h3>
+        <p className="text-xs text-[#6B645A] max-w-md mb-5">{error}</p>
+        <button onClick={() => fetchGraph('module', null)} className="btn-brand-pill px-5 py-2 text-xs">
           Check Analysis Status
         </button>
       </div>
@@ -507,16 +382,13 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
 
   if (error && !graph) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center min-h-[300px] flex flex-col items-center justify-center">
-        <div className="p-4 bg-red-500/10 text-red-400 rounded-2xl border border-red-500/20 mb-4">
-          <AlertTriangle className="w-8 h-8" />
+      <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[24px] p-8 text-center min-h-[300px] flex flex-col items-center justify-center">
+        <div className="p-3.5 bg-[#F6E5E2] text-[#C45F58] rounded-2xl border border-[#ECC7C3] mb-3">
+          <AlertTriangle className="w-7 h-7" />
         </div>
-        <h3 className="text-lg font-bold text-white mb-2">Graph Generation Failed</h3>
-        <p className="text-xs text-slate-400 max-w-md mb-6">{error}</p>
-        <button
-          onClick={() => fetchGraph('module', null)}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition-colors"
-        >
+        <h3 className="text-lg font-bold text-[#292622] mb-1">Graph Generation Failed</h3>
+        <p className="text-xs text-[#6B645A] max-w-md mb-5">{error}</p>
+        <button onClick={() => fetchGraph('module', null)} className="btn-brand-pill px-5 py-2 text-xs">
           Retry Graph Generation
         </button>
       </div>
@@ -528,117 +400,116 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
   return (
     <div className="space-y-6">
       {/* Top Banner: Graph Metrics & Level Indicator */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+      <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[24px] p-4 sm:p-6 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#D8CFC2] pb-4">
           <div className="flex items-center space-x-3">
-            <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-indigo-400">
+            <div className="p-3 bg-[#EAE9FB] border border-[#C7C4F7] rounded-2xl text-[#4340A0]">
               <Cpu className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h2 className="text-base font-bold text-white">Code Relationships</h2>
-                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                <h2 className="text-base font-extrabold text-[#292622]">Code Relationships</h2>
+                <span className="text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full bg-[#EAE9FB] text-[#4340A0] border border-[#C7C4F7]">
                   {currentLevel === 'module' ? 'Project View' : 'File Details'}
                 </span>
                 {graph.cycles.length > 0 && (
-                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                  <span className="text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full bg-[#F6E5E2] text-[#8F3F3A] border border-[#ECC7C3]">
                     {graph.cycles.length} Dependency {graph.cycles.length === 1 ? 'Loop' : 'Loops'}
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">See how files connect and identify areas that need attention.</p>
+              <p className="text-xs text-[#6B645A] mt-0.5">
+                See how files connect and identify areas that need attention.
+              </p>
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row">
-          <a href={`/api/projects/${projectId}/graph/download`} className="flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800"><Download className="h-3.5 w-3.5"/>Download Mermaid</a>
           {currentLevel === 'symbol' && (
             <button
               onClick={handleBackToModules}
-              className="flex items-center space-x-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-xl transition-colors border border-slate-700"
+              className="btn-brand-outline-pill px-4 py-2 text-xs flex items-center gap-1.5"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Back to Project View</span>
             </button>
           )}
-          </div>
         </div>
 
         {/* Graph Metrics Grid */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-6">
-          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-            <span className="text-[11px] text-slate-400 block mb-1">Files shown</span>
-            <span className="text-lg font-bold text-white">{graph.summary.total_nodes}</span>
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-6">
+          <div className="bg-[#F0EBE2]/60 p-3 rounded-2xl border border-[#D8CFC2]">
+            <span className="text-[11px] font-semibold text-[#6B645A] block mb-0.5">Files shown</span>
+            <span className="text-lg font-extrabold text-[#292622]">{graph.summary.total_nodes}</span>
           </div>
 
-          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-            <span className="text-[11px] text-slate-400 block mb-1">Connections</span>
-            <span className="text-lg font-bold text-indigo-300">{graph.summary.total_edges}</span>
+          <div className="bg-[#F0EBE2]/60 p-3 rounded-2xl border border-[#D8CFC2]">
+            <span className="text-[11px] font-semibold text-[#6B645A] block mb-0.5">Connections</span>
+            <span className="text-lg font-extrabold text-[#4C4FD6]">{graph.summary.total_edges}</span>
           </div>
 
-          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-            <span className="text-[11px] text-slate-400 block mb-1">Dependency loops</span>
-            <span className={`text-lg font-bold ${graph.summary.cycle_count > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+          <div className="bg-[#F0EBE2]/60 p-3 rounded-2xl border border-[#D8CFC2]">
+            <span className="text-[11px] font-semibold text-[#6B645A] block mb-0.5">Dependency loops</span>
+            <span
+              className={`text-lg font-extrabold ${
+                graph.summary.cycle_count > 0 ? 'text-[#C45F58]' : 'text-[#368A80]'
+              }`}
+            >
               {graph.summary.cycle_count}
             </span>
           </div>
 
-          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-            <span className="text-[11px] text-slate-400 block mb-1">Standalone files</span>
-            <span className="text-lg font-bold text-amber-400">{graph.summary.orphan_count}</span>
+          <div className="bg-[#F0EBE2]/60 p-3 rounded-2xl border border-[#D8CFC2]">
+            <span className="text-[11px] font-semibold text-[#6B645A] block mb-0.5">Standalone files</span>
+            <span className="text-lg font-extrabold text-[#C7953D]">{graph.summary.orphan_count}</span>
           </div>
 
-          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-            <span className="text-[11px] text-slate-400 block mb-1">Entry Points</span>
-            <span className="text-lg font-bold text-emerald-400">{graph.summary.entry_point_count}</span>
+          <div className="bg-[#F0EBE2]/60 p-3 rounded-2xl border border-[#D8CFC2]">
+            <span className="text-[11px] font-semibold text-[#6B645A] block mb-0.5">Entry Points</span>
+            <span className="text-lg font-extrabold text-[#368A80]">{graph.summary.entry_point_count}</span>
           </div>
 
-          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-            <span className="text-[11px] text-slate-400 block mb-1">High complexity</span>
-            <span className="text-lg font-bold text-orange-400">{graph.summary.high_complexity_module_count}</span>
+          <div className="bg-[#F0EBE2]/60 p-3 rounded-2xl border border-[#D8CFC2]">
+            <span className="text-[11px] font-semibold text-[#6B645A] block mb-0.5">Needs review</span>
+            <span className="text-lg font-extrabold text-[#C7953D]">{graph.summary.high_complexity_module_count}</span>
           </div>
         </div>
 
         {graph.summary.truncated_edges_count > 0 && (
-          <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-300 flex items-center space-x-2">
-            <Info className="w-4 h-4 shrink-0" />
+          <div className="bg-[#F5E8CC] border border-[#E6D3A9] rounded-xl p-3 text-xs font-semibold text-[#76561B] flex items-center space-x-2">
+            <Info className="w-4 h-4 shrink-0 text-[#C7953D]" />
             <span>
-              {graph.summary.truncated_edges_count} additional function call connection(s) are hidden to keep the graph readable.
+              {graph.summary.truncated_edges_count} additional connection(s) hidden to keep graph readable.
             </span>
           </div>
         )}
       </div>
 
       {/* Graph Toolbar Controls */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[20px] p-3.5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
         {/* Search */}
         <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-[#6B645A] absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Search files and modules..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+            className="w-full bg-[#EFE9DD]/50 border border-[#D8CFC2] rounded-full pl-9 pr-4 py-1.5 text-xs text-[#292622] placeholder-[#6B645A] focus:outline-none focus:border-[#4C4FD6] focus:bg-[#FFFDFC] transition-colors"
           />
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          <div className="flex items-center space-x-1 border border-slate-800 bg-slate-950 rounded-xl p-1" aria-label="File focus filter">
-            <Filter className="ml-1 h-3.5 w-3.5 text-slate-500"/>
-            {[['all','All files'],['review','Needs review'],['entry','Entry points']].map(([value,label]) => <button key={value} onClick={() => setNodeFocusFilter(value)} className={`rounded-lg px-2 py-1 text-[9px] font-bold uppercase ${nodeFocusFilter === value ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>{label}</button>)}
-          </div>
+        <div className="flex flex-wrap items-center gap-2.5 text-xs">
           {/* Edge Type Filter */}
-          <div className="flex items-center space-x-1 border border-slate-800 bg-slate-950 rounded-xl p-1">
+          <div className="flex items-center space-x-1 border border-[#D8CFC2] bg-[#F0EBE2] rounded-full p-1">
             {['all', 'import', 'require'].map((type) => (
               <button
                 key={type}
                 onClick={() => setEdgeTypeFilter(type)}
-                className={`px-2.5 py-1 rounded-lg uppercase text-[10px] font-bold transition-colors ${
+                className={`px-3 py-1 rounded-full uppercase text-[10px] font-bold transition-all ${
                   edgeTypeFilter === type
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-slate-400 hover:bg-slate-800'
+                    ? 'bg-[#EAE9FB] text-[#4340A0] shadow-xs'
+                    : 'text-[#4D4842] hover:text-[#292622]'
                 }`}
               >
                 {type}
@@ -649,31 +520,22 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
           {/* External Toggle */}
           <button
             onClick={() => setIncludeExternal(!includeExternal)}
-            className={`px-3 py-1.5 rounded-xl uppercase text-[10px] font-bold border transition-colors ${
+            className={`px-3.5 py-1.5 rounded-full uppercase text-[10px] font-bold border transition-colors ${
               includeExternal
-                ? 'bg-purple-600 text-white border-purple-500'
-                : 'bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800'
+                ? 'bg-[#E6EFF2] text-[#3D657A] border-[#C8DCE4]'
+                : 'bg-[#FFFDFC] text-[#6B645A] border-[#D8CFC2] hover:bg-[#F0EBE2]'
             }`}
           >
             {includeExternal ? 'External: On' : 'External: Off'}
           </button>
 
-          <button
-            type="button"
-            onClick={() => setShowAllEdgeLabels((value) => !value)}
-            className={`rounded-xl border px-3 py-1.5 text-[10px] font-bold uppercase transition-colors ${showAllEdgeLabels ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-slate-800 bg-slate-950 text-slate-400 hover:bg-slate-800'}`}
-            title="Selected connections are always labeled. Enable this to label every visible connection."
-          >
-            Edge labels: {showAllEdgeLabels ? 'All' : 'Smart'}
-          </button>
-
           {/* Highlight Cycles Toggle */}
           <button
             onClick={() => setHighlightCycles(!highlightCycles)}
-            className={`px-3 py-1.5 rounded-xl uppercase text-[10px] font-bold border transition-colors ${
+            className={`px-3.5 py-1.5 rounded-full uppercase text-[10px] font-bold border transition-colors ${
               highlightCycles
-                ? 'bg-rose-600 text-white border-rose-500'
-                : 'bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800'
+                ? 'bg-[#F6E5E2] text-[#8F3F3A] border-[#ECC7C3]'
+                : 'bg-[#FFFDFC] text-[#6B645A] border-[#D8CFC2] hover:bg-[#F0EBE2]'
             }`}
           >
             {highlightCycles ? 'Cycles: Highlighted' : 'Cycles: Normal'}
@@ -681,15 +543,9 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
         </div>
       </div>
 
-      <div className="grid gap-3 rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4 text-xs text-slate-300 sm:grid-cols-3">
-        <div className="flex gap-2"><ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-indigo-400"/><span><strong className="text-white">Follow the arrow:</strong> the file at the tail imports, requires, or calls the file at the arrowhead.</span></div>
-        <div className="flex gap-2"><Network className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400"/><span><strong className="text-white">Tap a file:</strong> its direct connections become brighter and are explained in the side panel.</span></div>
-        <div className="flex gap-2"><Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-400"/><span><strong className="text-white">Connection labels:</strong> Smart labels appear for the selected file. Choose All to label every visible edge. Dashed amber means CommonJS require; red marks a loop.</span></div>
-      </div>
-
       {/* Main Canvas & Details Drawer */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className={selectedNode ? 'lg:col-span-3' : 'lg:col-span-4'}>
+        <div className="lg:col-span-3">
           <ReactFlowProvider>
             <GraphCanvasContent
               graph={graph}
@@ -697,10 +553,6 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
               edgeTypeFilter={edgeTypeFilter}
               includeExternal={includeExternal}
               highlightCycles={highlightCycles}
-              nodeFocusFilter={nodeFocusFilter}
-              selectedNodeId={selectedNode?.id || null}
-              focusSelected={focusSelected}
-              showAllEdgeLabels={showAllEdgeLabels}
               onSelectNode={setSelectedNode}
               onDrillDown={handleDrillDown}
             />
@@ -708,80 +560,70 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
         </div>
 
         {/* Selected Node Detail Drawer */}
-        {selectedNode && <div className="min-h-[400px] rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl">
+        <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[20px] p-5 shadow-xs flex flex-col justify-between min-h-[400px]">
           <div>
-            <h3 className="text-xs uppercase font-bold text-slate-400 tracking-wider mb-4 border-b border-slate-800 pb-2">
+            <h3 className="text-xs uppercase font-extrabold text-[#6B645A] tracking-wider mb-4 border-b border-[#D8CFC2] pb-2">
               Selected Item
             </h3>
 
-            <div className="space-y-4">
+            {selectedNode ? (
+              <div className="space-y-4">
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-indigo-400 block mb-1">{titleCase(selectedNode.kind)}</span>
-                  <p className="font-mono text-sm font-bold text-white break-all">{selectedNode.label}</p>
+                  <span className="text-[10px] uppercase font-extrabold text-[#4C4FD6] block mb-0.5">
+                    {titleCase(selectedNode.kind)}
+                  </span>
+                  <p className="font-mono text-sm font-bold text-[#292622] break-all">{selectedNode.label}</p>
                 </div>
 
-                <div className="space-y-2 text-xs text-slate-300">
-                  <div className="flex justify-between border-b border-slate-800/60 pb-1">
-                    <span className="text-slate-400">Language:</span>
-                    <span className="font-semibold">{titleCase(selectedNode.language)}</span>
+                <div className="space-y-2.5 text-xs text-[#4D4842]">
+                  <div className="flex justify-between border-b border-[#D8CFC2]/60 pb-1.5">
+                    <span className="text-[#6B645A]">Language:</span>
+                    <span className="font-bold">{titleCase(selectedNode.language)}</span>
                   </div>
                   {selectedNode.line_count > 0 && (
-                    <div className="flex justify-between border-b border-slate-800/60 pb-1">
-                      <span className="text-slate-400">Lines:</span>
-                      <span>{selectedNode.line_count.toLocaleString()}</span>
+                    <div className="flex justify-between border-b border-[#D8CFC2]/60 pb-1.5">
+                      <span className="text-[#6B645A]">Lines:</span>
+                      <span className="font-semibold">{selectedNode.line_count.toLocaleString()}</span>
                     </div>
                   )}
-                  <div className="flex justify-between border-b border-slate-800/60 pb-1">
-                    <span className="text-slate-400">Complexity:</span>
-                    <span className="font-semibold" title={`Score ${selectedNode.complexity_score}`}>{complexityLabel(selectedNode.complexity_rating, selectedNode.complexity_score)}</span>
+                  <div className="flex justify-between border-b border-[#D8CFC2]/60 pb-1.5">
+                    <span className="text-[#6B645A]">Complexity:</span>
+                    <span className="font-bold" title={`Score ${selectedNode.complexity_score}`}>
+                      {complexityLabel(selectedNode.complexity_rating, selectedNode.complexity_score)}
+                    </span>
                   </div>
-                  <div className="flex justify-between border-b border-slate-800/60 pb-1">
-                    <span className="text-slate-400">Suggestions:</span>
-                    <span className="font-semibold">{selectedNode.warning_count}</span>
+                  <div className="flex justify-between border-b border-[#D8CFC2]/60 pb-1.5">
+                    <span className="text-[#6B645A]">Suggestions:</span>
+                    <span className="font-bold text-[#C7953D]">{selectedNode.warning_count}</span>
                   </div>
-                  <div className="flex justify-between border-b border-slate-800/60 pb-1">
-                    <span className="text-slate-400">Functions / classes:</span>
-                    <span className="font-semibold">{selectedNode.symbol_count}</span>
+                  <div className="flex justify-between border-b border-[#D8CFC2]/60 pb-1.5">
+                    <span className="text-[#6B645A]">Entry Point:</span>
+                    <span className="font-bold">{selectedNode.is_entry_point ? 'Yes' : 'No'}</span>
                   </div>
-                  <div className="flex justify-between border-b border-slate-800/60 pb-1">
-                    <span className="text-slate-400">Entry Point:</span>
-                    <span className="font-semibold">{selectedNode.is_entry_point ? 'Yes' : 'No'}</span>
-                  </div>
-                  <div className="flex justify-between border-b border-slate-800/60 pb-1">
-                    <span className="text-slate-400">Third-party:</span>
-                    <span className="font-semibold">{selectedNode.is_external ? 'Yes' : 'No'}</span>
+                  <div className="flex justify-between border-b border-[#D8CFC2]/60 pb-1.5">
+                    <span className="text-[#6B645A]">Third-party:</span>
+                    <span className="font-bold">{selectedNode.is_external ? 'Yes' : 'No'}</span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-3"><span className="block text-[10px] uppercase text-indigo-300">Depends on</span><strong className="mt-1 block text-xl text-white">{outgoingRelations.length}</strong></div>
-                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3"><span className="block text-[10px] uppercase text-emerald-300">Used by</span><strong className="mt-1 block text-xl text-white">{incomingRelations.length}</strong></div>
-                </div>
-
-                {(outgoingRelations.length > 0 || incomingRelations.length > 0) && (
-                  <button type="button" onClick={() => setFocusSelected((value) => !value)} className={`w-full rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${focusSelected ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'}`}>
-                    {focusSelected ? 'Show whole graph' : 'Focus direct connections'}
-                  </button>
-                )}
-
-                {outgoingRelations.length > 0 && <RelationshipList title="This file depends on" tone="indigo" items={outgoingRelations} onSelect={setSelectedNode}/>}
-                {incomingRelations.length > 0 && <RelationshipList title="Files that use this" tone="emerald" items={incomingRelations} onSelect={setSelectedNode}/>}
-
-                {!selectedNode.is_external && selectedNode.kind === 'module' && selectedNode.symbol_count > 0 && (
+                {!selectedNode.is_external && selectedNode.kind === 'module' && (
                   <button
                     onClick={() => handleDrillDown(selectedNode.id)}
-                    className="w-full mt-4 py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition-colors flex items-center justify-center space-x-2"
+                    className="btn-brand-pill w-full mt-4 py-2 px-3 text-xs flex items-center justify-center gap-1.5"
                   >
                     <Eye className="w-3.5 h-3.5" />
-                    <span>Open {selectedNode.symbol_count} functions / classes</span>
+                    <span>View Functions and Classes</span>
                   </button>
                 )}
-                {!selectedNode.is_external && selectedNode.kind === 'module' && selectedNode.symbol_count === 0 && (
-                  <div className="rounded-xl border border-slate-800 bg-slate-950 p-3 text-[11px] leading-5 text-slate-400">No functions or classes were detected in this file, so symbol-level drill-down is not available.</div>
-                )}
               </div>
+            ) : (
+              <div className="text-center py-14 text-[#948C81] text-xs space-y-2">
+                <Info className="w-6 h-6 mx-auto text-[#948C81] opacity-60" />
+                <p>Select an item to view details. Double-click a file to see its functions and classes.</p>
+              </div>
+            )}
           </div>
-        </div>}
+        </div>
       </div>
     </div>
   );

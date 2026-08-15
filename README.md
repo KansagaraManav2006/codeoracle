@@ -1,23 +1,21 @@
 # CodeOracle
 
-CodeOracle turns an unfamiliar Python, JavaScript, or TypeScript codebase into an understandable, reviewable modernization plan. Upload a ZIP, connect a public GitHub repository, or use the bundled demo.
+CodeOracle turns an unfamiliar Python or JavaScript codebase into an understandable, reviewable modernization plan. Upload a ZIP, connect a public GitHub repository, or use the bundled demo.
 
 **Live application:** [https://codeoracle-zker.onrender.com](https://codeoracle-zker.onrender.com)
 
-## What works    
+## What works
 
 - Simple project, module, class, and function explanations grounded in AST analysis
-- Professional project dashboard with readiness, projected outcome, project scale, and workflow shortcuts
-- Interactive dependency graph with risk/entry-point filtering, touch navigation, cycles, and drill-down
+- Interactive dependency graph with internal/external filtering, cycles, entry points, and drill-down
 - Deterministic pytest and Vitest generation with syntax validation and downloadable ZIPs
-- Coverage-gap recommendations with real source-only measurement for the trusted demo: **87.4%**, above the required 60%
+- Real source-only coverage measurement for the trusted benchmark: **73.8%**, above the required 60%
 - Non-destructive Python 2 and legacy JavaScript modernization proposals
 - Unified diffs, static syntax checks, and explicit breaking-change warnings
-- Before/after modernization simulation with an explainable score across five engineering dimensions
+- Explainable 0-100 modernization readiness score across five engineering dimensions
 - Per-file change-impact simulation with downstream blast radius, affected entry points, and tests to run
-- Cross-tab file drill-down, browser-local recent projects, clear loading/empty/error states, and filtering
-- Downloads for explanations, Mermaid graphs, generated tests, refactors, and the executive report
-- Python, JavaScript, and TypeScript analysis for repositories up to 100,000 relevant source lines
+- Prioritized migration roadmap plus a downloadable executive Markdown report
+- Python and JavaScript support for repositories up to 100,000 relevant source lines
 - Higher-capacity ingestion: 200 MB ZIP, 500 MB extracted/clone size, 50 MB per file, and 10,000 archive entries
 - Secure ZIP extraction and bounded, non-interactive public GitHub cloning
 
@@ -61,7 +59,7 @@ cd ../frontend
 npm run build
 ```
 
-Current verification: **87 backend tests pass**, the TypeScript/Vite production build passes, and the browser-tested 22-file mixed-language demo generates **129 tests** with **87.4% measured Python line coverage**. Generated JavaScript suites pass static syntax validation; public repositories remain unexecuted for safety.
+Current verification: **84 backend tests pass**, the TypeScript/Vite production build passes, and the browser-tested demo achieves **73.8% measured line coverage**.
 
 The extended benchmark also covers a synthetic 100,000-line mixed-language project plus the real [Flask](https://github.com/pallets/flask) and [Express](https://github.com/expressjs/express) repositories. See [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for reproducible results.
 
@@ -86,12 +84,12 @@ For Render, Railway, or another Docker host:
 
 ## 90-second judge flow
 
-1. Click **Try Demo** to load the realistic 22-file Python/JavaScript retail system and show the project dashboard.
-2. Expand a module in **Explanation**, then use **Check change impact** to jump directly to its migration blast radius.
-3. Filter and navigate the touch-friendly **Dependency Graph**, then download its Mermaid source.
-4. Open **Generated Tests**, click **Generate tests**, and show 129 tests, coverage gaps, and 87.4% measured Python coverage.
-5. Open **Refactored Code**, generate the proposal, and show a syntax-valid before/after diff with breaking-risk filters.
-6. Open **Migration Plan**, compare the current and projected readiness scores, inspect the roadmap, and download the executive report.
+1. Click **Try Demo** and show the plain-language summary and function explanations.
+2. Open **Dependency Graph** and point out the internal module edge.
+3. Open **Generated Tests**, click **Generate tests**, and show 73.8% measured coverage.
+4. Open **Refactored Code**, click **Generate proposal**, and show the syntax-valid `xrange` to `range` diff.
+5. Open **Migration Plan**, show the readiness score, and select a priority file to demonstrate its downstream blast radius.
+6. Download the executive report and emphasize that uploads are statically analyzed but never executed.
 
 ## Architecture
 

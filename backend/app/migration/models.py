@@ -36,12 +36,8 @@ class MigrationPlanResponse(BaseModel):
     project_id: str
     readiness_score: int = Field(ge=0, le=100)
     readiness_label: str
-    projected_readiness_score: int = Field(ge=0, le=100)
-    projected_readiness_label: str
-    projected_assumptions: List[str] = Field(default_factory=list)
     executive_summary: str
     categories: List[ReadinessCategory]
-    projected_categories: List[ReadinessCategory]
     top_priorities: List[ChangeImpact]
     impacts: List[ChangeImpact]
     phases: List[MigrationPhase]

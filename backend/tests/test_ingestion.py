@@ -59,25 +59,6 @@ def setup_db():
 client = TestClient(app)
 
 
-def test_realistic_mixed_language_demo_loads_and_analyzes(tmp_path):
-    workspace = tmp_path / "legacy_retail_workspace"
-    with patch("app.api.routes.get_workspace_dir", return_value=workspace), patch(
-        "app.analysis.service.get_workspace_dir", return_value=workspace
-    ):
-        response = client.post("/api/demo/benchmarks/legacy_retail")
-        assert response.status_code == 201
-        data = response.json()
-        assert 15 <= data["total_files"] <= 25
-        assert set(data["detected_languages"]) == {"python", "javascript"}
-
-        analysis = client.get(f"/api/projects/{data['project_id']}/analysis")
-        assert analysis.status_code == 200
-        payload = analysis.json()
-        assert payload["parse_success_count"] >= 20
-        assert len(payload["entry_points"]) >= 2
-        assert len(payload["dependency_edges"]) >= 12
-
-
 # --- 1. Valid ZIP Upload ---
 def test_01_valid_zip_upload(tmp_path):
     zip_bytes = io.BytesIO()
@@ -260,10 +241,9 @@ def test_12_encrypted_archive(mock_zipfile_cls, tmp_path):
 def test_13_relevant_file_discovery(tmp_path):
     (tmp_path / "main.py").write_text("print('hello')", encoding="utf-8")
     (tmp_path / "app.jsx").write_text("export default () => <div/>;", encoding="utf-8")
-    (tmp_path / "types.ts").write_text("export type ProjectId = string;", encoding="utf-8")
     res = discover_source_files(tmp_path)
-    assert res.total_files == 3
-    assert set(res.detected_languages) == {"python", "javascript", "typescript"}
+    assert res.total_files == 2
+    assert set(res.detected_languages) == {"python", "javascript"}
 
 
 # --- 14. Ignored Directory Filtering ---
@@ -328,11 +308,6 @@ def test_19_valid_github_url_normalization():
     url = "https://github.com/octocat/Hello-World"
     clean = validate_github_url(url)
     assert clean == "https://github.com/octocat/Hello-World.git"
-
-
-def test_github_url_accepts_mobile_friendly_host_case_and_trailing_slash():
-    clean = validate_github_url("  https://gitHub.com/Talaviya-Sarthak/DataForge/  ")
-    assert clean == "https://github.com/Talaviya-Sarthak/DataForge.git"
 
 
 # --- 20. Invalid Scheme ---

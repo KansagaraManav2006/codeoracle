@@ -50,17 +50,6 @@ export interface ProjectFilesListResponse {
   files: ProjectFileResponse[];
 }
 
-export interface RecentProjectSummary {
-  project_id: string;
-  display_name: string;
-  source_type: string;
-  detected_languages: string[];
-  total_files: number;
-  total_lines: number;
-  created_at: string;
-  readiness_score?: number;
-}
-
 export type TabType = 'explanation' | 'graph' | 'tests' | 'refactor' | 'migration';
 
 export type IngestionMode = 'zip' | 'github';
@@ -98,12 +87,8 @@ export interface MigrationPlanResponse {
   project_id: string;
   readiness_score: number;
   readiness_label: string;
-  projected_readiness_score: number;
-  projected_readiness_label: string;
-  projected_assumptions: string[];
   executive_summary: string;
   categories: ReadinessCategory[];
-  projected_categories: ReadinessCategory[];
   top_priorities: ChangeImpact[];
   impacts: ChangeImpact[];
   phases: MigrationPhase[];

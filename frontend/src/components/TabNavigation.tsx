@@ -17,27 +17,27 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({ activeTab, onTabCh
   ];
 
   return (
-    <div role="tablist" aria-label="Analysis results" className="sticky top-[61px] z-40 -mx-3 mb-4 flex snap-x snap-mandatory overflow-x-auto border-b border-slate-800 bg-slate-900/95 px-2 shadow-sm backdrop-blur sm:top-[65px] sm:mx-0 sm:mb-6 sm:space-x-1 sm:px-0 lg:top-[77px]">
-      {tabs.map((tab) => {
-        const Icon = tab.icon;
-        const isActive = activeTab === tab.id;
-        return (
-          <button
-            key={tab.id}
-            role="tab"
-            aria-selected={isActive}
-            onClick={() => onTabChange(tab.id)}
-            className={`flex min-h-11 shrink-0 snap-start touch-manipulation items-center gap-1.5 px-3 py-3 text-xs font-medium border-b-2 transition-all sm:gap-2 sm:px-4 sm:text-sm lg:px-5 ${
-              isActive
-                ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5 rounded-t-lg'
-                : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-700'
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-            <span>{tab.label}</span>
-          </button>
-        );
-      })}
+    <div className="sticky top-[57px] z-40 -mx-3 mb-5 overflow-x-auto border-b-2 border-[#C8BEB0] bg-[#ECE5DA]/90 px-3 py-2 shadow-xs backdrop-blur sm:top-[61px] sm:mx-0 sm:mb-6 sm:px-2 rounded-2xl">
+      <div className="flex space-x-1.5 sm:space-x-2 min-w-max">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => onTabChange(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all duration-150 sm:px-5 sm:text-sm ${
+                isActive
+                  ? 'bg-[#181715] text-white shadow-md ring-1 ring-black/10'
+                  : 'bg-[#FFFDFC] text-[#3B3733] border border-[#C8BEB0] hover:bg-[#181715] hover:text-white hover:border-[#181715]'
+              }`}
+            >
+              <Icon className={`w-4 h-4 ${isActive ? 'text-[#C7953D]' : 'text-[#5C554D]'}`} />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 };

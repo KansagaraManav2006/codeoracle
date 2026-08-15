@@ -5,25 +5,24 @@ import {
   ChevronRight,
   Code2,
   Cpu,
-  Download,
   FileCode,
   FolderGit2,
   Hash,
   RefreshCw,
   Search,
   ShieldAlert,
-  Target,
   Zap,
 } from 'lucide-react';
 import { ProjectAnalysis, WarningInfo } from '../types';
 import { cleanText, complexityLabel, severityLabel, warningTitle } from '../utils/presentation';
+import StatCard from './common/StatCard';
+import RiskBadge from './common/RiskBadge';
 
 interface ExplanationTabProps {
   projectId?: string | null;
-  onOpenImpact?: (relativePath: string) => void;
 }
 
-export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onOpenImpact }) => {
+export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => {
   const [analysis, setAnalysis] = useState<ProjectAnalysis | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,12 +83,12 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onOpe
 
   if (!projectId) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center min-h-[350px] flex flex-col items-center justify-center">
-        <div className="p-4 bg-indigo-500/10 text-indigo-400 rounded-2xl border border-indigo-500/20 mb-4">
-          <FolderGit2 className="w-8 h-8" />
+      <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[24px] p-10 text-center min-h-[350px] flex flex-col items-center justify-center">
+        <div className="p-3.5 bg-[#EAE9FB] text-[#4340A0] rounded-2xl border border-[#C7C4F7] mb-3">
+          <FolderGit2 className="w-7 h-7" />
         </div>
-        <h3 className="text-lg font-bold text-white mb-2">No Repository Ingested</h3>
-        <p className="text-xs text-slate-400 max-w-md">
+        <h3 className="text-lg font-extrabold text-[#292622] mb-1">No Repository Ingested</h3>
+        <p className="text-xs text-[#6B645A] max-w-md">
           Upload a ZIP archive or enter a public GitHub repository to begin.
         </p>
       </div>
@@ -98,29 +97,29 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onOpe
 
   if (loading && !analysis) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 space-y-6 animate-pulse">
-        <div className="h-8 bg-slate-800 rounded-xl w-1/3"></div>
+      <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[24px] p-8 space-y-6 animate-pulse">
+        <div className="h-8 bg-[#F0EBE2] rounded-xl w-1/3"></div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-24 bg-slate-800/60 rounded-xl"></div>
+            <div key={i} className="h-24 bg-[#EFE9DD]/60 rounded-[20px]"></div>
           ))}
         </div>
-        <div className="h-64 bg-slate-800/40 rounded-xl"></div>
+        <div className="h-64 bg-[#EFE9DD]/40 rounded-[20px]"></div>
       </div>
     );
   }
 
   if (error && !analysis) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center min-h-[300px] flex flex-col items-center justify-center">
-        <div className="p-4 bg-red-500/10 text-red-400 rounded-2xl border border-red-500/20 mb-4">
-          <AlertTriangle className="w-8 h-8" />
+      <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[24px] p-8 text-center min-h-[300px] flex flex-col items-center justify-center">
+        <div className="p-3.5 bg-[#F6E5E2] text-[#C45F58] rounded-2xl border border-[#ECC7C3] mb-3">
+          <AlertTriangle className="w-7 h-7" />
         </div>
-        <h3 className="text-lg font-bold text-white mb-2">Analysis Failed</h3>
-        <p className="text-xs text-slate-400 max-w-md mb-6">{error}</p>
+        <h3 className="text-lg font-extrabold text-[#292622] mb-1">Analysis Failed</h3>
+        <p className="text-xs text-[#6B645A] max-w-md mb-5">{error}</p>
         <button
           onClick={() => fetchAnalysis(true)}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition-colors"
+          className="btn-brand-pill px-5 py-2 text-xs"
         >
           Retry Analysis
         </button>
@@ -142,121 +141,93 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onOpe
     return matchesSearch && matchesLang;
   });
 
-  const getComplexityBadgeClass = (rating: string) => {
-    switch (rating) {
-      case 'low':
-        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-      case 'medium':
-        return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-      case 'high':
-        return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
-      case 'critical':
-        return 'bg-red-500/10 text-red-400 border-red-500/20';
-      default:
-        return 'bg-slate-800 text-slate-400 border-slate-700';
-    }
-  };
-
-  const getSeverityBadge = (severity: string) => {
-    switch (severity) {
-      case 'risk':
-        return 'bg-red-500/10 text-red-400 border-red-500/20';
-      case 'warning':
-        return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-      default:
-        return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
-    }
-  };
-
   return (
     <div className="space-y-6">
-      {/* Top Banner: Deterministic Analysis Indicator */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4 mb-6">
+      {/* Explanation Banner */}
+      <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[24px] p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#D8CFC2] pb-4 mb-6">
           <div className="flex items-center space-x-3">
-            <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-indigo-400">
+            <div className="p-3 bg-[#EAE9FB] border border-[#C7C4F7] rounded-2xl text-[#4340A0]">
               <Zap className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white">Codebase Explanation</h2>
-              <p className="text-xs text-slate-400 mt-0.5">A simple overview of the project, modules, and functions.</p>
+              <h2 className="text-base font-extrabold text-[#292622]">Codebase Explanation</h2>
+              <p className="text-xs text-[#6B645A] mt-0.5">
+                Deterministic overview of project modules, architecture, and complexity.
+              </p>
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <a href={`/api/projects/${projectId}/analysis/download`} className="flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800"><Download className="h-3.5 w-3.5"/>Download explanation</a>
-            <button
-              onClick={() => fetchAnalysis(true)}
-              disabled={loading}
-              className="flex items-center justify-center space-x-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 text-xs font-medium rounded-xl transition-colors border border-slate-700"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              <span>Refresh Explanation</span>
-            </button>
-          </div>
+          <button
+            onClick={() => fetchAnalysis(true)}
+            disabled={loading}
+            className="btn-brand-outline-pill px-4 py-2 text-xs flex items-center space-x-1.5 self-start sm:self-auto"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh Explanation</span>
+          </button>
         </div>
 
-        {/* Executive Summary Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-          <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800">
-            <div className="flex items-center space-x-2 text-slate-400 text-xs mb-1">
-              <FileCode className="w-4 h-4 text-indigo-400" />
-              <span>Files Understood</span>
-            </div>
-            <p className="text-xl font-bold text-emerald-400">
-              {analysis.parse_success_count} / {analysis.total_files}
-            </p>
-          </div>
-
-          <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800">
-            <div className="flex items-center space-x-2 text-slate-400 text-xs mb-1">
-              <Hash className="w-4 h-4 text-emerald-400" />
-              <span>Total Lines</span>
-            </div>
-            <p className="text-xl font-bold text-white">{analysis.total_lines.toLocaleString()}</p>
-          </div>
-
-          <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800">
-            <div className="flex items-center space-x-2 text-slate-400 text-xs mb-1">
-              <ShieldAlert className="w-4 h-4 text-amber-400" />
-              <span>Suggestions</span>
-            </div>
-            <p className="text-xl font-bold text-amber-400">{analysis.project_warnings.length}</p>
-          </div>
-
-          <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800">
-            <div className="flex items-center space-x-2 text-slate-400 text-xs mb-1">
-              <Cpu className="w-4 h-4 text-indigo-400" />
-              <span>Connections</span>
-            </div>
-            <p className="text-xl font-bold text-indigo-300">{analysis.dependency_edges.length} edges</p>
-          </div>
+        {/* 4 Stat Cards: Suggestions gets signal amber treatment */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <StatCard
+            label="Files Understood"
+            value={`${analysis.parse_success_count} / ${analysis.total_files}`}
+            icon={FileCode}
+          />
+          <StatCard
+            label="Total Lines"
+            value={analysis.total_lines.toLocaleString()}
+            icon={Hash}
+          />
+          {/* Signal Amber Accent on Suggestions (the one actionable stat) */}
+          <StatCard
+            label="Suggestions"
+            value={analysis.project_warnings.length}
+            icon={ShieldAlert}
+            signalAmber={true}
+          />
+          <StatCard
+            label="Connections"
+            value={`${analysis.dependency_edges.length} edges`}
+            icon={Cpu}
+          />
         </div>
 
         {/* Project Explanation Synthesis */}
         {analysis.explanation && (
-          <div className="bg-slate-950/80 rounded-xl p-5 border border-slate-800/80 space-y-3">
-            <h3 className="text-sm font-semibold text-white">In simple words</h3>
-            <p className="text-sm leading-6 text-slate-200">{cleanText(analysis.explanation.languages_summary)}</p>
+          <div className="bg-[#F0EBE2] rounded-[20px] p-5 border border-[#D8CFC2] space-y-3">
+            <h3 className="text-sm font-extrabold text-[#292622]">In simple words</h3>
+            <p className="text-xs leading-6 text-[#4D4842]">
+              {cleanText(analysis.explanation.languages_summary)}
+            </p>
             <div className="grid gap-3 md:grid-cols-3">
-              <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
-                <span className="mb-1 block text-[11px] font-semibold text-indigo-400">How it starts</span>
-                <p className="text-xs leading-5 text-slate-300">{cleanText(analysis.explanation.entry_points_summary)}</p>
+              <div className="rounded-xl border border-[#D8CFC2] bg-[#FFFDFC] p-3.5">
+                <span className="mb-1 block text-[11px] font-bold text-[#4C4FD6]">How it starts</span>
+                <p className="text-xs leading-5 text-[#4D4842]">
+                  {cleanText(analysis.explanation.entry_points_summary)}
+                </p>
               </div>
-              <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
-                <span className="mb-1 block text-[11px] font-semibold text-indigo-400">Important files</span>
-                <p className="text-xs leading-5 text-slate-300">{cleanText(analysis.explanation.major_modules_summary)}</p>
+              <div className="rounded-xl border border-[#D8CFC2] bg-[#FFFDFC] p-3.5">
+                <span className="mb-1 block text-[11px] font-bold text-[#4C4FD6]">Important files</span>
+                <p className="text-xs leading-5 text-[#4D4842]">
+                  {cleanText(analysis.explanation.major_modules_summary)}
+                </p>
               </div>
-              <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
-                <span className="mb-1 block text-[11px] font-semibold text-indigo-400">How files connect</span>
-                <p className="text-xs leading-5 text-slate-300">{cleanText(analysis.explanation.dependencies_summary)}</p>
+              <div className="rounded-xl border border-[#D8CFC2] bg-[#FFFDFC] p-3.5">
+                <span className="mb-1 block text-[11px] font-bold text-[#4C4FD6]">How files connect</span>
+                <p className="text-xs leading-5 text-[#4D4842]">
+                  {cleanText(analysis.explanation.dependencies_summary)}
+                </p>
               </div>
             </div>
 
             {analysis.explanation.architectural_observations.length > 0 && (
-              <div className="pt-2 border-t border-slate-800/60">
-                <span className="text-[11px] font-semibold text-indigo-400 block mb-1">What CodeOracle noticed</span>
-                <ul className="list-disc list-inside text-xs text-slate-400 space-y-0.5">
+              <div className="pt-2.5 border-t border-[#D8CFC2]">
+                <span className="text-[11px] font-bold text-[#4C4FD6] block mb-1">
+                  What CodeOracle noticed
+                </span>
+                <ul className="list-disc list-inside text-xs text-[#6B645A] space-y-1">
                   {analysis.explanation.architectural_observations.map((obs, idx) => (
                     <li key={idx}>{cleanText(obs)}</li>
                   ))}
@@ -267,29 +238,29 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onOpe
         )}
       </div>
 
-      {/* Controls: Search & Language Filter */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+      {/* Search & Language Filter Bar */}
+      <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[20px] p-3.5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
         <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-[#6B645A] absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Search module path or symbol name..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+            className="w-full bg-[#EFE9DD]/50 border border-[#D8CFC2] rounded-full pl-9 pr-4 py-1.5 text-xs text-[#292622] placeholder-[#6B645A] focus:outline-none focus:border-[#4C4FD6] focus:bg-[#FFFDFC] transition-colors"
           />
         </div>
 
         <div className="flex items-center space-x-2 text-xs">
-          <span className="text-slate-400 font-medium">Filter Language:</span>
-          {['all', 'python', 'javascript', 'typescript'].map((lang) => (
+          <span className="text-[#6B645A] font-bold">Filter Language:</span>
+          {['all', 'python', 'javascript'].map((lang) => (
             <button
               key={lang}
               onClick={() => setLanguageFilter(lang)}
-              className={`px-3 py-1.5 rounded-xl uppercase font-bold text-[10px] transition-colors border ${
+              className={`px-3 py-1 rounded-full uppercase font-bold text-[10px] transition-all border ${
                 languageFilter === lang
-                  ? 'bg-indigo-600 text-white border-indigo-500'
-                  : 'bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800'
+                  ? 'bg-[#EAE9FB] text-[#4340A0] border-[#C7C4F7] shadow-xs'
+                  : 'bg-[#FFFDFC] text-[#6B645A] border-[#D8CFC2] hover:bg-[#F0EBE2]'
               }`}
             >
               {lang}
@@ -299,9 +270,9 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onOpe
       </div>
 
       {/* Module Breakdown Hierarchy List */}
-      <div className="space-y-4">
+      <div className="space-y-3.5">
         {filteredModules.length === 0 ? (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center text-slate-400 text-xs">
+          <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[20px] p-8 text-center text-[#6B645A] text-xs font-medium">
             No modules match search filter "{searchQuery}".
           </div>
         ) : (
@@ -311,95 +282,101 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onOpe
               (groups[warning.code] ||= []).push(warning);
               return groups;
             }, {});
+
             return (
               <div
                 key={mod.module_id}
-                className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden transition-all shadow-lg"
+                className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[20px] overflow-hidden transition-all shadow-xs"
               >
-                {/* Module Header Header Row */}
+                {/* Module Header Row */}
                 <button
                   type="button"
                   aria-expanded={isExpanded}
                   onClick={() => toggleModuleExpand(mod.module_id)}
-                  className="flex w-full cursor-pointer flex-col gap-3 p-4 text-left transition-colors hover:bg-slate-800/40 sm:flex-row sm:items-center sm:justify-between sm:p-5"
+                  className="flex w-full cursor-pointer flex-col gap-3 p-4 text-left transition-colors hover:bg-[#F0EBE2]/40 sm:flex-row sm:items-center sm:justify-between sm:p-5"
                 >
                   <div className="flex min-w-0 items-start space-x-3">
-                    <span className="text-slate-400">
+                    <span className="text-[#6B645A] mt-0.5">
                       {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                     </span>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="break-all font-mono text-xs font-bold text-indigo-300">{mod.relative_path}</span>
-                        <span
-                          className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded border ${
-                            mod.language === 'python'
-                              ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                              : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
-                          }`}
-                        >
-                          {mod.language}
+                        <span className="break-all font-mono text-xs font-bold text-[#4C4FD6]">
+                          {mod.relative_path}
                         </span>
-
-                        <span
-                          className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded border ${
+                        <RiskBadge level="info" label={mod.language} size="sm" />
+                        <RiskBadge
+                          level={
                             mod.parse_status === 'complete'
-                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                              ? 'success'
                               : mod.parse_status === 'partial'
-                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                              : 'bg-red-500/10 text-red-400 border-red-500/20'
-                          }`}
-                        >
-                          {mod.parse_status === 'complete' ? 'Analyzed' : mod.parse_status}
-                        </span>
-
+                              ? 'warning'
+                              : 'danger'
+                          }
+                          label={mod.parse_status === 'complete' ? 'Analyzed' : mod.parse_status}
+                          size="sm"
+                        />
                         {mod.is_entry_point && (
-                          <span className="text-[9px] uppercase font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                            Entry Point
-                          </span>
+                          <RiskBadge level="info" label="Entry Point" size="sm" />
                         )}
                       </div>
                       {mod.explanation && (
-                        <p className="text-xs text-slate-400 mt-1">{cleanText(mod.explanation.responsibility)}</p>
+                        <p className="text-xs text-[#6B645A] mt-1">{cleanText(mod.explanation.responsibility)}</p>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pl-7 text-xs text-slate-400 sm:justify-end sm:pl-0">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pl-7 text-xs text-[#6B645A] sm:justify-end sm:pl-0 font-medium">
                     <span>{mod.line_count.toLocaleString()} lines</span>
                     <span>{mod.classes.length} classes</span>
                     <span>{mod.functions.length} functions</span>
-                    <span title={`Score ${mod.complexity.cyclomatic_complexity}`} className={`px-2 py-0.5 rounded border text-[10px] font-bold ${getComplexityBadgeClass(mod.complexity.rating)}`}>
-                      Complexity: {complexityLabel(mod.complexity.rating)}
-                    </span>
+                    <RiskBadge
+                      level={
+                        mod.complexity.rating === 'low'
+                          ? 'success'
+                          : mod.complexity.rating === 'medium'
+                          ? 'warning'
+                          : 'danger'
+                      }
+                      label={`Complexity: ${complexityLabel(mod.complexity.rating)}`}
+                      size="sm"
+                    />
                   </div>
                 </button>
 
                 {/* Expanded Details Body */}
                 {isExpanded && (
-                  <div className="border-t border-slate-800 bg-slate-950/60 p-6 space-y-6">
-                    {onOpenImpact && <div className="flex justify-end"><button type="button" onClick={() => onOpenImpact(mod.relative_path)} className="inline-flex items-center gap-2 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-[10px] font-semibold text-indigo-200 hover:bg-indigo-500/20"><Target className="h-3.5 w-3.5"/>Check change impact</button></div>}
+                  <div className="border-t border-[#D8CFC2] bg-[#EFE9DD]/30 p-6 space-y-6">
                     {mod.legacy_warnings.length > 0 && (
-                      <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 space-y-2">
-                        <div className="flex items-center space-x-2 text-amber-400 text-xs font-bold">
-                          <AlertTriangle className="w-4 h-4" />
+                      <div className="bg-[#F5E8CC]/80 border border-[#E6D3A9] rounded-2xl p-4 space-y-2">
+                        <div className="flex items-center space-x-2 text-[#76561B] text-xs font-bold">
+                          <AlertTriangle className="w-4 h-4 text-[#C7953D]" />
                           <span>Modernization Suggestions ({mod.legacy_warnings.length})</span>
                         </div>
-                        <p className="text-[11px] text-slate-400">Similar findings are grouped. Open a suggestion to see exact lines.</p>
+                        <p className="text-[11px] text-[#6B645A]">
+                          Similar findings are grouped. Open a suggestion to see exact lines.
+                        </p>
                         <div className="space-y-2 pt-1">
                           {Object.entries(warningGroups).map(([code, warnings]) => (
-                            <details key={code} className="group rounded-lg border border-amber-500/15 bg-slate-950/40">
-                              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3 text-xs text-slate-200">
-                                <span className="font-medium text-amber-200">{warningTitle(code)}</span>
+                            <details
+                              key={code}
+                              className="group rounded-xl border border-[#E6D3A9] bg-[#FFFDFC]"
+                            >
+                              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3 text-xs text-[#292622]">
+                                <span className="font-bold text-[#76561B]">{warningTitle(code)}</span>
                                 <span className="flex shrink-0 items-center gap-2">
-                                  <span className="text-[10px] text-slate-400">{warnings.length} {warnings.length === 1 ? 'finding' : 'findings'}</span>
-                                  <span className={`rounded border px-2 py-0.5 text-[9px] ${getSeverityBadge(warnings[0].severity)}`}>{severityLabel(warnings[0].severity)}</span>
-                                  <ChevronRight className="h-3.5 w-3.5 text-slate-500 transition-transform group-open:rotate-90" />
+                                  <span className="text-[10px] text-[#6B645A]">
+                                    {warnings.length} {warnings.length === 1 ? 'finding' : 'findings'}
+                                  </span>
+                                  <RiskBadge level={warnings[0].severity} label={severityLabel(warnings[0].severity)} size="sm" />
+                                  <ChevronRight className="h-3.5 w-3.5 text-[#6B645A] transition-transform group-open:rotate-90" />
                                 </span>
                               </summary>
-                              <div className="space-y-2 border-t border-amber-500/10 px-3 py-2">
+                              <div className="space-y-2 border-t border-[#E6D3A9]/60 px-3 py-2">
                                 {warnings.map((warning, index) => (
-                                  <p key={`${warning.line}-${index}`} className="text-[11px] leading-5 text-slate-400">
-                                    <span className="font-medium text-slate-300">Line {warning.line || 1}:</span> {cleanText(warning.message)}
+                                  <p key={`${warning.line}-${index}`} className="text-[11px] leading-5 text-[#4D4842]">
+                                    <span className="font-bold text-[#292622]">Line {warning.line || 1}:</span>{' '}
+                                    {cleanText(warning.message)}
                                   </p>
                                 ))}
                               </div>
@@ -412,19 +389,26 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onOpe
                     {/* Classes Section */}
                     {mod.classes.length > 0 && (
                       <div>
-                        <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-3">Classes ({mod.classes.length})</h4>
-                        <div className="space-y-3">
+                        <h4 className="text-xs font-extrabold uppercase text-[#6B645A] tracking-wider mb-3">
+                          Classes ({mod.classes.length})
+                        </h4>
+                        <div className="space-y-2.5">
                           {mod.classes.map((cls) => (
-                            <div key={cls.symbol_id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
+                            <div
+                              key={cls.symbol_id}
+                              className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-xl p-4 space-y-2 shadow-xs"
+                            >
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-2">
-                                  <Code2 className="w-4 h-4 text-indigo-400" />
-                                  <span className="font-mono text-xs font-bold text-white">{cls.name}</span>
-                                  <span className="text-[10px] text-slate-500 font-mono">L{cls.start_line}-L{cls.end_line}</span>
+                                  <Code2 className="w-4 h-4 text-[#4C4FD6]" />
+                                  <span className="font-mono text-xs font-bold text-[#292622]">{cls.name}</span>
+                                  <span className="text-[10px] text-[#6B645A] font-mono">
+                                    L{cls.start_line}-L{cls.end_line}
+                                  </span>
                                 </div>
                               </div>
                               {cls.explanation && (
-                                <p className="text-xs text-slate-400">{cleanText(cls.explanation.summary)}</p>
+                                <p className="text-xs text-[#4D4842]">{cleanText(cls.explanation.summary)}</p>
                               )}
                             </div>
                           ))}
@@ -435,37 +419,55 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onOpe
                     {/* Functions Section */}
                     {mod.functions.length > 0 && (
                       <div>
-                        <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-3">Functions & Methods ({mod.functions.length})</h4>
-                        <div className="space-y-3">
+                        <h4 className="text-xs font-extrabold uppercase text-[#6B645A] tracking-wider mb-3">
+                          Functions & Methods ({mod.functions.length})
+                        </h4>
+                        <div className="space-y-2.5">
                           {mod.functions.map((fn) => (
-                            <div key={fn.symbol_id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+                            <div
+                              key={fn.symbol_id}
+                              className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-xl p-4 space-y-2 shadow-xs"
+                            >
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#D8CFC2]/60 pb-2">
                                 <div className="flex items-center space-x-2">
                                   {fn.is_async && (
-                                    <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                                    <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-[#EAE9FB] text-[#4340A0] border border-[#C7C4F7]">
                                       async
                                     </span>
                                   )}
-                                  <span className="font-mono text-xs font-bold text-indigo-300">{fn.qualified_name}</span>
-                                  <span className="text-[10px] text-slate-500 font-mono">
+                                  <span className="font-mono text-xs font-bold text-[#4C4FD6]">
+                                    {fn.qualified_name}
+                                  </span>
+                                  <span className="text-[10px] text-[#6B645A] font-mono">
                                     L{fn.start_line}-L{fn.end_line}
                                   </span>
                                 </div>
                                 <div className="flex items-center space-x-2">
-                                  <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded border ${getComplexityBadgeClass(fn.complexity > 10 ? 'high' : 'low')}`}>
-                                    Complexity: {complexityLabel(undefined, fn.complexity)}
-                                  </span>
+                                  <RiskBadge
+                                    level={fn.complexity > 10 ? 'danger' : 'success'}
+                                    label={`Complexity: ${complexityLabel(undefined, fn.complexity)}`}
+                                    size="sm"
+                                  />
                                 </div>
                               </div>
 
                               {/* Parameters & Return Type */}
-                              <div className="text-xs text-slate-300 space-y-1">
+                              <div className="text-xs text-[#4D4842] space-y-1">
                                 {fn.explanation && (
                                   <>
-                                    <p className="text-slate-400">{cleanText(fn.explanation.summary)}</p>
-                                    <p><strong className="text-slate-400">Inputs:</strong> {cleanText(fn.explanation.inputs_summary)}</p>
-                                    <p><strong className="text-slate-400">Returns:</strong> {cleanText(fn.explanation.returns_summary)}</p>
-                                    <p className="text-slate-500 text-[11px]"><strong className="text-slate-400">Calls:</strong> {cleanText(fn.explanation.side_effects)}</p>
+                                    <p className="text-[#6B645A]">{cleanText(fn.explanation.summary)}</p>
+                                    <p>
+                                      <strong className="text-[#292622]">Inputs:</strong>{' '}
+                                      {cleanText(fn.explanation.inputs_summary)}
+                                    </p>
+                                    <p>
+                                      <strong className="text-[#292622]">Returns:</strong>{' '}
+                                      {cleanText(fn.explanation.returns_summary)}
+                                    </p>
+                                    <p className="text-[#6B645A] text-[11px]">
+                                      <strong className="text-[#292622]">Calls:</strong>{' '}
+                                      {cleanText(fn.explanation.side_effects)}
+                                    </p>
                                   </>
                                 )}
                               </div>

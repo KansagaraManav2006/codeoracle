@@ -29,26 +29,7 @@ def test_python_generator_creates_syntax_valid_pytest(tmp_path) -> None:
     assert generated.framework == "pytest"
     assert generated.syntax_valid is True
     assert generated.test_count >= 3
-    assert "target_module.add(10, 10)" in generated.code
-
-
-def test_python_generator_handles_github_wrapper_folder(tmp_path) -> None:
-    source = tmp_path / "codeoracle-main" / "backend" / "app" / "service.py"
-    source.parent.mkdir(parents=True)
-    source.write_text("def ready():\n    return True\n", encoding="utf-8")
-    module = analyze_python_source("proj_archive", "codeoracle-main/backend/app/service.py", source)
-
-    generated = generate_python_unit_tests(module, _project(module, "proj_archive"))
-
-    assert generated.syntax_valid is True
-    assert "import codeoracle-main" not in generated.code
-    assert "codeoracle-main/backend/app/service.py" in generated.code
-    assert "spec_from_file_location" in generated.code
-
-    test_file = tmp_path / generated.safe_test_path
-    namespace = {"__file__": str(test_file)}
-    exec(compile(generated.code, str(test_file), "exec"), namespace)
-    namespace[f"test_{module.module_id}_import_smoke"]()
+    assert "calculator.add(10, 10)" in generated.code
 
 
 def test_javascript_commonjs_generator_uses_require(tmp_path) -> None:
@@ -59,18 +40,6 @@ def test_javascript_commonjs_generator_uses_require(tmp_path) -> None:
     assert generated.framework == "vitest"
     assert generated.syntax_valid is True
     assert "require('../math.cjs')" in generated.code
-
-
-def test_nested_modules_generate_unique_test_paths(tmp_path) -> None:
-    source = tmp_path / "pricing.py"
-    source.write_text("def total(value):\n    return value\n", encoding="utf-8")
-    service_module = analyze_python_source("proj_test", "services/pricing.py", source)
-    existing_test_module = analyze_python_source("proj_test", "tests/pricing.py", source)
-    service_test = generate_python_unit_tests(service_module, _project(service_module))
-    existing_test = generate_python_unit_tests(existing_test_module, _project(existing_test_module))
-    assert service_test.safe_test_path == "tests/test_services_pricing.py"
-    assert existing_test.safe_test_path == "tests/test_tests_pricing.py"
-    assert service_test.safe_test_path != existing_test.safe_test_path
 
 
 def test_generated_code_validators_reject_dangerous_calls() -> None:

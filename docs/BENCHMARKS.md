@@ -1,16 +1,6 @@
 # CodeOracle Benchmark Results
 
-Verified on 2026-08-15 with the deterministic CodeOracle pipeline. Public repository code was statically analyzed but never executed.
-
-## Trusted mixed-language demo
-
-The bundled `legacy_retail` demo is a realistic 22-source-file legacy application rather than a two-file sample. It includes 15 Python files and 7 JavaScript files, two entry points, internal service/model/route dependencies, legacy patterns, and existing tests.
-
-| Source files | Relevant LOC | Languages | Internal graph | Generated tests | Syntax-valid suites | Executed Python suites | Measured Python coverage |
-|---:|---:|---|---:|---:|---:|---:|---:|
-| 22 | 390 | Python + JavaScript | 22 nodes / 21 edges | 129 | 22 / 22 | 15 / 15 passed | 87.4% |
-
-The trusted demo is the only repository whose generated tests may run automatically. JavaScript suites receive static syntax validation in the minimal deployment when Vitest is unavailable.
+Verified on 2026-08-14 with the deterministic CodeOracle pipeline. Public repository code was statically analyzed but never executed.
 
 ## Capacity benchmark
 

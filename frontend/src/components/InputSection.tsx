@@ -15,6 +15,7 @@ import {
   Map,
 } from 'lucide-react';
 import { IngestionMode } from '../types';
+import SegmentedControl, { SegmentOption } from './common/SegmentedControl';
 
 const MAX_ZIP_BYTES = 200 * 1024 * 1024;
 
@@ -36,8 +37,9 @@ export const InputSection: React.FC<InputSectionProps> = ({
     { label: 'Dependency Graph', icon: GitFork },
     { label: 'Generated Tests', icon: TestTube },
     { label: 'Safe Refactor', icon: Wand2 },
-    { label: 'Migration Plan', icon: Map, featured: true },
+    { label: 'Migration Plan', icon: Map },
   ];
+
   const [mode, setMode] = useState<IngestionMode>('zip');
   const [githubUrl, setGithubUrl] = useState('');
   const [githubUrlError, setGithubUrlError] = useState<string | null>(null);
@@ -95,7 +97,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+    if (e.dataTransfer.files && e.target) {
       handleFileSelect(e.dataTransfer.files[0]);
     }
   };
@@ -107,9 +109,8 @@ export const InputSection: React.FC<InputSectionProps> = ({
       return false;
     }
 
-    const normalizedUrl = url.trim().replace(/\/+$/, '');
-    const regex = /^https:\/\/github\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+(?:\.git)?$/i;
-    if (!regex.test(normalizedUrl)) {
+    const regex = /^https:\/\/github\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+(?:\.git)?$/;
+    if (!regex.test(url.trim())) {
       setGithubUrlError('Enter a valid public GitHub HTTPS URL (e.g. https://github.com/owner/repo)');
       return false;
     }
@@ -127,180 +128,183 @@ export const InputSection: React.FC<InputSectionProps> = ({
       }
       onAnalyzeZip(selectedFile);
     } else {
-      const normalizedUrl = githubUrl.trim().replace(/\/+$/, '');
-      if (!validateGithubUrl(normalizedUrl)) return;
-      onAnalyzeGithub(normalizedUrl);
+      if (!validateGithubUrl(githubUrl)) return;
+      onAnalyzeGithub(githubUrl.trim());
     }
   };
 
+  const segmentedOptions: SegmentOption<IngestionMode>[] = [
+    { id: 'zip', label: 'ZIP Upload', icon: FolderArchive },
+    { id: 'github', label: 'GitHub Repo', icon: Github },
+  ];
+
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl max-w-4xl mx-auto mb-5 sm:mb-8">
-      <div className="flex flex-col gap-4 border-b border-slate-800 pb-4 mb-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="bg-[#FFFDFC] border-2 border-[#C8BEB0] rounded-[32px] p-6 sm:p-8 shadow-warm max-w-4xl mx-auto mb-6 sm:mb-8 transition-all">
+      {/* Header & Mode Switcher */}
+      <div className="flex flex-col gap-4 border-b-2 border-[#C8BEB0] pb-5 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-white">Codebase Ingestion</h2>
-          <p className="text-xs text-slate-400">Select a ZIP archive or public GitHub repo (up to 100,000 source lines)</p>
+          <div className="flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full bg-[#4C4FD6]"></span>
+            <h2 className="text-xl font-extrabold text-[#181715] tracking-tight">Codebase Ingestion</h2>
+          </div>
+          <p className="text-xs text-[#5C554D] mt-1 font-semibold">
+            Upload a ZIP archive or public GitHub repo (up to 100,000 source lines)
+          </p>
         </div>
-        <div className="grid w-full grid-cols-3 bg-slate-950 p-1 rounded-xl border border-slate-800 sm:w-auto">
+
+        <div className="flex items-center gap-2.5">
           <button
             type="button"
-            onClick={() => {
-              setMode('zip');
-              setFileError(null);
-            }}
-            className={`flex items-center justify-center gap-1.5 px-2 sm:px-4 py-2 text-[11px] sm:text-xs font-medium rounded-lg transition-all ${
-              mode === 'zip' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
-            }`}
+            onClick={onLoadDemo}
+            disabled={disabled}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-extrabold rounded-full bg-[#B88228] text-white hover:bg-[#181715] transition-all shadow-sm disabled:opacity-50"
           >
-            <FolderArchive className="w-4 h-4" />
-            <span>ZIP Upload</span>
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Try Demo</span>
           </button>
-          <button type="button" onClick={onLoadDemo} disabled={disabled} className="flex items-center justify-center gap-1.5 rounded-lg px-2 sm:px-4 py-2 text-[11px] sm:text-xs font-medium text-amber-300 transition-all hover:bg-amber-500/10 disabled:opacity-50">
-            <Sparkles className="w-4 h-4"/><span>Try Demo</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode('github');
+
+          <SegmentedControl
+            options={segmentedOptions}
+            value={mode}
+            onChange={(m) => {
+              setMode(m);
+              setFileError(null);
               setGithubUrlError(null);
             }}
-            className={`flex items-center justify-center gap-1.5 px-2 sm:px-4 py-2 text-[11px] sm:text-xs font-medium rounded-lg transition-all ${
-              mode === 'github' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Github className="w-4 h-4" />
-            <span>GitHub Repo</span>
-          </button>
+            disabled={disabled}
+          />
         </div>
       </div>
 
-      <div className="mb-6">
-        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Every analysis includes</p>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-          {outputs.map(({ label, icon: Icon, featured }) => (
-            <div
-              key={label}
-              className={`flex min-h-12 items-center gap-2 rounded-lg border px-3 py-2 text-[10px] font-semibold ${
-                featured
-                  ? 'border-indigo-500/40 bg-indigo-500/10 text-indigo-200'
-                  : 'border-slate-800 bg-slate-950/60 text-slate-400'
-              }`}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              <span>{label}</span>
-              {featured && <span className="ml-auto rounded bg-indigo-500/20 px-1.5 py-0.5 text-[8px] uppercase">New</span>}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="space-y-6">
         {mode === 'zip' ? (
           <div className="space-y-4">
             <div
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-xl p-5 sm:p-8 text-center bg-slate-950/40 transition-all ${
+              className={`border-2 border-dashed rounded-[32px] p-8 sm:p-11 text-center bg-[#E7DFD3]/70 transition-all ${
                 isDragging
-                  ? 'border-indigo-500 bg-indigo-500/10'
+                  ? 'border-[#4C4FD6] bg-[#EAE9FB] scale-[1.01]'
                   : selectedFile
-                  ? 'border-emerald-500/50 bg-emerald-950/20'
-                  : 'border-slate-700 hover:border-indigo-500/50'
+                  ? 'border-[#2A7A71] bg-[#D9ECE6]/60'
+                  : 'border-[#9E9282] hover:border-[#181715] hover:bg-[#E7DFD3]'
               }`}
             >
               {selectedFile ? (
-                <div className="flex min-w-0 items-center justify-between gap-3 bg-slate-900 border border-emerald-500/30 p-3 sm:p-4 rounded-xl max-w-lg mx-auto">
-                  <div className="flex min-w-0 items-center space-x-3 text-left">
-                    <FileCheck className="w-8 h-8 text-emerald-400 flex-shrink-0" />
+                <div className="flex min-w-0 items-center justify-between gap-3 bg-[#FFFDFC] border-2 border-[#ACCFC6] p-4 rounded-2xl max-w-lg mx-auto shadow-sm">
+                  <div className="flex min-w-0 items-center space-x-3.5 text-left">
+                    <div className="p-2.5 bg-[#D9ECE6] rounded-xl text-[#1B4E48]">
+                      <FileCheck className="w-7 h-7 flex-shrink-0" />
+                    </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-white truncate">{selectedFile.name}</p>
-                      <p className="text-xs text-slate-400">{formatBytes(selectedFile.size)}</p>
+                      <p className="text-sm font-extrabold text-[#181715] truncate">{selectedFile.name}</p>
+                      <p className="text-xs font-bold text-[#5C554D]">{formatBytes(selectedFile.size)}</p>
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => setSelectedFile(null)}
-                    className="p-1.5 text-slate-400 hover:text-red-400 bg-slate-800 rounded-lg hover:bg-slate-700 transition-colors"
+                    className="p-2 text-[#5C554D] hover:text-white bg-[#ECE5DA] rounded-full hover:bg-[#7A322D] transition-colors"
                     title="Remove file"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
               ) : (
-                <>
-                  <Upload className="w-10 h-10 mx-auto text-indigo-400 mb-3" />
-                  <p className="text-sm font-medium text-slate-200">
-                    Drag and drop your legacy codebase <code className="text-indigo-400">.zip</code> archive here
-                  </p>
-                  <p className="text-xs text-slate-500 mt-1 mb-4">Supports Python, JavaScript, and TypeScript projects</p>
-                  <label className="inline-flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg cursor-pointer transition-colors shadow-md">
+                <div className="space-y-3.5">
+                  <div className="w-16 h-16 mx-auto rounded-2xl bg-[#181715] text-white flex items-center justify-center shadow-md">
+                    <Upload className="w-8 h-8 text-indigo-400" />
+                  </div>
+                  <div>
+                    <p className="text-base font-extrabold text-[#181715]">
+                      Drag and drop your legacy codebase <code className="bg-[#181715] text-white px-2 py-0.5 rounded font-mono text-xs">.zip</code> archive here
+                    </p>
+                    <p className="text-xs font-semibold text-[#5C554D] mt-1">
+                      Supports Python (.py) and JavaScript (.js, .jsx) projects
+                    </p>
+                  </div>
+                  <label className="inline-flex items-center space-x-2 btn-dark-pill px-6 py-2.5 text-xs cursor-pointer shadow-md">
                     <span>Browse File</span>
                     <input type="file" accept=".zip" onChange={handleFileInputChange} className="hidden" />
                   </label>
-                </>
+                </div>
               )}
             </div>
 
             {fileError && (
-              <div className="flex items-center space-x-2 text-xs text-red-400 bg-red-950/40 p-3 rounded-lg border border-red-800/40">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <div className="flex items-center space-x-2 text-xs font-extrabold text-[#7A322D] bg-[#F5DED9] p-3.5 rounded-2xl border-2 border-[#E3B0A9]">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 text-[#B54C46]" />
                 <span>{fileError}</span>
               </div>
             )}
           </div>
         ) : (
           <div className="space-y-4">
-            <label className="block text-xs font-medium text-slate-300">Public GitHub Repository Link</label>
+            <label className="block text-xs font-extrabold text-[#181715] uppercase tracking-wider">
+              Public GitHub Repository Link
+            </label>
             <div className="relative">
-              <Github className="w-5 h-5 absolute left-3.5 top-3 text-slate-500" />
+              <Github className="w-5 h-5 absolute left-4 top-3.5 text-[#181715]" />
               <input
                 type="url"
-                inputMode="url"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
                 placeholder="https://github.com/username/repository"
                 value={githubUrl}
                 onChange={(e) => {
                   setGithubUrl(e.target.value);
                   if (githubUrlError) validateGithubUrl(e.target.value);
                 }}
-                className={`w-full bg-slate-950 border rounded-xl py-2.5 pl-11 pr-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none transition-colors ${
-                  githubUrlError ? 'border-red-500 focus:border-red-500' : 'border-slate-800 focus:border-indigo-500'
+                className={`w-full bg-[#E7DFD3]/60 border-2 rounded-2xl py-3 pl-11 pr-4 text-xs font-bold text-[#181715] placeholder-[#5C554D] focus:outline-none focus:bg-[#FFFDFC] transition-colors ${
+                  githubUrlError
+                    ? 'border-[#B54C46] focus:border-[#B54C46]'
+                    : 'border-[#C8BEB0] focus:border-[#181715]'
                 }`}
               />
             </div>
 
             {githubUrlError && (
-              <div className="flex items-center space-x-2 text-xs text-red-400 bg-red-950/40 p-3 rounded-lg border border-red-800/40">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <div className="flex items-center space-x-2 text-xs font-extrabold text-[#7A322D] bg-[#F5DED9] p-3.5 rounded-2xl border-2 border-[#E3B0A9]">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 text-[#B54C46]" />
                 <span>{githubUrlError}</span>
               </div>
             )}
           </div>
         )}
 
-        <div className="mt-6 pt-4 border-t border-slate-800/80 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-slate-500">
+        {/* Feature checklist demoted to a slim single-row strip */}
+        <div className="rounded-2xl border-2 border-[#C8BEB0] bg-[#ECE5DA] p-3.5">
+          <p className="mb-2 text-[10px] font-extrabold uppercase tracking-widest text-[#5C554D]">
+            Every analysis includes
+          </p>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-bold text-[#181715]">
+            {outputs.map(({ label, icon: Icon }) => (
+              <div key={label} className="flex items-center gap-1.5">
+                <Icon className="h-4 w-4 text-[#4C4FD6]" />
+                <span>{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="pt-4 border-t-2 border-[#C8BEB0] flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs font-bold text-[#5C554D]">
             {mode === 'zip' ? 'Max 200MB ZIP | 500MB extracted' : 'Public HTTPS repositories only'}
           </p>
           <button
             type="submit"
-            disabled={disabled || (mode === 'zip' && !selectedFile) || (mode === 'github' && !githubUrl.trim())}
-            className="flex w-full items-center justify-center space-x-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/20 sm:w-auto"
+            disabled={
+              disabled ||
+              (mode === 'zip' && !selectedFile) ||
+              (mode === 'github' && !githubUrl.trim())
+            }
+            className="btn-brand-pill flex w-full items-center justify-center space-x-2 px-8 py-3 text-xs shadow-md sm:w-auto"
           >
             <span>{mode === 'zip' ? 'Analyze Codebase' : 'Analyze Repository'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
       </form>
-
-      <section className="mt-6 border-t border-slate-800 pt-5" aria-labelledby="workflow-heading">
-        <div className="mb-3 flex items-center justify-between gap-3"><div><h3 id="workflow-heading" className="text-xs font-semibold text-white">How CodeOracle works</h3><p className="mt-0.5 text-[10px] text-slate-500">A safe, review-first modernization workflow</p></div><span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[8px] font-bold uppercase text-emerald-300">Uploaded code is not executed</span></div>
-        <ol className="grid gap-2 sm:grid-cols-4">
-          {[['1','Ingest','ZIP, GitHub or trusted demo'],['2','Understand','Explain files and dependencies'],['3','Protect','Generate tests and find gaps'],['4','Modernize','Review impact and migration plan']].map(([step,title,description]) => <li key={step} className="rounded-lg border border-slate-800 bg-slate-950/50 p-3"><div className="mb-2 grid h-5 w-5 place-items-center rounded-full bg-indigo-600 text-[9px] font-bold text-white">{step}</div><p className="text-[10px] font-semibold text-slate-200">{title}</p><p className="mt-0.5 text-[9px] leading-4 text-slate-500">{description}</p></li>)}
-        </ol>
-      </section>
     </div>
   );
 };

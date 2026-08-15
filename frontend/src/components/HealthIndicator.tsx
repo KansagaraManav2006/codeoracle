@@ -31,8 +31,8 @@ export const HealthIndicator: React.FC = () => {
 
   if (loading && !health) {
     return (
-      <div className="flex items-center space-x-2 text-xs text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-lg border border-slate-700">
-        <Activity className="w-3.5 h-3.5 animate-spin text-indigo-400" />
+      <div className="flex items-center space-x-2 text-xs font-semibold text-[#4D4842] bg-[#F0EBE2] px-3 py-1.5 rounded-full border border-[#D8CFC2]">
+        <Activity className="w-3.5 h-3.5 animate-spin text-[#4C4FD6]" />
         <span className="hidden sm:inline">Connecting...</span>
       </div>
     );
@@ -40,16 +40,16 @@ export const HealthIndicator: React.FC = () => {
 
   if (error || !health) {
     return (
-      <div className="flex items-center space-x-2 text-xs text-red-400 bg-red-950/40 px-3 py-1.5 rounded-lg border border-red-800/40">
-        <AlertCircle className="w-3.5 h-3.5" />
+      <div className="flex items-center space-x-2 text-xs font-semibold text-[#8F3F3A] bg-[#F6E5E2] px-3 py-1.5 rounded-full border border-[#ECC7C3]">
+        <AlertCircle className="w-3.5 h-3.5 text-[#C45F58]" />
         <span className="hidden sm:inline">Service unavailable</span>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center space-x-2 text-xs text-emerald-400 bg-emerald-950/40 px-3 py-1.5 rounded-lg border border-emerald-800/40">
-      <CheckCircle2 className="w-3.5 h-3.5" />
+    <div className="flex items-center space-x-2 text-xs font-bold text-[#245F59] bg-[#E0EFEB] px-3.5 py-1.5 rounded-full border border-[#BEE0D6]">
+      <CheckCircle2 className="w-3.5 h-3.5 text-[#368A80]" />
       <span className="hidden sm:inline">Service ready</span>
     </div>
   );
