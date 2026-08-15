@@ -22,7 +22,7 @@ const MAX_ZIP_BYTES = 200 * 1024 * 1024;
 interface InputSectionProps {
   onAnalyzeZip: (file: File) => void;
   onAnalyzeGithub: (url: string) => void;
-  onLoadDemo: () => void;
+  onLoadDemo: (benchmarkName?: string) => void;
   disabled?: boolean;
 }
 
@@ -152,16 +152,28 @@ export const InputSection: React.FC<InputSectionProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={onLoadDemo}
-            disabled={disabled}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-extrabold rounded-full bg-[#B88228] text-white hover:bg-[#181715] transition-all shadow-sm disabled:opacity-50"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Try Demo</span>
-          </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="relative inline-flex items-center shadow-xs rounded-full overflow-hidden">
+            <button
+              type="button"
+              onClick={() => onLoadDemo('python_legacy')}
+              disabled={disabled}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-extrabold bg-[#B88228] text-white hover:bg-[#181715] transition-all disabled:opacity-50 border-r border-amber-600/40"
+              title="Load Python Legacy Benchmark Demo"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-200" />
+              <span>Python Demo</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onLoadDemo('js_commonjs')}
+              disabled={disabled}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-extrabold bg-[#A3721F] text-white hover:bg-[#181715] transition-all disabled:opacity-50"
+              title="Load JavaScript CommonJS Benchmark Demo"
+            >
+              <span>JS Demo</span>
+            </button>
+          </div>
 
           <SegmentedControl
             options={segmentedOptions}

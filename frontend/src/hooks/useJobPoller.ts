@@ -10,7 +10,7 @@ export interface UseJobPollerReturn {
   errorCode: string | null;
   submitZip: (file: File) => Promise<void>;
   submitGithub: (url: string) => Promise<void>;
-  loadDemo: () => Promise<void>;
+  loadDemo: (benchmarkName?: string) => Promise<void>;
   reset: () => void;
 }
 
@@ -163,11 +163,11 @@ export const useJobPoller = (): UseJobPollerReturn => {
     }
   };
 
-  const loadDemo = async () => {
+  const loadDemo = async (benchmarkName: string = 'python_legacy') => {
     clearPolling();
     setLoading(true); setError(null); setErrorCode(null); setProject(null); setFiles([]);
     try {
-      const response = await fetch('/api/demo/benchmarks/python_legacy', { method: 'POST' });
+      const response = await fetch(`/api/demo/benchmarks/${benchmarkName}`, { method: 'POST' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || 'Unable to load the bundled demo.');
       await fetchProjectData(data.project_id);

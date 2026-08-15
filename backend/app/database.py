@@ -86,7 +86,8 @@ if is_sqlite:
             cursor = dbapi_connection.cursor()
             cursor.execute("PRAGMA foreign_keys=ON")
             if FINAL_DATABASE_URL != "sqlite:///:memory:":
-                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA journal_mode=DELETE")
+                cursor.execute("PRAGMA synchronous=NORMAL")
             cursor.close()
         except Exception:
             pass
