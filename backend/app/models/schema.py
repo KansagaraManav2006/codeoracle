@@ -10,6 +10,7 @@ class HealthResponse(BaseModel):
     app_name: str = Field(..., description="Application name")
     version: str = Field(..., description="Application version")
     environment: Optional[str] = Field("development", description="Environment mode")
+    database: Optional[Dict[str, Any]] = Field(None, description="Database diagnostic summary")
 
 
 # --- Ingestion & Job API Schemas ---

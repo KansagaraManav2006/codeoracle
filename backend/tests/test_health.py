@@ -13,3 +13,6 @@ def test_health_endpoint():
     assert data["app_name"] == "CodeOracle"
     assert data["version"] == "0.1.0"
     assert "environment" in data
+    assert "database" in data
+    assert data["database"]["reachable"] is True
+    assert data["database"]["backend"] in ("sqlite", "postgresql")

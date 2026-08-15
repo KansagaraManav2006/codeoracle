@@ -30,9 +30,15 @@ from app.database import Base, get_db
 from app.main import app
 from app.models.db import Job, JobState, Project, ProjectAnalysisRecord, ProjectFile
 
+from sqlalchemy.pool import StaticPool
+
 # Test Database setup
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test_analysis.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+SQLALCHEMY_DATABASE_URL = "sqlite://"
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

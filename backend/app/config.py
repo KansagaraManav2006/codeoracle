@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     VERSION: str = "0.1.0"
     ENVIRONMENT: str = "development"
     DATABASE_URL: str = "sqlite:///./codeoracle.db"
+    CODEORACLE_DATA_DIR: Optional[str] = None
     
     # CORS Settings
     CORS_ORIGINS: List[str] = [

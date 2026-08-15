@@ -48,6 +48,14 @@ async def lifespan(app: FastAPI):
     # Initialize database tables on startup
     Base.metadata.create_all(bind=engine)
     ensure_schema_compatibility()
+
+    db_info = get_db_diagnostics()
+    logger.info(
+        "Database initialized: backend=%s, reachable=%s, schema_ready=%s",
+        db_info.get("backend"),
+        db_info.get("reachable"),
+        db_info.get("schema_ready"),
+    )
     
     # Recover jobs interrupted by server restart
     db = SessionLocal()

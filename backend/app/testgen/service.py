@@ -166,6 +166,8 @@ def run_test_generation_for_project(
         existing_rec.generator_version = TEST_GENERATOR_VERSION
         existing_rec.content_hash = project.content_hash
         existing_rec.test_data = result.model_dump(mode="json")
+        existing_rec.created_at = datetime.now(timezone.utc)
+        record_to_refresh = existing_rec
     else:
         new_rec = ProjectTestRecord(
             id=f"rec_test_{project_id}",
@@ -176,8 +178,14 @@ def run_test_generation_for_project(
             created_at=datetime.now(timezone.utc),
         )
         db.add(new_rec)
+        record_to_refresh = new_rec
 
+    db.flush()
     db.commit()
+    try:
+        db.refresh(record_to_refresh)
+    except Exception:
+        pass
     return result
 
 

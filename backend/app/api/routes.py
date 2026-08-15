@@ -73,14 +73,18 @@ def download_migration_plan(project_id: str, db: Session = Depends(get_db)) -> P
     )
 
 
+from app.database import get_db, get_db_diagnostics
+
+
 @router.get("/health", response_model=HealthResponse)
 def get_health() -> HealthResponse:
-    """Returns application health status, name, and version."""
+    """Returns application health status, name, version, and database diagnostics."""
     return HealthResponse(
         status="ok",
         app_name=settings.APP_NAME,
         version=settings.VERSION,
         environment=settings.ENVIRONMENT,
+        database=get_db_diagnostics(),
     )
 
 

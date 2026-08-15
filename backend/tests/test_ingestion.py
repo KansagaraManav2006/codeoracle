@@ -23,9 +23,15 @@ from app.ingestion.github_ingest import clone_github_repository, extract_repo_di
 from app.ingestion.service import process_github_job, process_zip_job, recover_interrupted_jobs
 from app.ingestion.zip_ingest import extract_zip_safely, validate_zip_stream
 
+from sqlalchemy.pool import StaticPool
+
 # Test Database setup
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test_ingestion.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+SQLALCHEMY_DATABASE_URL = "sqlite://"
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

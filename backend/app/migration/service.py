@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict, deque
 from typing import Dict, Iterable, List, Optional, Set
 
@@ -11,8 +12,10 @@ from app.migration.models import (
     MigrationPlanResponse,
     ReadinessCategory,
 )
-from app.models.db import Project, ProjectAnalysisRecord, ProjectTestRecord
+from app.models.db import Job, JobState, Project, ProjectAnalysisRecord, ProjectTestRecord
 from app.testgen.models import ProjectTestResult, TEST_GENERATOR_VERSION
+
+logger = logging.getLogger(__name__)
 
 
 def _bounded(value: float) -> int:
@@ -34,15 +37,35 @@ def _risk_rank(level: str) -> int:
 
 
 def _read_test_result(db: Session, project_id: str) -> Optional[ProjectTestResult]:
-    record = db.query(ProjectTestRecord).filter(ProjectTestRecord.project_id == project_id).first()
-    if not record or record.generator_version != TEST_GENERATOR_VERSION:
-        return None
     try:
-        res = ProjectTestResult.model_validate(record.test_data)
-        if res.generation_version != TEST_GENERATOR_VERSION:
+        record = db.query(ProjectTestRecord).filter(ProjectTestRecord.project_id == project_id).first()
+        if not record:
+            logger.info("ProjectTestRecord missing for project_id=%s", project_id)
             return None
-        return res
-    except Exception:
+        if record.generator_version != TEST_GENERATOR_VERSION:
+            logger.warning(
+                "ProjectTestRecord generator_version mismatch for project_id=%s: stored=%s expected=%s",
+                project_id,
+                record.generator_version,
+                TEST_GENERATOR_VERSION,
+            )
+            return None
+        try:
+            res = ProjectTestResult.model_validate(record.test_data)
+            if res.generation_version != TEST_GENERATOR_VERSION:
+                logger.warning(
+                    "ProjectTestResult generation_version mismatch for project_id=%s: stored=%s expected=%s",
+                    project_id,
+                    res.generation_version,
+                    TEST_GENERATOR_VERSION,
+                )
+                return None
+            return res
+        except Exception as ve:
+            logger.error("ProjectTestRecord test_data invalid for project_id=%s: %s", project_id, ve)
+            return None
+    except Exception as dbe:
+        logger.exception("Database read failure when querying ProjectTestRecord for project_id=%s: %s", project_id, dbe)
         return None
 
 
@@ -143,17 +166,34 @@ def build_migration_plan(db: Session, project_id: str) -> MigrationPlanResponse:
     graph = build_project_dependency_graph(analysis, include_external=False)
     edge_density = graph.summary.internal_edges / total
     coupling_score = _bounded(100 - min(85, edge_density * 18 + graph.summary.cycle_count * 12))
-    if test_result and test_result.test_files:
+    test_job = (
+        db.query(Job)
+        .filter(Job.project_id == project_id, Job.source_type == "test_generation")
+        .order_by(Job.created_at.desc())
+        .first()
+    )
+
+    if test_job and test_job.state in (JobState.QUEUED, JobState.GENERATING):
+        testability_score = 35
+        testability_status = "Calculating"
+        test_reason = "Safety test suite generation is currently in progress."
+    elif test_job and test_job.state == JobState.FAILED:
+        testability_score = 35
+        testability_status = "Generation failed"
+        test_reason = f"Test generation failed: {test_job.error_message or 'Generation error'}. Please retry."
+    elif test_result and test_result.test_files:
         gen_count = len(test_result.test_files)
         syntax_ratio = (test_result.syntax_valid_count / gen_count) if gen_count > 0 else 0.0
         coverage = test_result.overall_line_coverage
         testability_score = _bounded((coverage if coverage is not None else 60) * 0.6 + syntax_ratio * 40)
+        testability_status = _status(testability_score)
         if coverage is not None:
             test_reason = f"Generated tests cover {coverage:.1f}% of measured source lines."
         else:
             test_reason = f"Syntax-based estimation ({test_result.syntax_valid_count} of {gen_count} generated test file(s) pass syntax validation; execution unmeasured)."
     else:
         testability_score = 35
+        testability_status = "Not calculated"
         test_reason = "Generate a safety test suite before changing production behavior."
 
     categories = [
@@ -161,7 +201,7 @@ def build_migration_plan(db: Session, project_id: str) -> MigrationPlanResponse:
         ReadinessCategory(key="complexity", label="Complexity", score=complexity_score, status=_status(complexity_score), reason=f"{high_complexity} file(s) contain high-complexity logic."),
         ReadinessCategory(key="coupling", label="Dependency safety", score=coupling_score, status=_status(coupling_score), reason=f"{graph.summary.internal_edges} internal connection(s) and {graph.summary.cycle_count} dependency loop(s) were detected."),
         ReadinessCategory(key="maintainability", label="Maintainability", score=maintainability_score, status=_status(maintainability_score), reason=f"The analysis found {sum(len(module.legacy_warnings) for module in modules)} modernization suggestion(s)."),
-        ReadinessCategory(key="testability", label="Test protection", score=testability_score, status=_status(testability_score), reason=test_reason),
+        ReadinessCategory(key="testability", label="Test protection", score=testability_score, status=testability_status, reason=test_reason),
     ]
     weights = {"analysis": .20, "complexity": .20, "coupling": .20, "maintainability": .20, "testability": .20}
     readiness_score = _bounded(sum(item.score * weights[item.key] for item in categories))
