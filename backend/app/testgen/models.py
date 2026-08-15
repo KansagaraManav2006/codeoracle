@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
-TEST_GENERATOR_VERSION = "1.0.0"
+TEST_GENERATOR_VERSION = "1.1.0"
 
 
 class GeneratedTestFile(BaseModel):

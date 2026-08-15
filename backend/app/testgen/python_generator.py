@@ -1,20 +1,9 @@
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import List, Optional
 
 from app.analysis.models import ModuleAnalysis, ProjectAnalysis
 from app.testgen.models import GeneratedTestFile
 from app.testgen.validator import validate_python_test_code
-
-
-def _relative_path_to_module_import(rel_path: str) -> str:
-    """Converts a relative file path like 'app/utils/math_helper.py' to 'app.utils.math_helper'."""
-    p = Path(rel_path)
-    parts = list(p.parts)
-    if parts[-1].endswith(".py"):
-        parts[-1] = parts[-1][:-3]
-    if parts[-1] == "__init__":
-        parts.pop()
-    return ".".join(parts)
 
 
 def _safe_test_filename(rel_path: str) -> str:
@@ -30,12 +19,14 @@ def generate_python_unit_tests(
     uncovered_lines: Optional[List[int]] = None,
 ) -> GeneratedTestFile:
     """Generates deterministic pytest test cases for a Python module."""
-    mod_import = _relative_path_to_module_import(module.relative_path)
     safe_test_path = _safe_test_filename(module.relative_path)
     test_id = f"testgen_py_{module.module_id}"
+    target_relative_path = PurePosixPath(module.relative_path).as_posix()
+    target_module_name = f"codeoracle_target_{module.module_id}"
 
     lines = [
         "# Auto-generated pytest suite by CodeOracle",
+        "import importlib.util",
         "import sys",
         "from pathlib import Path",
         "import pytest",
@@ -45,7 +36,24 @@ def generate_python_unit_tests(
         "if str(workspace_root) not in sys.path:",
         "    sys.path.insert(0, str(workspace_root))",
         "",
-        f"import {mod_import}",
+        f"target_path = (workspace_root / {target_relative_path!r}).resolve()",
+        "for import_root in [target_path.parent, *target_path.parents]:",
+        "    if import_root == workspace_root.parent:",
+        "        break",
+        "    if str(import_root) not in sys.path:",
+        "        sys.path.insert(0, str(import_root))",
+        "",
+        "target_module = None",
+        "target_import_error = None",
+        "try:",
+        f"    target_spec = importlib.util.spec_from_file_location({target_module_name!r}, target_path)",
+        "    if target_spec is None or target_spec.loader is None:",
+        "        raise ImportError(f'Unable to create an import specification for {target_path}')",
+        "    target_module = importlib.util.module_from_spec(target_spec)",
+        "    sys.modules[target_spec.name] = target_module",
+        "    target_spec.loader.exec_module(target_module)",
+        "except Exception as exc:",
+        "    target_import_error = exc",
         "",
     ]
 
@@ -54,8 +62,8 @@ def generate_python_unit_tests(
 
     # 1. Module import smoke test
     lines.append(f"def test_{module.module_id.replace('-', '_')}_import_smoke():")
-    lines.append(f"    '''Smoke test to verify {mod_import} can be safely imported.'''")
-    lines.append(f"    assert {mod_import} is not None")
+    lines.append(f"    '''Smoke test to verify {target_relative_path} can be safely imported.'''")
+    lines.append("    assert target_module is not None, f'Target import failed: {target_import_error}'")
     lines.append("")
     strategies_used.add("import_smoke")
     test_count += 1
@@ -66,12 +74,13 @@ def generate_python_unit_tests(
             continue
 
         func_name = func.name
-        qualified_target = f"{mod_import}.{func_name}"
+        qualified_target = f"target_module.{func_name}"
 
         # Existence test
         lines.append(f"def test_{func_name}_existence():")
         lines.append(f"    '''Verify function {func_name} exists and is callable.'''")
-        lines.append(f"    assert hasattr({mod_import}, '{func_name}')")
+        lines.append("    assert target_module is not None, f'Target import failed: {target_import_error}'")
+        lines.append(f"    assert hasattr(target_module, '{func_name}')")
         lines.append(f"    assert callable({qualified_target})")
         lines.append("")
         strategies_used.add("callable_existence")
@@ -139,11 +148,12 @@ def generate_python_unit_tests(
     # 3. Class tests
     for cls in module.classes:
         cls_name = cls.name
-        qualified_cls = f"{mod_import}.{cls_name}"
+        qualified_cls = f"target_module.{cls_name}"
 
         lines.append(f"def test_class_{cls_name}_instantiation():")
         lines.append(f"    '''Verify class {cls_name} exists and can be instantiated.'''")
-        lines.append(f"    assert hasattr({mod_import}, '{cls_name}')")
+        lines.append("    assert target_module is not None, f'Target import failed: {target_import_error}'")
+        lines.append(f"    assert hasattr(target_module, '{cls_name}')")
         lines.append("    try:")
         lines.append(f"        obj = {qualified_cls}()")
         lines.append(f"        assert isinstance(obj, {qualified_cls})")

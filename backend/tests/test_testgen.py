@@ -29,7 +29,26 @@ def test_python_generator_creates_syntax_valid_pytest(tmp_path) -> None:
     assert generated.framework == "pytest"
     assert generated.syntax_valid is True
     assert generated.test_count >= 3
-    assert "calculator.add(10, 10)" in generated.code
+    assert "target_module.add(10, 10)" in generated.code
+
+
+def test_python_generator_handles_github_wrapper_folder(tmp_path) -> None:
+    source = tmp_path / "codeoracle-main" / "backend" / "app" / "service.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("def ready():\n    return True\n", encoding="utf-8")
+    module = analyze_python_source("proj_archive", "codeoracle-main/backend/app/service.py", source)
+
+    generated = generate_python_unit_tests(module, _project(module, "proj_archive"))
+
+    assert generated.syntax_valid is True
+    assert "import codeoracle-main" not in generated.code
+    assert "codeoracle-main/backend/app/service.py" in generated.code
+    assert "spec_from_file_location" in generated.code
+
+    test_file = tmp_path / generated.safe_test_path
+    namespace = {"__file__": str(test_file)}
+    exec(compile(generated.code, str(test_file), "exec"), namespace)
+    namespace[f"test_{module.module_id}_import_smoke"]()
 
 
 def test_javascript_commonjs_generator_uses_require(tmp_path) -> None:
