@@ -95,10 +95,16 @@ def resolve_javascript_import(
         clean_target,
         f"{clean_target}.js",
         f"{clean_target}.jsx",
+        f"{clean_target}.ts",
+        f"{clean_target}.tsx",
         f"{clean_target}.mjs",
         f"{clean_target}.cjs",
+        f"{clean_target}.mts",
+        f"{clean_target}.cts",
         f"{clean_target}/index.js",
         f"{clean_target}/index.jsx",
+        f"{clean_target}/index.ts",
+        f"{clean_target}/index.tsx",
         f"{clean_target}/index.mjs",
         f"{clean_target}/index.cjs",
     ]
@@ -146,7 +152,7 @@ def resolve_project_dependencies(modules: List[ModuleAnalysis]) -> List[Dependen
                         target_id = imp.module_name or "external"
                         is_resolved = False
 
-            elif lang == "javascript":
+            elif lang in ("javascript", "typescript"):
                 if imp.module_name in JS_BUILTINS:
                     target_id = imp.module_name
                     is_resolved = False

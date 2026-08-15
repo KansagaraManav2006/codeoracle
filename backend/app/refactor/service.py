@@ -116,7 +116,7 @@ def run_refactor_for_project(db: Session, project_id: str, force: bool = False) 
     results: List[RefactoredFile] = []
     files = db.query(ProjectFile).filter(ProjectFile.project_id == project_id).all()
     for project_file in files:
-        if project_file.language not in {"python", "javascript"}:
+        if project_file.language not in {"python", "javascript", "typescript"}:
             continue
         path = (raw_dir / project_file.relative_path).resolve()
         try:

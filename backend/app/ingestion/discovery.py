@@ -32,7 +32,8 @@ IGNORED_FILE_EXACT: Set[str] = {
 
 PYTHON_EXTENSIONS: Set[str] = {".py"}
 JAVASCRIPT_EXTENSIONS: Set[str] = {".js", ".jsx", ".mjs", ".cjs"}
-SUPPORTED_EXTENSIONS = PYTHON_EXTENSIONS | JAVASCRIPT_EXTENSIONS
+TYPESCRIPT_EXTENSIONS: Set[str] = {".ts", ".tsx", ".mts", ".cts"}
+SUPPORTED_EXTENSIONS = PYTHON_EXTENSIONS | JAVASCRIPT_EXTENSIONS | TYPESCRIPT_EXTENSIONS
 
 
 @dataclass
@@ -107,6 +108,8 @@ def discover_source_files(root_dir: Path) -> DiscoveryResult:
                 language = "python"
             elif ext in JAVASCRIPT_EXTENSIONS:
                 language = "javascript"
+            elif ext in TYPESCRIPT_EXTENSIONS:
+                language = "typescript"
             else:
                 continue
 

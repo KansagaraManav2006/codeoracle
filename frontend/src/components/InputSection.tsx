@@ -233,7 +233,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
                       Drag and drop your legacy codebase <code className="bg-[#181715] text-white px-2 py-0.5 rounded font-mono text-xs">.zip</code> archive here
                     </p>
                     <p className="text-xs font-semibold text-[#5C554D] mt-1">
-                      Supports Python (.py) and JavaScript (.js, .jsx) projects
+                      Supports Python (.py), JavaScript (.js, .jsx), and TypeScript (.ts, .tsx) projects
                     </p>
                   </div>
                   <label className="inline-flex items-center space-x-2 btn-dark-pill px-6 py-2.5 text-xs cursor-pointer shadow-md">

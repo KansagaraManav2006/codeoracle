@@ -98,7 +98,7 @@ def run_test_generation_for_project(
                 tf = generate_python_unit_tests(module, analysis)
                 current_gen_files.append(tf)
                 frameworks.add("pytest")
-            elif module.language == "javascript":
+            elif module.language in ("javascript", "typescript"):
                 tf = generate_javascript_unit_tests(module, analysis)
                 current_gen_files.append(tf)
                 frameworks.add("vitest")
