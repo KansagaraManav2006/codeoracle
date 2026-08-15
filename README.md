@@ -4,7 +4,7 @@ CodeOracle turns an unfamiliar Python or JavaScript codebase into an understanda
 
 **Live application:** [https://codeoracle-zker.onrender.com](https://codeoracle-zker.onrender.com)
 
-## What works
+## What works    
 
 - Simple project, module, class, and function explanations grounded in AST analysis
 - Professional project dashboard with readiness, projected outcome, project scale, and workflow shortcuts
