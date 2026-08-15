@@ -1,3 +1,4 @@
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -8,8 +9,11 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router as api_router
 from app.config import settings
-from app.database import Base, SessionLocal, engine, ensure_schema_compatibility
+from app.database import Base, SessionLocal, engine, ensure_schema_compatibility, get_db_diagnostics
 from app.ingestion.service import recover_interrupted_jobs
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_static_dir() -> Path | None:

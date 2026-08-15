@@ -12,7 +12,7 @@ from app.analysis.models import (
     ProjectAnalysis,
     generate_module_id,
 )
-from app.database import Base, resolve_database_url
+from app.database import Base, migrate_legacy_sqlite_database, resolve_database_url
 from app.migration.service import build_migration_plan
 from app.models.db import Project, ProjectAnalysisRecord, ProjectFile, ProjectTestRecord
 from app.testgen.models import GeneratedTestFile, ProjectTestResult, TEST_GENERATOR_VERSION
@@ -37,6 +37,28 @@ def test_resolve_database_url_unit(tmp_path):
     default_url = resolve_database_url("sqlite:///./codeoracle.db")
     assert default_url.startswith("sqlite:///")
     assert "codeoracle.db" in default_url
+
+
+def test_migrate_legacy_sqlite_database_without_overwriting(tmp_path):
+    legacy_file = tmp_path / "legacy" / "codeoracle.db"
+    legacy_file.parent.mkdir()
+    legacy_engine = create_engine(f"sqlite:///{legacy_file.as_posix()}")
+    with legacy_engine.begin() as connection:
+        connection.execute(text("CREATE TABLE marker (value TEXT NOT NULL)"))
+        connection.execute(text("INSERT INTO marker (value) VALUES ('preserved')"))
+    legacy_engine.dispose()
+
+    target_file = tmp_path / "data" / "codeoracle.db"
+    target_url = f"sqlite:///{target_file.as_posix()}"
+    migrated_path = migrate_legacy_sqlite_database(target_url, legacy_file)
+
+    assert migrated_path == target_file.resolve()
+    with create_engine(target_url).connect() as connection:
+        assert connection.execute(text("SELECT value FROM marker")).scalar_one() == "preserved"
+
+    target_file.write_bytes(b"do-not-overwrite")
+    assert migrate_legacy_sqlite_database(target_url, legacy_file) is None
+    assert target_file.read_bytes() == b"do-not-overwrite"
 
 
 def test_integration_full_workflow_persistence_across_sessions_and_engine_recreation(tmp_path):

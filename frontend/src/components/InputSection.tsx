@@ -173,6 +173,15 @@ export const InputSection: React.FC<InputSectionProps> = ({
             >
               <span>JS Demo</span>
             </button>
+            <button
+              type="button"
+              onClick={() => onLoadDemo('legacy_retail')}
+              disabled={disabled}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-extrabold bg-[#76561B] text-white hover:bg-[#181715] transition-all disabled:opacity-50 border-l border-amber-600/40"
+              title="Load the full Python and JavaScript Legacy Retail benchmark"
+            >
+              <span>Full Demo</span>
+            </button>
           </div>
 
           <SegmentedControl

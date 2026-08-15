@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Code2,
   Cpu,
+  Download,
   FileCode,
   FolderGit2,
   Hash,
@@ -158,14 +159,23 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
             </div>
           </div>
 
-          <button
-            onClick={() => fetchAnalysis(true)}
-            disabled={loading}
-            className="btn-brand-outline-pill px-4 py-2 text-xs flex items-center space-x-1.5 self-start sm:self-auto"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh Explanation</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <a
+              href={`/api/projects/${projectId}/analysis/download`}
+              className="btn-brand-outline-pill px-4 py-2 text-xs flex items-center space-x-1.5"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Download Markdown</span>
+            </a>
+            <button
+              onClick={() => fetchAnalysis(true)}
+              disabled={loading}
+              className="btn-brand-outline-pill px-4 py-2 text-xs flex items-center space-x-1.5"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh Explanation</span>
+            </button>
+          </div>
         </div>
 
         {/* 4 Stat Cards: Suggestions gets signal amber treatment */}

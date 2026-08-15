@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   Cpu,
+  Download,
   Eye,
   Info,
   RefreshCw,
@@ -424,15 +425,26 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
             </div>
           </div>
 
-          {currentLevel === 'symbol' && (
-            <button
-              onClick={handleBackToModules}
-              className="btn-brand-outline-pill px-4 py-2 text-xs flex items-center gap-1.5"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Project View</span>
-            </button>
-          )}
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            {currentLevel === 'module' && (
+              <a
+                href={`/api/projects/${projectId}/graph/download`}
+                className="btn-brand-outline-pill px-4 py-2 text-xs flex items-center gap-1.5"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Download Mermaid</span>
+              </a>
+            )}
+            {currentLevel === 'symbol' && (
+              <button
+                onClick={handleBackToModules}
+                className="btn-brand-outline-pill px-4 py-2 text-xs flex items-center gap-1.5"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to Project View</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Graph Metrics Grid */}

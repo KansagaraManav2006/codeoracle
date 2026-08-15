@@ -118,7 +118,7 @@ export const RecentProjectsSection: React.FC<RecentProjectsSectionProps> = ({
             {search ? `No saved projects match "${search}".` : 'No stored projects found in the database.'}
           </p>
           <p className="text-[11px] font-semibold text-[#5C554D] mt-1">
-            Upload a ZIP archive, connect a GitHub repository, or click "Try Demo" above to save your first project record.
+            Upload a ZIP archive, connect a GitHub repository, or load a demo above to save your first project record.
           </p>
         </div>
       ) : (

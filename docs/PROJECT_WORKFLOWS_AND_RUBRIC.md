@@ -80,7 +80,7 @@ flowchart TD
     end
 
     subgraph Storage["Persistence Layer"]
-        DB[(SQLite / SQLAlchemy Core)]
+        DB[(PostgreSQL or SQLite / SQLAlchemy)]
         Disk["Workspace File Storage"]
     end
 
@@ -137,7 +137,7 @@ flowchart TD
     D --> E["extract_zip_safely() (ZIP-Slip & Size Checks)"]
     E --> F["discover_source_files() (Filter Excluded & Binary Files)"]
     F --> G["Compute Workspace SHA-256 Content Hash"]
-    G --> H["Persist Project & ProjectFile Records in SQLite"]
+    G --> H["Persist Project & ProjectFile Records through SQLAlchemy"]
     H --> I["Trigger Analysis Job (process_analysis_job)"]
     I --> J["Mark Job COMPLETED with project_id"]
 ```
@@ -369,7 +369,7 @@ flowchart TD
 
 ### Production Scaling Recommendations
 - **Ephemeral Storage Awareness:** Cloud free-tier instances (such as Render free instances) feature ephemeral filesystems; database records and extracted workspaces reset upon container restarts.
-- **Production Architecture:** Transition from SQLite to managed PostgreSQL (`asyncpg` / `psycopg3`) and replace local disk workspaces with S3-compatible Object Storage (AWS S3 / Cloudflare R2) and Redis-backed Celery/RQ job queues.
+- **Production Architecture:** The Render Blueprint uses managed PostgreSQL for durable analysis records. A future scale-out step is replacing local workspaces with S3-compatible object storage and Redis-backed Celery/RQ job queues.
 
 ---
 
@@ -413,7 +413,7 @@ flowchart TD
 
 ### Impact & Scalability (10%)
 - **What CodeOracle Demonstrates:** Modular, decoupled architecture separating ingestion, parsing, graph computation, and UI layers.
-- **Path to Excellent (5/5):** Migrate SQLite storage to PostgreSQL and integrate Redis task queues for parallel repository scanning.
+- **Path to Excellent (5/5):** PostgreSQL persistence is implemented; the next scale step is Redis-backed task queues and durable object storage for parallel repository scanning.
 
 ### Presentation (10%)
 - **What CodeOracle Demonstrates:** Professional, cohesive design system with clear visual hierarchy, risk badges, and interactive graph exploration.
@@ -459,10 +459,10 @@ flowchart TD
    *A:* CodeOracle filters minified files and vendor directories (`node_modules`, `venv`), while its graph engine processes modules in $O(V + E)$ time using adjacency maps.
 
 8. **Q: What data is stored on the server?**
-   *A:* Workspace files are stored in isolated temporary directories (`workspaces/`). Metadata, analysis records, and test results are indexed in SQLite via SQLAlchemy.
+   *A:* Workspace files are stored in isolated temporary directories (`workspaces/`). Metadata, analysis records, and test results are indexed through SQLAlchemy in PostgreSQL on Render or SQLite locally.
 
 9. **Q: What happens when Render restarts free-tier instances?**
-   *A:* Free-tier containers reset ephemeral SQLite storage. In production, CodeOracle connects to managed PostgreSQL and S3 object storage for persistent analysis records.
+   *A:* Free-tier containers reset local SQLite and workspace files. The Render Blueprint now stores analysis records in managed PostgreSQL; durable object storage for uploaded workspace files remains a future enhancement.
 
 10. **Q: What are the next planned engineering milestones?**
     *A:* Adding full TypeScript unit-test generation, automated PR opening via GitHub API, and parallel background worker queues with Redis/Celery.
@@ -496,7 +496,7 @@ All verification metrics documented below have been verified empirically against
 - [ ] Introduce GitHub Webhook integration for automatic PR regression checks.
 
 ### Enterprise Infrastructure (Q4 2026)
-- [ ] Migrate database layer to PostgreSQL with `asyncpg` connection pooling.
+- [x] Connect production deployments to managed PostgreSQL through `DATABASE_URL`.
 - [ ] Integrate Redis & Celery for asynchronous workspace analysis.
 - [ ] Deploy S3-compatible object storage for persistent workspace archives.
 

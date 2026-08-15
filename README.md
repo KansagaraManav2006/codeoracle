@@ -59,7 +59,7 @@ cd ../frontend
 npm run build
 ```
 
-Current verification: **92 backend tests pass**, the TypeScript/Vite production build passes, and the browser-tested demo achieves **73.8% measured line coverage**.
+Current verification: **98 backend tests pass**, the TypeScript/Vite production build passes, and the browser-tested demo achieves **73.8% measured line coverage**.
 
 The extended benchmark also covers a synthetic 100,000-line mixed-language project plus the real [Flask](https://github.com/pallets/flask) and [Express](https://github.com/expressjs/express) repositories. See [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for reproducible results.
 
@@ -78,13 +78,16 @@ For Render, Railway, or another Docker host:
 
 1. Create a web service from this repository.
 2. Select Docker deployment using the root `Dockerfile`.
-3. Add a persistent disk at `/app/data` (or configure `CODEORACLE_DATA_DIR`) if project data must survive restarts.
-4. Keep `TEST_EXECUTION_ENABLED=false` and `TEST_EXECUTION_ALLOW_UNTRUSTED=false`.
-5. Use `/api/health` as the health-check path.
+3. Prefer a managed PostgreSQL database and set `DATABASE_URL`; the included `render.yaml` provisions and connects one automatically.
+4. For SQLite-only hosts, attach persistent storage at `/app/data` or configure `CODEORACLE_DATA_DIR`.
+5. Keep `TEST_EXECUTION_ENABLED=false` and `TEST_EXECUTION_ALLOW_UNTRUSTED=false`.
+6. Use `/api/health` as the health-check path and verify `database.reachable` and `database.schema_ready`.
+
+On first local startup, an existing `backend/codeoracle.db` is copied safely to `backend/data/codeoracle.db`. The original file is retained as a fallback. Render's free PostgreSQL tier is suitable for demos but currently expires after 30 days, so use a paid or external managed database for long-lived production data.
 
 ## 90-second judge flow
 
-1. Click **Try Demo** and show the plain-language summary and function explanations.
+1. Click **Full Demo** and show the mixed Python/JavaScript plain-language summary and function explanations.
 2. Open **Dependency Graph** and point out the internal module edge.
 3. Open **Generated Tests**, click **Generate tests**, and show 73.8% measured coverage.
 4. Open **Refactored Code**, click **Generate proposal**, and show the syntax-valid `xrange` to `range` diff.
@@ -93,9 +96,9 @@ For Render, Railway, or another Docker host:
 
 ## Architecture
 
-- Backend: FastAPI, SQLAlchemy, SQLite, Python AST, deterministic JavaScript parsing
+- Backend: FastAPI, SQLAlchemy, SQLite/PostgreSQL, Python AST, deterministic JavaScript/TypeScript parsing
 - Frontend: React, TypeScript, Vite, Tailwind CSS, React Flow
-- Persistence: Deterministic SQLite database location (`CODEORACLE_DATA_DIR` or `/app/data/codeoracle.db`); project metadata, analysis, generated tests, and refactor proposals are cached by content hash
+- Persistence: managed PostgreSQL in the Render Blueprint, with deterministic SQLite storage and automatic legacy-file migration for local development
 - Deployment: single multi-stage Docker image
 
 API documentation is available at `/api/docs` while the server is running.

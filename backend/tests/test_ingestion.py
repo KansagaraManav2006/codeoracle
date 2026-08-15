@@ -43,9 +43,6 @@ def override_get_db():
         db.close()
 
 
-app.dependency_overrides[get_db] = override_get_db
-
-
 @pytest.fixture(autouse=True)
 def setup_db():
     Base.metadata.create_all(bind=engine)
@@ -667,3 +664,30 @@ def test_38_error_sanitization(mock_discover, tmp_path):
     assert "secret_token" not in job_db.error_message
     assert job_db.error_message == "An unexpected error occurred while processing the repository."
     db2.close()
+
+
+def test_39_full_legacy_retail_demo_is_bundled_and_reopenable(tmp_path, monkeypatch):
+    demo_dir = Path(__file__).resolve().parents[2] / "demo" / "benchmarks" / "legacy_retail"
+    source_files = [
+        path
+        for path in demo_dir.rglob("*")
+        if path.is_file() and path.suffix.lower() in {".py", ".js", ".jsx", ".ts", ".tsx"}
+    ]
+
+    assert demo_dir.is_dir()
+    assert len(source_files) == 22
+    assert any(path.suffix == ".py" for path in source_files)
+    assert any(path.suffix == ".js" for path in source_files)
+
+    monkeypatch.setattr(settings, "WORKSPACES_DIR", str(tmp_path / "workspaces"))
+    response = client.post("/api/demo/benchmarks/legacy_retail")
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["total_files"] == 22
+    assert payload["detected_languages"] == ["javascript", "python"]
+
+    recent = client.get("/api/projects?limit=12")
+    assert recent.status_code == 200
+    assert any(project["project_id"] == payload["project_id"] for project in recent.json()["projects"])
+    assert client.get(f"/api/projects/{payload['project_id']}/analysis/download").status_code == 200
+    assert client.get(f"/api/projects/{payload['project_id']}/graph/download").status_code == 200

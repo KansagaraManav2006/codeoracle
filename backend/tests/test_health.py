@@ -22,6 +22,13 @@ def test_health_endpoint():
     assert data["database"]["backend"] in ("sqlite", "postgresql")
 
 
+def test_application_lifespan_starts_and_reports_database():
+    with TestClient(app) as lifespan_client:
+        response = lifespan_client.get("/api/health")
+        assert response.status_code == 200
+        assert response.json()["database"]["schema_ready"] is True
+
+
 def test_list_recent_projects_endpoint():
     response = client.get("/api/projects?limit=5")
     assert response.status_code == 200

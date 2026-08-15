@@ -110,6 +110,22 @@ def test_plan_scores_and_blast_radius():
     assert len(plan.phases) >= 3
 
 
+def test_explanation_and_graph_downloads_are_available():
+    client = TestClient(app)
+
+    explanation = client.get("/api/projects/proj_migration/analysis/download")
+    assert explanation.status_code == 200
+    assert "text/markdown" in explanation.headers["content-type"]
+    assert "Migration Sample Codebase Explanation" in explanation.text
+    assert "explanation.md" in explanation.headers["content-disposition"]
+
+    graph = client.get("/api/projects/proj_migration/graph/download")
+    assert graph.status_code == 200
+    assert "text/markdown" in graph.headers["content-type"]
+    assert "```mermaid" in graph.text
+    assert "dependency-graph.md" in graph.headers["content-disposition"]
+
+
 def test_markdown_report_contains_decision_sections():
     db = TestingSessionLocal()
     plan = build_migration_plan(db, "proj_migration")

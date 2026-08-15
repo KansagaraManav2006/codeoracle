@@ -1,8 +1,9 @@
 import logging
+import shutil
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
@@ -65,7 +66,38 @@ def resolve_database_url(
     return f"sqlite://{posix_path}"
 
 
+def _sqlite_file_path(database_url: str) -> Optional[Path]:
+    """Return a platform-correct filesystem path for a file-backed SQLite URL."""
+    if not database_url.startswith("sqlite") or database_url == "sqlite:///:memory:":
+        return None
+    raw_path = database_url.replace("sqlite:///", "", 1).replace("sqlite://", "", 1)
+    if len(raw_path) > 2 and raw_path[0] == "/" and raw_path[2] == ":":
+        raw_path = raw_path[1:]
+    return Path(raw_path).resolve()
+
+
+def migrate_legacy_sqlite_database(
+    database_url: str,
+    legacy_path_override: Optional[Path] = None,
+) -> Optional[Path]:
+    """Move the pre-data-directory database forward without overwriting a new database."""
+    target_path = _sqlite_file_path(database_url)
+    if target_path is None or target_path.exists():
+        return None
+
+    backend_dir = Path(__file__).resolve().parent.parent
+    legacy_path = legacy_path_override or (backend_dir / "codeoracle.db")
+    if not legacy_path.is_file() or legacy_path.resolve() == target_path:
+        return None
+
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(legacy_path, target_path)
+    logger.info("Migrated legacy SQLite database to %s", target_path)
+    return target_path
+
+
 FINAL_DATABASE_URL = resolve_database_url()
+migrate_legacy_sqlite_database(FINAL_DATABASE_URL)
 is_sqlite = FINAL_DATABASE_URL.startswith("sqlite")
 
 connect_args: Dict[str, Any] = {}
@@ -137,8 +169,7 @@ def get_db_diagnostics() -> dict:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
             reachable = True
-            tables = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall() if is_sqlite else []
-            table_names = {t[0] for t in tables}
+            table_names = set(inspect(conn).get_table_names())
             schema_ready = "projects" in table_names and "project_analyses" in table_names
     except Exception as e:
         logger.warning("Database diagnostic connectivity check failed: %s", e)
