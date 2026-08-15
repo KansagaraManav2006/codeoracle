@@ -59,7 +59,7 @@ cd ../frontend
 npm run build
 ```
 
-Current verification: **84 backend tests pass**, the TypeScript/Vite production build passes, and the browser-tested demo achieves **73.8% measured line coverage**.
+Current verification: **92 backend tests pass**, the TypeScript/Vite production build passes, and the browser-tested demo achieves **73.8% measured line coverage**.
 
 The extended benchmark also covers a synthetic 100,000-line mixed-language project plus the real [Flask](https://github.com/pallets/flask) and [Express](https://github.com/expressjs/express) repositories. See [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for reproducible results.
 
@@ -78,7 +78,7 @@ For Render, Railway, or another Docker host:
 
 1. Create a web service from this repository.
 2. Select Docker deployment using the root `Dockerfile`.
-3. Add a persistent disk only if project data must survive restarts.
+3. Add a persistent disk at `/app/data` (or configure `CODEORACLE_DATA_DIR`) if project data must survive restarts.
 4. Keep `TEST_EXECUTION_ENABLED=false` and `TEST_EXECUTION_ALLOW_UNTRUSTED=false`.
 5. Use `/api/health` as the health-check path.
 
@@ -95,7 +95,7 @@ For Render, Railway, or another Docker host:
 
 - Backend: FastAPI, SQLAlchemy, SQLite, Python AST, deterministic JavaScript parsing
 - Frontend: React, TypeScript, Vite, Tailwind CSS, React Flow
-- Persistence: project metadata, analysis, generated tests, and refactor proposals are cached by content hash
+- Persistence: Deterministic SQLite database location (`CODEORACLE_DATA_DIR` or `/app/data/codeoracle.db`); project metadata, analysis, generated tests, and refactor proposals are cached by content hash
 - Deployment: single multi-stage Docker image
 
 API documentation is available at `/api/docs` while the server is running.
