@@ -107,3 +107,56 @@ class NormalizedCodebaseModel(BaseModel):
     total_loc: int
     files: List[FileNode] = Field(default_factory=list)
     dependencies: List[Any] = Field(default_factory=list)
+
+
+# --- Dependency Health Schemas ---
+
+class DependencyHealthItem(BaseModel):
+    name: str
+    current_spec: str
+    latest_version: str
+    ecosystem: str  # 'python' | 'node'
+    manifest_source: str  # 'package.json' | 'requirements.txt' | 'pyproject.toml' | 'package-lock.json'
+    is_direct: bool = True
+    is_outdated: bool = False
+    is_deprecated: bool = False
+    is_unused: bool = False
+    is_risk: bool = False
+    risk_reason: Optional[str] = None
+    license: Optional[str] = None
+    used_by_modules: List[str] = Field(default_factory=list)
+    used_by_count: int = 0
+
+
+class DependencyTreeNode(BaseModel):
+    name: str
+    version: str
+    ecosystem: str
+    is_direct: bool = True
+    children: List["DependencyTreeNode"] = Field(default_factory=list)
+
+
+class UpdateImpactPreview(BaseModel):
+    package_name: str
+    current_version: str
+    target_version: str
+    risk_level: str  # 'low' | 'medium' | 'high' | 'critical'
+    affected_files_count: int
+    affected_files: List[str] = Field(default_factory=list)
+    recommendations: List[str] = Field(default_factory=list)
+
+
+class DependencyHealthResponse(BaseModel):
+    project_id: str
+    total_packages: int
+    direct_packages_count: int
+    transitive_packages_count: int
+    outdated_count: int
+    unused_count: int
+    deprecated_count: int
+    risk_count: int
+    manifests_found: List[str] = Field(default_factory=list)
+    packages: List[DependencyHealthItem] = Field(default_factory=list)
+    dependency_tree: List[DependencyTreeNode] = Field(default_factory=list)
+    update_impact_previews: Dict[str, UpdateImpactPreview] = Field(default_factory=dict)
+

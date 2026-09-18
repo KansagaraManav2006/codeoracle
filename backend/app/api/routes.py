@@ -17,8 +17,10 @@ from app.database import get_db
 from app.models.db import Job, JobState, Project, ProjectAnalysisRecord, ProjectFile, ProjectRefactorRecord
 from app.migration.models import MigrationPlanResponse
 from app.migration.service import build_migration_plan, migration_plan_markdown
+from app.analysis.dependency_health import analyze_dependency_health
 from app.models.schema import (
     AnalyzeRequest,
+    DependencyHealthResponse,
     GitHubIngestRequest,
     HealthResponse,
     JobResponse,
@@ -947,3 +949,16 @@ def load_demo_benchmark(
         content_hash=proj.content_hash,
         created_at=proj.created_at,
     )
+
+
+@router.get("/projects/{project_id}/dependency-health", response_model=DependencyHealthResponse)
+def get_dependency_health(project_id: str, db: Session = Depends(get_db)) -> DependencyHealthResponse:
+    """Calculates package dependency health, version status, unused detection, and update impact previews."""
+    try:
+        return analyze_dependency_health(db, project_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except Exception:
+        logger.exception("Failed dependency health calculation for project %s", project_id)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Dependency health analysis failed.")
+

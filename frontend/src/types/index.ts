@@ -50,8 +50,58 @@ export interface ProjectFilesListResponse {
   files: ProjectFileResponse[];
 }
 
-export type TabType = 'explanation' | 'graph' | 'tests' | 'refactor' | 'migration';
+export type TabType = 'explanation' | 'graph' | 'health' | 'tests' | 'refactor' | 'migration';
 export type ViewMode = 'dashboard' | 'analyze' | TabType;
+
+export interface DependencyHealthItem {
+  name: string;
+  current_spec: string;
+  latest_version: string;
+  ecosystem: 'python' | 'node';
+  manifest_source: string;
+  is_direct: boolean;
+  is_outdated: boolean;
+  is_deprecated: boolean;
+  is_unused: boolean;
+  is_risk: boolean;
+  risk_reason?: string | null;
+  license?: string | null;
+  used_by_modules: string[];
+  used_by_count: number;
+}
+
+export interface DependencyTreeNode {
+  name: string;
+  version: string;
+  ecosystem: string;
+  is_direct: boolean;
+  children: DependencyTreeNode[];
+}
+
+export interface UpdateImpactPreview {
+  package_name: string;
+  current_version: string;
+  target_version: string;
+  risk_level: 'low' | 'medium' | 'high' | 'critical';
+  affected_files_count: number;
+  affected_files: string[];
+  recommendations: string[];
+}
+
+export interface DependencyHealthResponse {
+  project_id: string;
+  total_packages: number;
+  direct_packages_count: number;
+  transitive_packages_count: number;
+  outdated_count: number;
+  unused_count: number;
+  deprecated_count: number;
+  risk_count: number;
+  manifests_found: string[];
+  packages: DependencyHealthItem[];
+  dependency_tree: DependencyTreeNode[];
+  update_impact_previews: Record<string, UpdateImpactPreview>;
+}
 
 export type IngestionMode = 'zip' | 'github';
 

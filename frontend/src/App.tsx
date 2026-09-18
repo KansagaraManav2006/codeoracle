@@ -8,6 +8,7 @@ import ProjectResultsView from './components/ProjectResultsView';
 import TabNavigation from './components/TabNavigation';
 import ExplanationTab from './components/ExplanationTab';
 import DependencyGraphTab from './components/DependencyGraphTab';
+import DependencyHealthTab from './components/DependencyHealthTab';
 import GeneratedTestsTab from './components/GeneratedTestsTab';
 import RefactoredCodeTab from './components/RefactoredCodeTab';
 import MigrationPlanTab from './components/MigrationPlanTab';
@@ -57,7 +58,7 @@ export const App: React.FC = () => {
     setActiveView('dashboard');
   };
 
-  const isDetailTab = ['explanation', 'graph', 'tests', 'refactor', 'migration'].includes(activeView);
+  const isDetailTab = ['explanation', 'graph', 'health', 'tests', 'refactor', 'migration'].includes(activeView);
 
   return (
     <div className="min-h-screen bg-[#F7F4EE] text-[#292622] flex flex-col font-sans antialiased">
@@ -135,6 +136,9 @@ export const App: React.FC = () => {
                       )}
                       {activeView === 'graph' && (
                         <DependencyGraphTab projectId={project.project_id} />
+                      )}
+                      {activeView === 'health' && (
+                        <DependencyHealthTab projectId={project.project_id} />
                       )}
                       {activeView === 'tests' && (
                         <GeneratedTestsTab

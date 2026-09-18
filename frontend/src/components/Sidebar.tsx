@@ -73,8 +73,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       title: 'QUALITY',
       items: [
+        { id: 'health' as ViewMode, label: 'Dependency Health', icon: ShieldCheck, requiresProject: true },
         { id: 'tests' as ViewMode, label: 'Tests', icon: TestTube, requiresProject: true },
-        { id: 'migration' as ViewMode, label: 'Security & Health', icon: ShieldCheck, requiresProject: true },
       ],
     },
     {
