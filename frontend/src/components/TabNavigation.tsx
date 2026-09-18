@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, GitFork, ShieldAlert, Map, TestTube, Wand2, Layers } from 'lucide-react';
+import { BookOpen, GitFork, ShieldAlert, Map, TestTube, Wand2, Layers, Network } from 'lucide-react';
 import { TabType } from '../types';
 
 interface TabNavigationProps {
@@ -10,6 +10,7 @@ interface TabNavigationProps {
 export const TabNavigation: React.FC<TabNavigationProps> = ({ activeTab, onTabChange }) => {
   const tabs = [
     { id: 'explanation' as TabType, label: 'Explanation', icon: BookOpen },
+    { id: 'knowledge_graph' as TabType, label: 'Knowledge Graph', icon: Network },
     { id: 'graph' as TabType, label: 'Dependency Graph', icon: GitFork },
     { id: 'health' as TabType, label: 'Dependency Health', icon: ShieldAlert },
     { id: 'architecture' as TabType, label: 'Architecture Evolution', icon: Layers },

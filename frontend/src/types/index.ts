@@ -50,7 +50,7 @@ export interface ProjectFilesListResponse {
   files: ProjectFileResponse[];
 }
 
-export type TabType = 'explanation' | 'graph' | 'health' | 'tests' | 'refactor' | 'migration' | 'architecture';
+export type TabType = 'explanation' | 'graph' | 'health' | 'tests' | 'refactor' | 'migration' | 'architecture' | 'knowledge_graph';
 export type ViewMode = 'dashboard' | 'analyze' | TabType;
 
 export interface ArchLayerModule {
@@ -452,3 +452,46 @@ export interface ProjectRefactorResult {
   safe_to_apply_automatically: boolean;
   summary: string;
 }
+
+// --- Codebase Knowledge Graph Interfaces ---
+
+export interface KnowledgeGraphNode {
+  id: string;
+  label: string;
+  kind: 'project' | 'file' | 'module' | 'class' | 'function' | 'method' | 'variable' | 'import' | 'export' | 'call' | 'api' | 'test' | 'dependency' | 'configuration_file' | 'database_interaction';
+  properties: Record<string, any>;
+}
+
+export interface KnowledgeGraphEdge {
+  id: string;
+  source_id: string;
+  target_id: string;
+  relation: 'IMPORTS' | 'IMPORTED_BY' | 'CALLS' | 'CALLED_BY' | 'EXTENDS' | 'IMPLEMENTS' | 'DEPENDS_ON' | 'TESTS' | 'EXPOSES' | 'READS' | 'WRITES';
+  properties: Record<string, any>;
+}
+
+export interface KnowledgeGraphValidation {
+  status: 'valid' | 'warnings' | 'invalid';
+  duplicate_edges_removed: number;
+  orphaned_edges_prevented: number;
+  total_checks_passed: number;
+  warnings: string[];
+}
+
+export interface KnowledgeGraphSummary {
+  total_nodes: number;
+  total_edges: number;
+  node_kind_counts: Record<string, number>;
+  relation_counts: Record<string, number>;
+  validation: KnowledgeGraphValidation;
+}
+
+export interface KnowledgeGraphResponse {
+  project_id: string;
+  summary: KnowledgeGraphSummary;
+  nodes: KnowledgeGraphNode[];
+  edges: KnowledgeGraphEdge[];
+  schema_version: string;
+  disclaimer: string;
+}
+

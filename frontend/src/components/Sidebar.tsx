@@ -11,6 +11,7 @@ import {
   Layers,
   ChevronRight,
   Database,
+  Network,
   X,
 } from 'lucide-react';
 import { ViewMode } from '../types';
@@ -67,6 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: 'ANALYSIS',
       items: [
         { id: 'explanation' as ViewMode, label: 'Explanation', icon: BookOpen, requiresProject: true },
+        { id: 'knowledge_graph' as ViewMode, label: 'Knowledge Graph', icon: Network, requiresProject: true },
         { id: 'graph' as ViewMode, label: 'Dependencies', icon: GitFork, requiresProject: true },
       ],
     },

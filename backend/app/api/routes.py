@@ -19,6 +19,7 @@ from app.migration.models import MigrationPlanResponse
 from app.migration.service import build_migration_plan, migration_plan_markdown
 from app.analysis.architecture import analyze_architecture_evolution
 from app.analysis.dependency_health import analyze_dependency_health
+from app.analysis.knowledge_graph import build_knowledge_graph
 from app.models.schema import (
     AnalyzeRequest,
     ArchitectureEvolutionResponse,
@@ -26,6 +27,7 @@ from app.models.schema import (
     GitHubIngestRequest,
     HealthResponse,
     JobResponse,
+    KnowledgeGraphResponse,
     ProjectFileResponse,
     ProjectFilesListResponse,
     ProjectMetadataResponse,
@@ -977,4 +979,19 @@ def get_architecture_evolution(project_id: str, db: Session = Depends(get_db)) -
     except Exception:
         logger.exception("Failed architecture evolution analysis for project %s", project_id)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Architecture evolution analysis failed.")
+
+
+@router.get("/projects/{project_id}/knowledge-graph", response_model=KnowledgeGraphResponse)
+def get_knowledge_graph(project_id: str, db: Session = Depends(get_db)) -> KnowledgeGraphResponse:
+    """Constructs read-only Codebase Knowledge Graph containing normalized project entities, relationships, and validation metrics."""
+    try:
+        return build_knowledge_graph(db, project_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    except Exception:
+        logger.exception("Failed knowledge graph construction for project %s", project_id)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Knowledge graph construction failed.")
+
 

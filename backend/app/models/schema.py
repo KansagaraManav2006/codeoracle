@@ -202,3 +202,46 @@ class ArchitectureEvolutionResponse(BaseModel):
     disclaimer: str = Field("Proposed architecture is an advisory recommendation for engineering review and does not automatically alter source code.")
 
 
+# --- Codebase Knowledge Graph Schemas ---
+
+class KnowledgeGraphNode(BaseModel):
+    id: str
+    label: str
+    kind: str  # project, file, module, class, function, method, variable, import, export, call, api, test, dependency, configuration_file, database_interaction
+    properties: Dict[str, Any] = Field(default_factory=dict)
+
+
+class KnowledgeGraphEdge(BaseModel):
+    id: str
+    source_id: str
+    target_id: str
+    relation: str  # IMPORTS, IMPORTED_BY, CALLS, CALLED_BY, EXTENDS, IMPLEMENTS, DEPENDS_ON, TESTS, EXPOSES, READS, WRITES
+    properties: Dict[str, Any] = Field(default_factory=dict)
+
+
+class KnowledgeGraphValidation(BaseModel):
+    status: str = "valid"  # valid | warnings | invalid
+    duplicate_edges_removed: int = 0
+    orphaned_edges_prevented: int = 0
+    total_checks_passed: int = 0
+    warnings: List[str] = Field(default_factory=list)
+
+
+class KnowledgeGraphSummary(BaseModel):
+    total_nodes: int = 0
+    total_edges: int = 0
+    node_kind_counts: Dict[str, int] = Field(default_factory=dict)
+    relation_counts: Dict[str, int] = Field(default_factory=dict)
+    validation: KnowledgeGraphValidation = Field(default_factory=KnowledgeGraphValidation)
+
+
+class KnowledgeGraphResponse(BaseModel):
+    project_id: str
+    summary: KnowledgeGraphSummary
+    nodes: List[KnowledgeGraphNode] = Field(default_factory=list)
+    edges: List[KnowledgeGraphEdge] = Field(default_factory=list)
+    schema_version: str = Field("1.0.0")
+    disclaimer: str = Field("Knowledge Graph is an internal read-only structured representation of project entities and relationships.")
+
+
+

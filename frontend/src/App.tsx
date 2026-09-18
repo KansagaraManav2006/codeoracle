@@ -13,6 +13,7 @@ import GeneratedTestsTab from './components/GeneratedTestsTab';
 import RefactoredCodeTab from './components/RefactoredCodeTab';
 import MigrationPlanTab from './components/MigrationPlanTab';
 import ArchitectureEvolutionTab from './components/ArchitectureEvolutionTab';
+import { KnowledgeGraphTab } from './components/KnowledgeGraphTab';
 import RecentProjectsSection from './components/RecentProjectsSection';
 import { useJobPoller } from './hooks/useJobPoller';
 import { ViewMode, TabType } from './types';
@@ -134,6 +135,9 @@ export const App: React.FC = () => {
                     <div className="mt-4">
                       {activeView === 'explanation' && (
                         <ExplanationTab projectId={project.project_id} />
+                      )}
+                      {activeView === 'knowledge_graph' && (
+                        <KnowledgeGraphTab projectId={project.project_id} />
                       )}
                       {activeView === 'graph' && (
                         <DependencyGraphTab projectId={project.project_id} />
