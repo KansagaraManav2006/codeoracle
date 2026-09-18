@@ -625,11 +625,8 @@ def generate_project_tests(
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
 
-    if payload.execute and not settings.TEST_EXECUTION_ENABLED and not bool(project.is_trusted):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Test execution is disabled for uploaded repositories. Generate syntax-checked tests without execution.",
-        )
+    # Note: If test execution is disabled by server policy, process_test_generation_job handles
+    # execution policy safely and returns a structured result with execution_warning details.
 
     # Check for existing active testgen job
     active_job = (

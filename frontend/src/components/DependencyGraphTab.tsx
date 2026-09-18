@@ -24,9 +24,15 @@ import {
   Info,
   RefreshCw,
   Search,
+  Zap,
+  Target,
+  GitBranch,
+  TestTube,
+  FileCode,
 } from 'lucide-react';
 import { GraphNodeData, GraphResponse } from '../types';
 import { complexityLabel, titleCase } from '../utils/presentation';
+import RiskBadge from './common/RiskBadge';
 
 interface DependencyGraphTabProps {
   projectId?: string | null;
@@ -58,12 +64,28 @@ const AutoFitController: React.FC<{ nodesLength: number }> = ({ nodesLength }) =
   return null;
 };
 
+interface ImpactAnalysisData {
+  targetNode: GraphNodeData;
+  directDependencies: GraphNodeData[];
+  directDependents: GraphNodeData[];
+  indirectDependents: GraphNodeData[];
+  allImpactedNodes: GraphNodeData[];
+  affectedTests: GraphNodeData[];
+  blastRadius: number;
+  maxDepth: number;
+  isInCycle: boolean;
+  isEntryPoint: boolean;
+  riskLevel: 'low' | 'medium' | 'high' | 'critical';
+}
+
 const GraphCanvasContent: React.FC<{
   graph: GraphResponse;
   searchQuery: string;
   edgeTypeFilter: string;
   includeExternal: boolean;
   highlightCycles: boolean;
+  viewMode: 'graph' | 'impact';
+  impactTargetNode: GraphNodeData | null;
   onSelectNode: (node: GraphNodeData | null) => void;
   onDrillDown: (moduleId: string) => void;
 }> = ({
@@ -72,6 +94,8 @@ const GraphCanvasContent: React.FC<{
   edgeTypeFilter,
   includeExternal,
   highlightCycles,
+  viewMode,
+  impactTargetNode,
   onSelectNode,
   onDrillDown,
 }) => {
@@ -81,6 +105,49 @@ const GraphCanvasContent: React.FC<{
     graph.cycles.forEach((c) => c.forEach((id) => set.add(id)));
     return set;
   }, [graph.cycles]);
+
+  // Compute Impact Sets when in impact mode
+  const impactSets = useMemo(() => {
+    if (viewMode !== 'impact' || !impactTargetNode) return null;
+
+    const targetId = impactTargetNode.id;
+    const directDepIds = new Set<string>();
+    const directDependentIds = new Set<string>();
+    const indirectDependentIds = new Set<string>();
+
+    // 1. Direct Dependencies: target -> dependency
+    graph.edges.forEach((e) => {
+      if (e.source === targetId) directDepIds.add(e.target);
+    });
+
+    // 2. Direct Dependents: dependent -> target
+    graph.edges.forEach((e) => {
+      if (e.target === targetId) directDependentIds.add(e.source);
+    });
+
+    // 3. Indirect Dependents: Transitive closure starting from directDependents
+    const queue = Array.from(directDependentIds);
+    const visited = new Set<string>([targetId, ...directDependentIds]);
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      graph.edges.forEach((e) => {
+        if (e.target === current && !visited.has(e.source)) {
+          visited.add(e.source);
+          indirectDependentIds.add(e.source);
+          queue.push(e.source);
+        }
+      });
+    }
+
+    return {
+      targetId,
+      directDepIds,
+      directDependentIds,
+      indirectDependentIds,
+      allImpactedIds: new Set([targetId, ...directDepIds, ...directDependentIds, ...indirectDependentIds]),
+    };
+  }, [viewMode, impactTargetNode, graph.edges]);
 
   // Layout Nodes Deterministically in a multi-row grid
   const initialNodes: Node[] = useMemo(() => {
@@ -101,18 +168,38 @@ const GraphCanvasContent: React.FC<{
       const row = Math.floor(idx / columns);
       const isCycle = cycleNodeIds.has(n.id);
 
-      // Color coding & borders for light theme
+      // Color coding & borders for light theme & impact mode
       let borderClass = 'border-[#D8CFC2] bg-[#FFFDFC] text-[#292622]';
-      if (isCycle && highlightCycles) {
-        borderClass = 'border-[#C45F58] bg-[#F6E5E2] text-[#8F3F3A] shadow-[0_4px_16px_rgba(196,95,88,0.15)]';
-      } else if (n.is_external) {
-        borderClass = 'border-[#5D8194]/60 border-dashed bg-[#E6EFF2]/60 text-[#3D657A]';
-      } else if (n.language === 'python') {
-        borderClass = 'border-[#C8DCE4] bg-[#FFFDFC] text-[#292622]';
-      } else if (n.language === 'javascript') {
-        borderClass = 'border-[#E6D3A9] bg-[#FFFDFC] text-[#292622]';
-      } else if (n.language === 'typescript') {
-        borderClass = 'border-[#C7C4F7] bg-[#FFFDFC] text-[#292622]';
+      let tagBadge: { label: string; class: string } | null = null;
+
+      if (viewMode === 'impact' && impactSets) {
+        if (n.id === impactSets.targetId) {
+          borderClass = 'border-4 border-[#C7953D] bg-[#FEF3E2] text-[#181715] shadow-[0_0_24px_rgba(199,149,61,0.35)] scale-105 z-30';
+          tagBadge = { label: 'TARGET', class: 'bg-[#C7953D] text-white' };
+        } else if (impactSets.directDependentIds.has(n.id)) {
+          borderClass = 'border-2 border-[#D97706] bg-[#FEF3C7] text-[#92400E] shadow-sm';
+          tagBadge = { label: 'DIRECT IMPACT', class: 'bg-[#D97706] text-white' };
+        } else if (impactSets.indirectDependentIds.has(n.id)) {
+          borderClass = 'border-2 border-[#9333EA] bg-[#F3E8FF] text-[#6B21A8] shadow-sm';
+          tagBadge = { label: 'INDIRECT IMPACT', class: 'bg-[#9333EA] text-white' };
+        } else if (impactSets.directDepIds.has(n.id)) {
+          borderClass = 'border-2 border-[#4C4FD6] bg-[#EAE9FB] text-[#292622] shadow-sm';
+          tagBadge = { label: 'DEPENDENCY', class: 'bg-[#4C4FD6] text-white' };
+        } else {
+          borderClass = 'border-[#D8CFC2] bg-[#F7F4EE]/40 text-[#A3998E] opacity-35 grayscale-[40%]';
+        }
+      } else {
+        if (isCycle && highlightCycles) {
+          borderClass = 'border-[#C45F58] bg-[#F6E5E2] text-[#8F3F3A] shadow-[0_4px_16px_rgba(196,95,88,0.15)]';
+        } else if (n.is_external) {
+          borderClass = 'border-[#5D8194]/60 border-dashed bg-[#E6EFF2]/60 text-[#3D657A]';
+        } else if (n.language === 'python') {
+          borderClass = 'border-[#C8DCE4] bg-[#FFFDFC] text-[#292622]';
+        } else if (n.language === 'javascript') {
+          borderClass = 'border-[#E6D3A9] bg-[#FFFDFC] text-[#292622]';
+        } else if (n.language === 'typescript') {
+          borderClass = 'border-[#C7C4F7] bg-[#FFFDFC] text-[#292622]';
+        }
       }
 
       return {
@@ -134,17 +221,23 @@ const GraphCanvasContent: React.FC<{
               <span className="font-mono text-xs font-bold truncate max-w-[140px]" title={n.label}>
                 {n.label}
               </span>
-              <span
-                className={`text-[9px] uppercase font-extrabold px-1.5 py-0.5 rounded-full border ${
-                  n.is_external
-                    ? 'bg-[#E6EFF2] text-[#3D657A] border-[#C8DCE4]'
-                    : n.language === 'python'
-                    ? 'bg-[#E6EFF2] text-[#3D657A] border-[#C8DCE4]'
-                    : 'bg-[#F5E8CC] text-[#76561B] border-[#E6D3A9]'
-                }`}
-              >
-                {n.is_external ? 'EXT' : n.language}
-              </span>
+              {tagBadge ? (
+                <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md ${tagBadge.class}`}>
+                  {tagBadge.label}
+                </span>
+              ) : (
+                <span
+                  className={`text-[9px] uppercase font-extrabold px-1.5 py-0.5 rounded-full border ${
+                    n.is_external
+                      ? 'bg-[#E6EFF2] text-[#3D657A] border-[#C8DCE4]'
+                      : n.language === 'python'
+                      ? 'bg-[#E6EFF2] text-[#3D657A] border-[#C8DCE4]'
+                      : 'bg-[#F5E8CC] text-[#76561B] border-[#E6D3A9]'
+                  }`}
+                >
+                  {n.is_external ? 'EXT' : n.language}
+                </span>
+              )}
             </div>
 
             <div className="flex items-center justify-between text-[10px] text-[#6B645A] font-mono mt-2">
@@ -174,7 +267,17 @@ const GraphCanvasContent: React.FC<{
         ),
       };
     });
-  }, [graph.nodes, searchQuery, includeExternal, highlightCycles, cycleNodeIds, onSelectNode, onDrillDown]);
+  }, [
+    graph.nodes,
+    searchQuery,
+    includeExternal,
+    highlightCycles,
+    cycleNodeIds,
+    viewMode,
+    impactSets,
+    onSelectNode,
+    onDrillDown,
+  ]);
 
   // Transform React Flow Edges
   const initialEdges: Edge[] = useMemo(() => {
@@ -184,19 +287,54 @@ const GraphCanvasContent: React.FC<{
       .filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target))
       .filter((e) => edgeTypeFilter === 'all' || e.type === edgeTypeFilter)
       .map((e) => {
-        const isCycleEdge = cycleNodeIds.has(e.source) && cycleNodeIds.has(e.target);
-        const strokeColor =
-          isCycleEdge && highlightCycles ? '#C45F58' : e.type === 'require' ? '#C7953D' : '#4C4FD6';
+        let strokeColor = '#4C4FD6';
+        let strokeWidth = 1.5;
+        let animated = false;
+        let opacity = 1;
+
+        if (viewMode === 'impact' && impactSets) {
+          const isTargetSource = e.source === impactSets.targetId;
+          const isTargetTarget = e.target === impactSets.targetId;
+          const isImpactedEdge = impactSets.allImpactedIds.has(e.source) && impactSets.allImpactedIds.has(e.target);
+
+          if (isTargetSource) {
+            strokeColor = '#4C4FD6';
+            strokeWidth = 2.5;
+            animated = true;
+          } else if (isTargetTarget || impactSets.directDependentIds.has(e.source)) {
+            strokeColor = '#D97706';
+            strokeWidth = 2.5;
+            animated = true;
+          } else if (impactSets.indirectDependentIds.has(e.source)) {
+            strokeColor = '#9333EA';
+            strokeWidth = 2;
+            animated = true;
+          } else if (!isImpactedEdge) {
+            strokeColor = '#D8CFC2';
+            strokeWidth = 1;
+            opacity = 0.2;
+          }
+        } else {
+          const isCycleEdge = cycleNodeIds.has(e.source) && cycleNodeIds.has(e.target);
+          if (isCycleEdge && highlightCycles) {
+            strokeColor = '#C45F58';
+            strokeWidth = 2.5;
+            animated = true;
+          } else if (e.type === 'require') {
+            strokeColor = '#C7953D';
+          }
+        }
 
         return {
           id: e.id,
           source: e.source,
           target: e.target,
           type: 'smoothstep',
-          animated: isCycleEdge && highlightCycles,
+          animated,
           style: {
             stroke: strokeColor,
-            strokeWidth: isCycleEdge && highlightCycles ? 2.5 : 1.5,
+            strokeWidth,
+            opacity,
             strokeDasharray: e.type === 'require' ? '4,4' : undefined,
           },
           label: e.type !== 'import' ? e.type : undefined,
@@ -204,7 +342,7 @@ const GraphCanvasContent: React.FC<{
           labelBgStyle: { fill: '#FFFDFC' },
         };
       });
-  }, [graph.edges, initialNodes, edgeTypeFilter, highlightCycles, cycleNodeIds]);
+  }, [graph.edges, initialNodes, edgeTypeFilter, highlightCycles, cycleNodeIds, viewMode, impactSets]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -220,7 +358,7 @@ const GraphCanvasContent: React.FC<{
   );
 
   return (
-    <div className="relative h-[420px] w-full overflow-hidden rounded-[20px] border border-[#D8CFC2] bg-[#EFE9DD]/50 graph-dot-grid sm:h-[520px]">
+    <div className="relative h-[420px] w-full overflow-hidden rounded-[20px] border border-[#D8CFC2] bg-[#EFE9DD]/50 graph-dot-grid sm:h-[540px]">
       <AutoFitController nodesLength={renderedNodes.length} />
       <ReactFlow
         nodes={renderedNodes}
@@ -248,29 +386,53 @@ const GraphCanvasContent: React.FC<{
 
         <Panel
           position="bottom-left"
-          className="bg-[#FFFDFC]/95 border border-[#D8CFC2] p-2.5 rounded-xl text-[10px] text-[#4D4842] flex items-center space-x-3 backdrop-blur-md shadow-xs"
+          className="bg-[#FFFDFC]/95 border border-[#D8CFC2] p-2.5 rounded-xl text-[10px] text-[#4D4842] flex flex-wrap items-center space-x-3 backdrop-blur-md shadow-xs max-w-full"
         >
-          <span className="font-bold text-[#292622]">Legend:</span>
-          <span className="flex items-center space-x-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#4C4FD6]"></span>
-            <span>Python</span>
-          </span>
-          <span className="flex items-center space-x-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#C7953D]"></span>
-            <span>JavaScript</span>
-          </span>
-          <span className="flex items-center space-x-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#7B61D1]"></span>
-            <span>TypeScript</span>
-          </span>
-          <span className="flex items-center space-x-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#5D8194]"></span>
-            <span>External</span>
-          </span>
-          <span className="flex items-center space-x-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#368A80]"></span>
-            <span>Entry Point</span>
-          </span>
+          {viewMode === 'impact' ? (
+            <>
+              <span className="font-extrabold text-[#181715]">Impact Legend:</span>
+              <span className="flex items-center space-x-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#C7953D]" />
+                <span>Target</span>
+              </span>
+              <span className="flex items-center space-x-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#4C4FD6]" />
+                <span>Dependency</span>
+              </span>
+              <span className="flex items-center space-x-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#D97706]" />
+                <span>Direct Impact</span>
+              </span>
+              <span className="flex items-center space-x-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#9333EA]" />
+                <span>Indirect Impact</span>
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="font-extrabold text-[#181715]">Legend:</span>
+              <span className="flex items-center space-x-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#4C4FD6]" />
+                <span>Python</span>
+              </span>
+              <span className="flex items-center space-x-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#C7953D]" />
+                <span>JavaScript</span>
+              </span>
+              <span className="flex items-center space-x-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#7B61D1]" />
+                <span>TypeScript</span>
+              </span>
+              <span className="flex items-center space-x-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#5D8194]" />
+                <span>External</span>
+              </span>
+              <span className="flex items-center space-x-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#368A80]" />
+                <span>Entry Point</span>
+              </span>
+            </>
+          )}
         </Panel>
       </ReactFlow>
     </div>
@@ -284,11 +446,13 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
   const [error, setError] = useState<string | null>(null);
 
   // Controls state
+  const [viewMode, setViewMode] = useState<'graph' | 'impact'>('graph');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [edgeTypeFilter, setEdgeTypeFilter] = useState<string>('all');
   const [includeExternal, setIncludeExternal] = useState<boolean>(false);
   const [highlightCycles, setHighlightCycles] = useState<boolean>(true);
   const [selectedNode, setSelectedNode] = useState<GraphNodeData | null>(null);
+  const [impactTargetNode, setImpactTargetNode] = useState<GraphNodeData | null>(null);
   const [currentLevel, setCurrentLevel] = useState<'module' | 'symbol'>('module');
 
   const fetchGraph = useCallback(
@@ -325,13 +489,19 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
         const data: GraphResponse = await res.json();
         setGraph(data);
         setCurrentLevel(lvl);
+
+        // Auto select first module as default impact target if none selected
+        if (!selectedNode && data.nodes.length > 0) {
+          setSelectedNode(data.nodes[0]);
+          setImpactTargetNode(data.nodes[0]);
+        }
       } catch (err: any) {
         setError(err.message || 'Failed to load dependency graph.');
       } finally {
         setLoading(false);
       }
     },
-    [projectId, edgeTypeFilter, includeExternal]
+    [projectId, edgeTypeFilter, includeExternal, selectedNode]
   );
 
   useEffect(() => {
@@ -349,6 +519,109 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
   const handleBackToModules = () => {
     fetchGraph('module', null);
   };
+
+  const handleAnalyzeImpact = (node: GraphNodeData) => {
+    setSelectedNode(node);
+    setImpactTargetNode(node);
+    setViewMode('impact');
+  };
+
+  // Detailed Impact Data Calculation
+  const impactAnalysis: ImpactAnalysisData | null = useMemo(() => {
+    if (!graph || (!selectedNode && !impactTargetNode)) return null;
+    const target = impactTargetNode || selectedNode || graph.nodes[0];
+    if (!target) return null;
+
+    const targetId = target.id;
+    const nodeMap = new Map<string, GraphNodeData>(graph.nodes.map((n) => [n.id, n]));
+
+    const directDepIds = new Set<string>();
+    const directDependentIds = new Set<string>();
+
+    graph.edges.forEach((e) => {
+      if (e.source === targetId) directDepIds.add(e.target);
+      if (e.target === targetId) directDependentIds.add(e.source);
+    });
+
+    const directDependencies = Array.from(directDepIds)
+      .map((id) => nodeMap.get(id)!)
+      .filter(Boolean);
+
+    const directDependents = Array.from(directDependentIds)
+      .map((id) => nodeMap.get(id)!)
+      .filter(Boolean);
+
+    // BFS for transitive indirect dependents & depth calculation
+    const indirectDependentIds = new Set<string>();
+    const visited = new Set<string>([targetId, ...directDependentIds]);
+    const depthMap = new Map<string, number>();
+
+    directDependentIds.forEach((id) => depthMap.set(id, 1));
+    const queue = Array.from(directDependentIds);
+    let maxDepth = directDependentIds.size > 0 ? 1 : 0;
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const currentDepth = depthMap.get(current) || 1;
+
+      graph.edges.forEach((e) => {
+        if (e.target === current && !visited.has(e.source)) {
+          visited.add(e.source);
+          indirectDependentIds.add(e.source);
+          depthMap.set(e.source, currentDepth + 1);
+          if (currentDepth + 1 > maxDepth) maxDepth = currentDepth + 1;
+          queue.push(e.source);
+        }
+      });
+    }
+
+    const indirectDependents = Array.from(indirectDependentIds)
+      .map((id) => nodeMap.get(id)!)
+      .filter(Boolean);
+
+    const allImpactedNodes = [target, ...directDependents, ...indirectDependents];
+    const blastRadius = allImpactedNodes.length;
+
+    // Filter test files in blast radius
+    const isTestFile = (n: GraphNodeData) => {
+      const l = n.label.toLowerCase();
+      return (
+        l.includes('test_') ||
+        l.includes('_test') ||
+        l.includes('.test.') ||
+        l.includes('.spec.') ||
+        l.includes('tests/')
+      );
+    };
+
+    const affectedTests = allImpactedNodes.filter(isTestFile);
+
+    const isInCycle = graph.cycles.some((c) => c.includes(targetId));
+    const isEntryPoint = target.is_entry_point;
+
+    let riskLevel: 'low' | 'medium' | 'high' | 'critical' = 'low';
+    if (isInCycle || blastRadius > 15) {
+      riskLevel = 'critical';
+    } else if (blastRadius > 8 || isEntryPoint) {
+      riskLevel = 'high';
+    } else if (blastRadius > 3) {
+      riskLevel = 'medium';
+    }
+
+    return {
+      targetNode: target,
+      directDependencies,
+      directDependents,
+      indirectDependents,
+      allImpactedNodes,
+      affectedTests,
+      blastRadius,
+      maxDepth,
+      isInCycle,
+      isEntryPoint,
+      riskLevel,
+    };
+  }, [graph, selectedNode, impactTargetNode]);
 
   if (!projectId) {
     return (
@@ -407,7 +680,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
 
   return (
     <div className="space-y-6">
-      {/* Top Banner: Graph Metrics & Level Indicator */}
+      {/* Top Banner: Graph & Impact Header */}
       <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[24px] p-4 sm:p-6 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#D8CFC2] pb-4">
           <div className="flex items-center space-x-3">
@@ -416,7 +689,9 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h2 className="text-base font-extrabold text-[#292622]">Code Relationships</h2>
+                <h2 className="text-base font-extrabold text-[#292622]">
+                  {viewMode === 'impact' ? 'Dependency & Impact Analysis Workspace' : 'Code Relationships & Graph'}
+                </h2>
                 <span className="text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full bg-[#EAE9FB] text-[#4340A0] border border-[#C7C4F7]">
                   {currentLevel === 'module' ? 'Project View' : 'File Details'}
                 </span>
@@ -427,19 +702,50 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
                 )}
               </div>
               <p className="text-xs text-[#6B645A] mt-0.5">
-                See how files connect and identify areas that need attention.
+                {viewMode === 'impact'
+                  ? 'Calculate blast radius, indirect dependencies, and affected tests before making refactoring changes.'
+                  : 'See how files connect and identify areas that need attention.'}
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            {/* View Mode Selector */}
+            <div className="flex items-center border border-[#D8CFC2] bg-[#F0EBE2] rounded-xl p-1">
+              <button
+                onClick={() => setViewMode('graph')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  viewMode === 'graph'
+                    ? 'bg-[#181715] text-white shadow-xs'
+                    : 'text-[#5C554D] hover:text-[#181715]'
+                }`}
+              >
+                <GitBranch className="w-3.5 h-3.5" />
+                <span>Graph View</span>
+              </button>
+              <button
+                onClick={() => {
+                  setViewMode('impact');
+                  if (!impactTargetNode && selectedNode) setImpactTargetNode(selectedNode);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  viewMode === 'impact'
+                    ? 'bg-[#4C4FD6] text-white shadow-xs'
+                    : 'text-[#5C554D] hover:text-[#181715]'
+                }`}
+              >
+                <Zap className="w-3.5 h-3.5" />
+                <span>Impact Analysis</span>
+              </button>
+            </div>
+
             {currentLevel === 'module' && (
               <a
                 href={`/api/projects/${projectId}/graph/download`}
                 className="btn-brand-outline-pill px-4 py-2 text-xs flex items-center gap-1.5"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>Download Mermaid</span>
+                <span className="hidden sm:inline">Mermaid</span>
               </a>
             )}
             {currentLevel === 'symbol' && (
@@ -448,7 +754,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
                 className="btn-brand-outline-pill px-4 py-2 text-xs flex items-center gap-1.5"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Back to Project View</span>
+                <span>Back</span>
               </button>
             )}
           </div>
@@ -572,76 +878,223 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
               edgeTypeFilter={edgeTypeFilter}
               includeExternal={includeExternal}
               highlightCycles={highlightCycles}
-              onSelectNode={setSelectedNode}
+              viewMode={viewMode}
+              impactTargetNode={impactTargetNode || selectedNode}
+              onSelectNode={(node) => {
+                setSelectedNode(node);
+                if (viewMode === 'impact' && node) {
+                  setImpactTargetNode(node);
+                }
+              }}
               onDrillDown={handleDrillDown}
             />
           </ReactFlowProvider>
         </div>
 
-        {/* Selected Node Detail Drawer */}
+        {/* Selected Node Details & Impact Panel */}
         <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[20px] p-5 shadow-xs flex flex-col justify-between min-h-[400px]">
-          <div>
-            <h3 className="text-xs uppercase font-extrabold text-[#6B645A] tracking-wider mb-4 border-b border-[#D8CFC2] pb-2">
-              Selected Item
-            </h3>
-
-            {selectedNode ? (
-              <div className="space-y-4">
-                <div>
-                  <span className="text-[10px] uppercase font-extrabold text-[#4C4FD6] block mb-0.5">
-                    {titleCase(selectedNode.kind)}
+          {viewMode === 'impact' && impactAnalysis ? (
+            /* --- IMPACT ANALYSIS WORKSPACE PANEL --- */
+            <div className="space-y-4">
+              <div className="border-b border-[#D8CFC2] pb-3">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="text-[10px] uppercase font-black tracking-wider text-[#C7953D] flex items-center gap-1">
+                    <Target className="w-3.5 h-3.5" />
+                    Impact Target
                   </span>
-                  <p className="font-mono text-sm font-bold text-[#292622] break-all">{selectedNode.label}</p>
+                  <RiskBadge level={impactAnalysis.riskLevel} size="sm" />
+                </div>
+                <h3 className="font-mono text-xs font-bold text-[#181715] break-all">
+                  {impactAnalysis.targetNode.label}
+                </h3>
+              </div>
+
+              {/* Impact Metrics Grid */}
+              <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                <div className="bg-[#FEF3E2] border border-[#E6D3A9] p-2.5 rounded-xl">
+                  <span className="text-[10px] font-bold text-[#92400E] block uppercase">Blast Radius</span>
+                  <span className="text-base font-black text-[#181715]">
+                    {impactAnalysis.blastRadius} files
+                  </span>
                 </div>
 
-                <div className="space-y-2.5 text-xs text-[#4D4842]">
-                  <div className="flex justify-between border-b border-[#D8CFC2]/60 pb-1.5">
-                    <span className="text-[#6B645A]">Language:</span>
-                    <span className="font-bold">{titleCase(selectedNode.language)}</span>
-                  </div>
-                  {selectedNode.line_count > 0 && (
-                    <div className="flex justify-between border-b border-[#D8CFC2]/60 pb-1.5">
-                      <span className="text-[#6B645A]">Lines:</span>
-                      <span className="font-semibold">{selectedNode.line_count.toLocaleString()}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between border-b border-[#D8CFC2]/60 pb-1.5">
-                    <span className="text-[#6B645A]">Complexity:</span>
-                    <span className="font-bold" title={`Score ${selectedNode.complexity_score}`}>
-                      {complexityLabel(selectedNode.complexity_rating, selectedNode.complexity_score)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between border-b border-[#D8CFC2]/60 pb-1.5">
-                    <span className="text-[#6B645A]">Suggestions:</span>
-                    <span className="font-bold text-[#C7953D]">{selectedNode.warning_count}</span>
-                  </div>
-                  <div className="flex justify-between border-b border-[#D8CFC2]/60 pb-1.5">
-                    <span className="text-[#6B645A]">Entry Point:</span>
-                    <span className="font-bold">{selectedNode.is_entry_point ? 'Yes' : 'No'}</span>
-                  </div>
-                  <div className="flex justify-between border-b border-[#D8CFC2]/60 pb-1.5">
-                    <span className="text-[#6B645A]">Third-party:</span>
-                    <span className="font-bold">{selectedNode.is_external ? 'Yes' : 'No'}</span>
-                  </div>
+                <div className="bg-[#EAE9FB] border border-[#C7C4F7] p-2.5 rounded-xl">
+                  <span className="text-[10px] font-bold text-[#4340A0] block uppercase">Affected Tests</span>
+                  <span className="text-base font-black text-[#4340A0]">
+                    {impactAnalysis.affectedTests.length}
+                  </span>
                 </div>
+              </div>
 
-                {!selectedNode.is_external && selectedNode.kind === 'module' && (
-                  <button
-                    onClick={() => handleDrillDown(selectedNode.id)}
-                    className="btn-brand-pill w-full mt-4 py-2 px-3 text-xs flex items-center justify-center gap-1.5"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>View Functions and Classes</span>
-                  </button>
+              {/* Warnings & Cycle indicators */}
+              {impactAnalysis.isInCycle && (
+                <div className="rounded-xl border border-[#ECC7C3] bg-[#F6E5E2] p-2.5 text-[11px] font-bold text-[#8F3F3A] flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>Dependency Cycle Detected! Changes may propagate cyclically.</span>
+                </div>
+              )}
+
+              {/* DIRECT DEPENDENCIES TREE */}
+              <div className="space-y-1.5 pt-1">
+                <h4 className="text-[10px] font-black uppercase tracking-wider text-[#6B645A] flex items-center justify-between">
+                  <span>Direct Dependencies</span>
+                  <span className="rounded-full bg-[#EAE9FB] px-2 py-0.5 text-[9px] text-[#4C4FD6]">
+                    {impactAnalysis.directDependencies.length}
+                  </span>
+                </h4>
+                {impactAnalysis.directDependencies.length === 0 ? (
+                  <p className="text-[11px] font-semibold text-[#8C8275] italic px-2">None (Standalone node)</p>
+                ) : (
+                  <div className="max-h-28 overflow-y-auto space-y-1 pr-1 font-mono text-[11px] text-[#292622]">
+                    {impactAnalysis.directDependencies.map((dep) => (
+                      <div
+                        key={dep.id}
+                        onClick={() => handleAnalyzeImpact(dep)}
+                        className="flex items-center gap-1.5 p-1.5 rounded-lg bg-[#F7F4EE] border border-[#E5DFD5] hover:border-[#4C4FD6] cursor-pointer transition-colors"
+                      >
+                        <span className="text-[#8C8275]">├──</span>
+                        <FileCode className="w-3.5 h-3.5 text-[#4C4FD6] shrink-0" />
+                        <span className="truncate flex-1 font-bold">{dep.label}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
-            ) : (
-              <div className="text-center py-14 text-[#948C81] text-xs space-y-2">
-                <Info className="w-6 h-6 mx-auto text-[#948C81] opacity-60" />
-                <p>Select an item to view details. Double-click a file to see its functions and classes.</p>
+
+              {/* INDIRECT & DIRECT IMPACT TREE */}
+              <div className="space-y-1.5 pt-1">
+                <h4 className="text-[10px] font-black uppercase tracking-wider text-[#6B645A] flex items-center justify-between">
+                  <span>Indirect & Direct Impact</span>
+                  <span className="rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[9px] text-[#92400E]">
+                    {impactAnalysis.directDependents.length + impactAnalysis.indirectDependents.length}
+                  </span>
+                </h4>
+                {impactAnalysis.directDependents.length + impactAnalysis.indirectDependents.length === 0 ? (
+                  <p className="text-[11px] font-semibold text-[#8C8275] italic px-2">No downstream files affected.</p>
+                ) : (
+                  <div className="max-h-36 overflow-y-auto space-y-1 pr-1 font-mono text-[11px] text-[#292622]">
+                    {impactAnalysis.directDependents.map((dep) => (
+                      <div
+                        key={dep.id}
+                        onClick={() => handleAnalyzeImpact(dep)}
+                        className="flex items-center gap-1.5 p-1.5 rounded-lg bg-[#FEF3C7]/60 border border-[#FDE68A] hover:border-[#D97706] cursor-pointer transition-colors"
+                      >
+                        <span className="text-[#D97706]">├──</span>
+                        <FileCode className="w-3.5 h-3.5 text-[#D97706] shrink-0" />
+                        <span className="truncate flex-1 font-bold text-[#92400E]">{dep.label}</span>
+                      </div>
+                    ))}
+
+                    {impactAnalysis.indirectDependents.map((dep) => (
+                      <div
+                        key={dep.id}
+                        onClick={() => handleAnalyzeImpact(dep)}
+                        className="flex items-center gap-1.5 p-1.5 rounded-lg bg-[#F3E8FF]/60 border border-[#E9D5FF] hover:border-[#9333EA] cursor-pointer transition-colors"
+                      >
+                        <span className="text-[#9333EA]">└──</span>
+                        <FileCode className="w-3.5 h-3.5 text-[#9333EA] shrink-0" />
+                        <span className="truncate flex-1 font-bold text-[#6B21A8]">{dep.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+
+              {/* AFFECTED TESTS */}
+              {impactAnalysis.affectedTests.length > 0 && (
+                <div className="space-y-1 pt-1 border-t border-[#D8CFC2] mt-2">
+                  <h4 className="text-[10px] font-black uppercase tracking-wider text-[#6B645A] flex items-center justify-between">
+                    <span>Affected Test Suite</span>
+                    <span className="rounded-full bg-[#E0EFEB] px-2 py-0.5 text-[9px] text-[#245F59]">
+                      {impactAnalysis.affectedTests.length}
+                    </span>
+                  </h4>
+                  <div className="space-y-1 font-mono text-[11px]">
+                    {impactAnalysis.affectedTests.map((t) => (
+                      <div key={t.id} className="flex items-center gap-1.5 text-[#245F59] font-semibold">
+                        <TestTube className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{t.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* --- STANDARD GRAPH ITEM DETAILS --- */
+            <div>
+              <h3 className="text-xs uppercase font-extrabold text-[#6B645A] tracking-wider mb-4 border-b border-[#D8CFC2] pb-2">
+                Selected Item
+              </h3>
+
+              {selectedNode ? (
+                <div className="space-y-4">
+                  <div>
+                    <span className="text-[10px] uppercase font-extrabold text-[#4C4FD6] block mb-0.5">
+                      {titleCase(selectedNode.kind)}
+                    </span>
+                    <p className="font-mono text-sm font-bold text-[#292622] break-all">{selectedNode.label}</p>
+                  </div>
+
+                  <div className="space-y-2.5 text-xs text-[#4D4842]">
+                    <div className="flex justify-between border-b border-[#D8CFC2]/60 pb-1.5">
+                      <span className="text-[#6B645A]">Language:</span>
+                      <span className="font-bold">{titleCase(selectedNode.language)}</span>
+                    </div>
+                    {selectedNode.line_count > 0 && (
+                      <div className="flex justify-between border-b border-[#D8CFC2]/60 pb-1.5">
+                        <span className="text-[#6B645A]">Lines:</span>
+                        <span className="font-semibold">{selectedNode.line_count.toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between border-b border-[#D8CFC2]/60 pb-1.5">
+                      <span className="text-[#6B645A]">Complexity:</span>
+                      <span className="font-bold" title={`Score ${selectedNode.complexity_score}`}>
+                        {complexityLabel(selectedNode.complexity_rating, selectedNode.complexity_score)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-b border-[#D8CFC2]/60 pb-1.5">
+                      <span className="text-[#6B645A]">Suggestions:</span>
+                      <span className="font-bold text-[#C7953D]">{selectedNode.warning_count}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-[#D8CFC2]/60 pb-1.5">
+                      <span className="text-[#6B645A]">Entry Point:</span>
+                      <span className="font-bold">{selectedNode.is_entry_point ? 'Yes' : 'No'}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-[#D8CFC2]/60 pb-1.5">
+                      <span className="text-[#6B645A]">Third-party:</span>
+                      <span className="font-bold">{selectedNode.is_external ? 'Yes' : 'No'}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-2">
+                    <button
+                      onClick={() => handleAnalyzeImpact(selectedNode)}
+                      className="w-full rounded-xl bg-[#4C4FD6] px-3 py-2 text-xs font-extrabold text-white hover:bg-[#383BA8] transition-colors flex items-center justify-center gap-1.5 shadow-xs"
+                    >
+                      <Zap className="w-3.5 h-3.5 text-[#C7953D]" />
+                      <span>Analyze Impact</span>
+                    </button>
+
+                    {!selectedNode.is_external && selectedNode.kind === 'module' && (
+                      <button
+                        onClick={() => handleDrillDown(selectedNode.id)}
+                        className="btn-brand-pill w-full py-2 px-3 text-xs flex items-center justify-center gap-1.5"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>View Functions and Classes</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-14 text-[#948C81] text-xs space-y-2">
+                  <Info className="w-6 h-6 mx-auto text-[#948C81] opacity-60" />
+                  <p>Select an item to view details. Double-click a file to see its functions and classes.</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
