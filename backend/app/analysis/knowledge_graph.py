@@ -37,9 +37,10 @@ def build_knowledge_graph(db: Session, project_id: str) -> KnowledgeGraphRespons
         .first()
     )
     if not record or not record.analysis_data:
-        raise RuntimeError(f"Project '{project_id}' has not been analyzed yet.")
-
-    analysis = ProjectAnalysis.model_validate(record.analysis_data)
+        from app.analysis.service import run_analysis_for_project
+        analysis = run_analysis_for_project(db, project_id, force=True)
+    else:
+        analysis = ProjectAnalysis.model_validate(record.analysis_data)
 
     nodes_map: Dict[str, KnowledgeGraphNode] = {}
     edges_map: Dict[str, KnowledgeGraphEdge] = {}
