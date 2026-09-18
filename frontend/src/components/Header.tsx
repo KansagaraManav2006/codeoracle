@@ -1,17 +1,19 @@
 import React from 'react';
-import { Eye, Menu, UserCheck, Sparkles } from 'lucide-react';
+import { Eye, Menu, UserCheck, Sparkles, Search, Command } from 'lucide-react';
 import HealthIndicator from './HealthIndicator';
 
 interface HeaderProps {
   onToggleMobileSidebar?: () => void;
   activeProjectName?: string;
   onViewChange?: (view: any) => void;
+  onOpenCommandPalette?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   onToggleMobileSidebar,
   activeProjectName,
   onViewChange,
+  onOpenCommandPalette,
 }) => {
   return (
     <header className="sticky top-0 z-40 border-b border-[#2D2A26] bg-[#181715] text-white shadow-md">
@@ -51,14 +53,28 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Center: Active Project Indicator Pill */}
-        {activeProjectName && (
-          <div className="hidden items-center gap-2 rounded-full border border-[#3A3632] bg-[#23211E] px-3.5 py-1 text-xs font-bold text-[#E5DFD5] md:flex">
-            <Sparkles className="h-3.5 w-3.5 text-[#C7953D]" />
-            <span className="text-[#A3998E]">Active:</span>
-            <span className="max-w-[180px] truncate text-white">{activeProjectName}</span>
-          </div>
-        )}
+        {/* Center: Command Palette Search Bar & Active Project Pill */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onOpenCommandPalette}
+            className="flex items-center gap-2 px-3 py-1.5 bg-[#23211E] hover:bg-[#2D2A26] border border-[#3A3632] text-[#C9C1B5] rounded-xl text-xs transition-colors shadow-inner"
+            title="Search pages and commands (Ctrl+K)"
+          >
+            <Search className="w-3.5 h-3.5 text-[#C7953D]" />
+            <span className="hidden sm:inline text-[#A3998E]">Search commands...</span>
+            <kbd className="hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-mono font-bold bg-[#181715] text-[#C7953D] border border-[#3A3632] rounded">
+              <Command className="w-2.5 h-2.5" /> K
+            </kbd>
+          </button>
+
+          {activeProjectName && (
+            <div className="hidden items-center gap-2 rounded-full border border-[#3A3632] bg-[#23211E] px-3.5 py-1 text-xs font-bold text-[#E5DFD5] md:flex">
+              <Sparkles className="h-3.5 w-3.5 text-[#C7953D]" />
+              <span className="text-[#A3998E]">Active:</span>
+              <span className="max-w-[180px] truncate text-white">{activeProjectName}</span>
+            </div>
+          )}
+        </div>
 
         {/* Right Side: Service Status & Profile */}
         <div className="flex shrink-0 items-center gap-3">

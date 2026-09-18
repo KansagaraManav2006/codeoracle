@@ -15,15 +15,29 @@ import MigrationPlanTab from './components/MigrationPlanTab';
 import ArchitectureEvolutionTab from './components/ArchitectureEvolutionTab';
 import { KnowledgeGraphTab } from './components/KnowledgeGraphTab';
 import RecentProjectsSection from './components/RecentProjectsSection';
+import Breadcrumbs from './components/common/Breadcrumbs';
+import CommandPalette from './components/common/CommandPalette';
+import ToastContainer, { ToastMessage } from './components/common/Toast';
 import { useJobPoller } from './hooks/useJobPoller';
 import { ViewMode, TabType } from './types';
 
 export const App: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewMode>('dashboard');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [testRevision, setTestRevision] = useState<number>(0);
   const [isGeneratingTests, setIsGeneratingTests] = useState<boolean>(false);
   const [testGenError, setTestGenError] = useState<string | null>(null);
+
+  const addToast = (type: 'success' | 'error' | 'info', message: string) => {
+    const id = `toast_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    setToasts((prev) => [...prev, { id, type, message }]);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
 
   const {
     job,
@@ -60,7 +74,7 @@ export const App: React.FC = () => {
     setActiveView('dashboard');
   };
 
-  const isDetailTab = ['explanation', 'graph', 'health', 'architecture', 'tests', 'refactor', 'migration'].includes(activeView);
+  const isDetailTab = ['explanation', 'knowledge_graph', 'graph', 'health', 'architecture', 'tests', 'refactor', 'migration'].includes(activeView);
 
   return (
     <div className="min-h-screen bg-[#F7F4EE] text-[#292622] flex flex-col font-sans antialiased">
@@ -69,7 +83,22 @@ export const App: React.FC = () => {
         onToggleMobileSidebar={() => setIsMobileSidebarOpen((prev) => !prev)}
         activeProjectName={project?.display_name}
         onViewChange={setActiveView}
+        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
       />
+
+      {/* Ctrl+K Command Palette Modal */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onSelectView={(v) => {
+          setActiveView(v);
+          addToast('info', `Switched view to ${v.replace('_', ' ').toUpperCase()}`);
+        }}
+        activeProjectName={project?.display_name}
+      />
+
+      {/* Global Toast Notifications */}
+      <ToastContainer toasts={toasts} onDismiss={removeToast} />
 
       <div className="flex flex-1">
         {/* Persistent Sidebar Navigation */}
@@ -83,7 +112,13 @@ export const App: React.FC = () => {
         />
 
         {/* Main Content Area */}
-        <main className="flex-1 w-full max-w-7xl mx-auto px-3 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 min-w-0">
+        <main className="flex-1 w-full max-w-7xl mx-auto px-3 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 min-w-0 space-y-4">
+          {/* Breadcrumb Navigation Trail */}
+          <Breadcrumbs
+            activeView={activeView}
+            activeProjectName={project?.display_name}
+            onNavigate={setActiveView}
+          />
           {/* VIEW 1: Dashboard */}
           {activeView === 'dashboard' && (
             <DashboardView
