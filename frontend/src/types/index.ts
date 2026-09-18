@@ -50,8 +50,47 @@ export interface ProjectFilesListResponse {
   files: ProjectFileResponse[];
 }
 
-export type TabType = 'explanation' | 'graph' | 'health' | 'tests' | 'refactor' | 'migration';
+export type TabType = 'explanation' | 'graph' | 'health' | 'tests' | 'refactor' | 'migration' | 'architecture';
 export type ViewMode = 'dashboard' | 'analyze' | TabType;
+
+export interface ArchLayerModule {
+  module_id: string;
+  relative_path: string;
+  layer: 'api_presentation' | 'service_business' | 'data_persistence' | 'utility_core';
+  line_count: number;
+  complexity_score: number;
+  is_entry_point: boolean;
+}
+
+export interface ArchCharacteristics {
+  coupling_level: 'low' | 'medium' | 'high';
+  average_degree: number;
+  total_cycles: number;
+  cycle_modules: string[];
+  highly_connected_hubs: string[];
+  isolated_modules: string[];
+  layer_violations: string[];
+  large_clusters: string[];
+}
+
+export interface ProposedArchChange {
+  change_id: string;
+  title: string;
+  reason: string;
+  affected_files: string[];
+  dependencies: string[];
+  risk_level: 'low' | 'medium' | 'high' | 'critical';
+  migration_steps: string[];
+}
+
+export interface ArchitectureEvolutionResponse {
+  project_id: string;
+  current_architecture: Record<string, ArchLayerModule[]>;
+  proposed_architecture: Record<string, string[]>;
+  characteristics: ArchCharacteristics;
+  proposed_changes: ProposedArchChange[];
+  disclaimer: string;
+}
 
 export interface DependencyHealthItem {
   name: string;

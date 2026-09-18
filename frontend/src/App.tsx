@@ -12,6 +12,7 @@ import DependencyHealthTab from './components/DependencyHealthTab';
 import GeneratedTestsTab from './components/GeneratedTestsTab';
 import RefactoredCodeTab from './components/RefactoredCodeTab';
 import MigrationPlanTab from './components/MigrationPlanTab';
+import ArchitectureEvolutionTab from './components/ArchitectureEvolutionTab';
 import RecentProjectsSection from './components/RecentProjectsSection';
 import { useJobPoller } from './hooks/useJobPoller';
 import { ViewMode, TabType } from './types';
@@ -58,7 +59,7 @@ export const App: React.FC = () => {
     setActiveView('dashboard');
   };
 
-  const isDetailTab = ['explanation', 'graph', 'health', 'tests', 'refactor', 'migration'].includes(activeView);
+  const isDetailTab = ['explanation', 'graph', 'health', 'architecture', 'tests', 'refactor', 'migration'].includes(activeView);
 
   return (
     <div className="min-h-screen bg-[#F7F4EE] text-[#292622] flex flex-col font-sans antialiased">
@@ -162,6 +163,9 @@ export const App: React.FC = () => {
                           testGenError={testGenError}
                           onNavigateToTests={() => setActiveView('tests')}
                         />
+                      )}
+                      {activeView === 'architecture' && (
+                        <ArchitectureEvolutionTab projectId={project.project_id} />
                       )}
                     </div>
                   </div>

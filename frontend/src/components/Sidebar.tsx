@@ -84,6 +84,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'migration' as ViewMode, label: 'Migration Plan', icon: Map, requiresProject: true },
       ],
     },
+    {
+      title: 'ARCHITECTURE',
+      items: [
+        { id: 'architecture' as ViewMode, label: 'Architecture Evolution', icon: Layers, requiresProject: true },
+      ],
+    },
   ];
 
   return (

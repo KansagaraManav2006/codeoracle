@@ -160,3 +160,45 @@ class DependencyHealthResponse(BaseModel):
     dependency_tree: List[DependencyTreeNode] = Field(default_factory=list)
     update_impact_previews: Dict[str, UpdateImpactPreview] = Field(default_factory=dict)
 
+
+# --- Architecture Evolution Schemas ---
+
+class ArchLayerModule(BaseModel):
+    module_id: str
+    relative_path: str
+    layer: str  # 'api_presentation' | 'service_business' | 'data_persistence' | 'utility_core'
+    line_count: int
+    complexity_score: int
+    is_entry_point: bool = False
+
+
+class ArchCharacteristics(BaseModel):
+    coupling_level: str  # 'low' | 'medium' | 'high'
+    average_degree: float
+    total_cycles: int
+    cycle_modules: List[str] = Field(default_factory=list)
+    highly_connected_hubs: List[str] = Field(default_factory=list)
+    isolated_modules: List[str] = Field(default_factory=list)
+    layer_violations: List[str] = Field(default_factory=list)
+    large_clusters: List[str] = Field(default_factory=list)
+
+
+class ProposedArchChange(BaseModel):
+    change_id: str
+    title: str
+    reason: str
+    affected_files: List[str] = Field(default_factory=list)
+    dependencies: List[str] = Field(default_factory=list)
+    risk_level: str  # 'low' | 'medium' | 'high' | 'critical'
+    migration_steps: List[str] = Field(default_factory=list)
+
+
+class ArchitectureEvolutionResponse(BaseModel):
+    project_id: str
+    current_architecture: Dict[str, List[ArchLayerModule]] = Field(default_factory=dict)
+    proposed_architecture: Dict[str, List[str]] = Field(default_factory=dict)
+    characteristics: ArchCharacteristics
+    proposed_changes: List[ProposedArchChange] = Field(default_factory=list)
+    disclaimer: str = Field("Proposed architecture is an advisory recommendation for engineering review and does not automatically alter source code.")
+
+

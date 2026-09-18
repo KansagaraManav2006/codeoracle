@@ -17,9 +17,11 @@ from app.database import get_db
 from app.models.db import Job, JobState, Project, ProjectAnalysisRecord, ProjectFile, ProjectRefactorRecord
 from app.migration.models import MigrationPlanResponse
 from app.migration.service import build_migration_plan, migration_plan_markdown
+from app.analysis.architecture import analyze_architecture_evolution
 from app.analysis.dependency_health import analyze_dependency_health
 from app.models.schema import (
     AnalyzeRequest,
+    ArchitectureEvolutionResponse,
     DependencyHealthResponse,
     GitHubIngestRequest,
     HealthResponse,
@@ -961,4 +963,18 @@ def get_dependency_health(project_id: str, db: Session = Depends(get_db)) -> Dep
     except Exception:
         logger.exception("Failed dependency health calculation for project %s", project_id)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Dependency health analysis failed.")
+
+
+@router.get("/projects/{project_id}/architecture-evolution", response_model=ArchitectureEvolutionResponse)
+def get_architecture_evolution(project_id: str, db: Session = Depends(get_db)) -> ArchitectureEvolutionResponse:
+    """Calculates current layer architecture vs proposed target architecture and itemized refactoring steps."""
+    try:
+        return analyze_architecture_evolution(db, project_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    except Exception:
+        logger.exception("Failed architecture evolution analysis for project %s", project_id)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Architecture evolution analysis failed.")
 
