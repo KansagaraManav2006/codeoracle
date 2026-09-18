@@ -51,6 +51,7 @@ export interface ProjectFilesListResponse {
 }
 
 export type TabType = 'explanation' | 'graph' | 'tests' | 'refactor' | 'migration';
+export type ViewMode = 'dashboard' | 'analyze' | TabType;
 
 export type IngestionMode = 'zip' | 'github';
 
