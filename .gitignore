@@ -66,7 +66,9 @@ scratch/
 test.zip
 full_demo.zip
 test.txt
+.pytest-run
 .pytest-run-*
+backend/.pytest-run
 backend/.pytest-run-*
 backend/demo.zip
 backend/server-*.log
