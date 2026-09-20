@@ -3,16 +3,22 @@ import {
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
+  CheckSquare,
+  ChevronRight,
   Download,
   FileWarning,
   Gauge,
   GitFork,
+  Layers,
+  ListOrdered,
   Loader2,
   Map,
   Network,
   Search,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
+  Square,
   Target,
   Wrench,
 } from 'lucide-react';
@@ -62,6 +68,15 @@ export const MigrationPlanTab: React.FC<Props> = ({
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [completedTasks, setCompletedTasks] = useState<Record<string, boolean>>({});
+  const [selectedWaveFilter, setSelectedWaveFilter] = useState<number | null>(null);
+
+  const toggleTask = (taskId: string) => {
+    setCompletedTasks((prev) => ({
+      ...prev,
+      [taskId]: !prev[taskId],
+    }));
+  };
 
   useEffect(() => {
     if (!projectId) return;
@@ -182,6 +197,87 @@ export const MigrationPlanTab: React.FC<Props> = ({
 
       <FindingFunnel funnel={plan.finding_funnel} />
 
+      {/* Modernization Priority Banner: What should the team modernize first, and why? */}
+      {plan.first_action_summary && (
+        <section className="rounded-[24px] border-2 border-[#4C4FD6] bg-gradient-to-r from-[#EAE9FB] via-[#FFFDFC] to-[#E0EFEB] p-5 shadow-sm">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="space-y-1.5 max-w-3xl">
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#4C4FD6] text-white shadow-2xs">
+                  <Sparkles className="h-3.5 w-3.5" />
+                </span>
+                <h3 className="text-sm font-extrabold uppercase tracking-wide text-[#4340A0]">
+                  Modernization Strategy: What to Modernize First & Why
+                </h3>
+              </div>
+              <p className="text-xs leading-5 font-bold text-[#292622]">
+                {plan.first_action_summary}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => {
+                  const w1 = plan.waves?.find((w) => w.wave === 1);
+                  if (w1?.files?.[0]) setSelectedId(w1.files[0]);
+                }}
+                className="btn-brand-pill px-3.5 py-1.5 text-xs inline-flex items-center gap-1.5 shadow-xs"
+              >
+                <span>Jump to Wave 1</span>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Score Blockers Panel */}
+      {plan.score_blockers && plan.score_blockers.length > 0 && (
+        <section className="rounded-[24px] border border-[#ECC7C3] bg-[#F6E5E2]/40 p-4 sm:p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-[#C45F58]" />
+              <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#8F3F3A]">
+                Readiness Score Blockers ({plan.score_blockers.length})
+              </h4>
+            </div>
+            <span className="text-[10px] font-bold text-[#8F3F3A] bg-[#ECC7C3]/60 px-2.5 py-0.5 rounded-full">
+              Holding score below 100
+            </span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {plan.score_blockers.map((blocker, idx) => (
+              <div
+                key={idx}
+                className="rounded-2xl border border-[#ECC7C3] bg-[#FFFDFC] p-3.5 shadow-2xs space-y-2 flex flex-col justify-between"
+              >
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-bold text-[#8F3F3A] uppercase tracking-wide">
+                      {blocker.label} ({blocker.current_score}/100)
+                    </span>
+                    {blocker.target_file && (
+                      <span
+                        onClick={() => setSelectedId(blocker.target_file!)}
+                        className="font-mono text-[9px] font-bold text-[#4340A0] bg-[#EAE9FB] px-2 py-0.5 rounded-full cursor-pointer hover:underline truncate max-w-[140px]"
+                        title={blocker.target_file}
+                      >
+                        {blocker.target_file}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-[#4D4842] leading-4 font-medium">
+                    {blocker.blocker_reason}
+                  </p>
+                </div>
+                <p className="text-[10px] text-[#245F59] font-bold leading-4 pt-2 border-t border-[#D8CFC2]/40">
+                  ➔ {blocker.unblocking_action}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* 2. Interactive Change Impact: "What Breaks If I Change This?" (Central Feature) */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
@@ -266,6 +362,21 @@ export const MigrationPlanTab: React.FC<Props> = ({
                   </div>
                   <div className="flex flex-wrap gap-2 shrink-0">
                     <RiskBadge level={selected.risk_level} label={`${selected.risk_level} risk`} />
+                    {selected.wave_title && (
+                      <span className="rounded-full border border-[#BEE0D6] bg-[#E0EFEB] px-3 py-1 text-[10px] font-bold text-[#245F59]">
+                        {selected.wave_title}
+                      </span>
+                    )}
+                    {selected.is_cycle_participant && (
+                      <span className="rounded-full border border-[#ECC7C3] bg-[#F6E5E2] px-3 py-1 text-[10px] font-bold text-[#8F3F3A]">
+                        Cycle Participant
+                      </span>
+                    )}
+                    {selected.is_score_blocker && (
+                      <span className="rounded-full border border-[#E6D3A9] bg-[#FDF6E2] px-3 py-1 text-[10px] font-bold text-[#8C6218]">
+                        Score Blocker
+                      </span>
+                    )}
                     <span className="rounded-full border border-[#D8CFC2] bg-[#F0EBE2] px-3 py-1 text-[10px] font-bold text-[#4D4842]">
                       Blast radius: {selected.blast_radius} files
                     </span>
@@ -483,68 +594,233 @@ export const MigrationPlanTab: React.FC<Props> = ({
         </div>
       </section>
 
-      {/* 4. Recommended Migration Roadmap */}
-      <section className="space-y-3">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#EAE9FB] text-[#4340A0]">
-            <Map className="h-4 w-4" />
+      {/* 4. Migration Waves: Staged Modernization Roadmap */}
+      <section className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#EAE9FB] text-[#4340A0]">
+              <Layers className="h-4 w-4" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-[#292622]">Migration Waves</h3>
+              <p className="text-xs text-[#6B645A]">
+                Topologically ordered execution waves designed to isolate risk and avoid circular regressions.
+              </p>
+            </div>
           </div>
-          <h3 className="text-base font-bold text-[#292622]">Recommended Migration Roadmap</h3>
+
+          {/* Wave Filter Pills */}
+          {plan.waves && plan.waves.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                onClick={() => setSelectedWaveFilter(null)}
+                className={`rounded-full px-3 py-1 text-[11px] font-bold transition-all ${
+                  selectedWaveFilter === null
+                    ? 'bg-[#181715] text-white shadow-xs'
+                    : 'bg-[#EFE9DD] text-[#5C554D] hover:bg-[#E5DFD5]'
+                }`}
+              >
+                All Waves ({plan.waves.length})
+              </button>
+              {plan.waves.map((w) => (
+                <button
+                  key={w.wave}
+                  onClick={() => setSelectedWaveFilter(w.wave)}
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition-all ${
+                    selectedWaveFilter === w.wave
+                      ? 'bg-[#4C4FD6] text-white shadow-xs'
+                      : 'bg-[#EAE9FB] text-[#4340A0] hover:bg-[#DDD9F8]'
+                  }`}
+                >
+                  Wave {w.wave}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          {plan.phases.map((phase) => (
-            <article
-              key={phase.phase}
-              className="rounded-[20px] border border-[#D8CFC2] bg-[#FFFDFC] p-5 shadow-sm"
-            >
-              <div className="flex items-start gap-3">
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#4C4FD6] text-xs font-extrabold text-white shadow-xs">
-                  {phase.phase}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h4 className="font-bold text-[#292622]">{phase.title}</h4>
-                    <RiskBadge level={phase.risk_level} size="sm" />
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-[#4D4842]">{phase.goal}</p>
-                </div>
-              </div>
+        {/* Waves Grid */}
+        <div className="space-y-4">
+          {(plan.waves && plan.waves.length > 0
+            ? plan.waves.filter((w) => selectedWaveFilter === null || w.wave === selectedWaveFilter)
+            : []
+          ).map((wave) => {
+            const waveColor =
+              wave.wave === 0
+                ? 'border-[#C7C4F7] bg-[#FAF9FE]'
+                : wave.wave === 1
+                ? 'border-[#BEE0D6] bg-[#F7FCFA]'
+                : wave.wave === 2
+                ? 'border-[#ECC7C3] bg-[#FEF9F9]'
+                : wave.wave === 3
+                ? 'border-[#D8CFC2] bg-[#FFFDFC]'
+                : 'border-[#E6D3A9] bg-[#FFFDF8]';
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 pt-3 border-t border-[#D8CFC2]/60">
-                <div>
-                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-[#6B645A]">
-                    Priority files
+            const badgeBg =
+              wave.wave === 0
+                ? 'bg-[#4C4FD6] text-white'
+                : wave.wave === 1
+                ? 'bg-[#245F59] text-white'
+                : wave.wave === 2
+                ? 'bg-[#C45F58] text-white'
+                : wave.wave === 3
+                ? 'bg-[#4D4842] text-white'
+                : 'bg-[#8C6218] text-white';
+
+            return (
+              <article
+                key={wave.wave}
+                className={`rounded-[24px] border-2 ${waveColor} p-5 sm:p-6 shadow-sm space-y-4 transition-all`}
+              >
+                {/* Wave Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-[#D8CFC2]/60 pb-3">
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-black shadow-xs ${badgeBg}`}
+                    >
+                      W{wave.wave}
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-extrabold text-[#292622] text-sm">{wave.title}</h4>
+                        <RiskBadge level={wave.risk_level} size="sm" />
+                      </div>
+                      <p className="text-xs text-[#5C554D] mt-0.5">{wave.goal}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-xs font-semibold text-[#5C554D]">
+                    <span className="rounded-full bg-[#EFE9DD] px-3 py-0.5 text-[11px] font-bold text-[#4D4842]">
+                      {wave.files.length} {wave.files.length === 1 ? 'file' : 'files'}
+                    </span>
+                    <span className="hidden md:inline text-[11px]">
+                      Direct: <strong className="text-[#292622]">{wave.total_direct_dependents}</strong> | Ripple: <strong className="text-[#292622]">{wave.total_transitive_blast_radius}</strong>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Strategy / Rationale Box */}
+                <div className="rounded-xl border border-[#D8CFC2] bg-[#FFFDFC]/80 p-3 text-xs leading-5 text-[#3B3733]">
+                  <p className="font-bold text-[#4340A0] text-[11px] uppercase tracking-wide flex items-center gap-1.5 mb-0.5">
+                    <Sparkles className="h-3 w-3 text-[#4C4FD6]" />
+                    Why Modernize This Wave at This Step:
                   </p>
-                  <ul className="space-y-1">
-                    {phase.files.slice(0, 5).map((file) => (
-                      <li
+                  <p className="font-medium text-[#4D4842]">{wave.strategy}</p>
+                </div>
+
+                {/* Files in Wave */}
+                <div>
+                  <p className="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-[#6B645A]">
+                    Files in this wave (click to inspect):
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {wave.files.map((file) => (
+                      <button
                         key={file}
                         onClick={() => setSelectedId(file)}
-                        className="truncate font-mono text-[10px] font-semibold text-[#4340A0] cursor-pointer hover:underline"
+                        className={`rounded-lg font-mono text-[11px] font-bold px-2.5 py-1 border transition-all ${
+                          selectedId === file
+                            ? 'border-[#4C4FD6] bg-[#EAE9FB] text-[#4340A0] shadow-xs ring-1 ring-[#4C4FD6]'
+                            : 'border-[#D8CFC2] bg-[#FFFDFC] text-[#4D4842] hover:bg-[#F0EBE2]'
+                        }`}
                         title={file}
                       >
                         {file}
-                      </li>
+                      </button>
                     ))}
-                  </ul>
+                  </div>
                 </div>
-                <div>
-                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-[#6B645A]">
-                    Actions
-                  </p>
-                  <ul className="space-y-1">
-                    {phase.actions.map((action) => (
-                      <li key={action} className="flex gap-1.5 text-[10px] leading-4 text-[#4D4842]">
-                        <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-[#368A80]" />
-                        <span>{action}</span>
-                      </li>
-                    ))}
-                  </ul>
+
+                <div className="grid gap-4 sm:grid-cols-2 pt-1">
+                  {/* Suggested Test Order */}
+                  <div className="rounded-xl border border-[#D8CFC2] bg-[#FFFDFC] p-3.5 space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#292622]">
+                      <ListOrdered className="h-3.5 w-3.5 text-[#4C4FD6]" />
+                      <span>Suggested Test Execution Order:</span>
+                    </div>
+                    {wave.suggested_test_order && wave.suggested_test_order.length > 0 ? (
+                      <ol className="space-y-1.5 pl-4 list-decimal text-[11px] text-[#4D4842]">
+                        {wave.suggested_test_order.slice(0, 5).map((testPath, idx) => (
+                          <li key={idx} className="font-mono text-[10px] leading-4 truncate" title={testPath}>
+                            {testPath}
+                          </li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <p className="text-[11px] italic text-[#6B645A]">
+                        Run general project test suites before and after modifying this wave.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Interactive Checklist */}
+                  <div className="rounded-xl border border-[#D8CFC2] bg-[#FFFDFC] p-3.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-[#292622]">
+                        <CheckSquare className="h-3.5 w-3.5 text-[#368A80]" />
+                        <span>Wave Checklist Actions:</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-[#6B645A]">
+                        {wave.checklist.filter((c) => completedTasks[c.id]).length} / {wave.checklist.length} done
+                      </span>
+                    </div>
+                    <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                      {wave.checklist.map((item) => {
+                        const isDone = Boolean(completedTasks[item.id]);
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => toggleTask(item.id)}
+                            className={`flex items-start gap-2 p-1.5 rounded-lg text-[11px] leading-4 cursor-pointer transition-all ${
+                              isDone ? 'bg-[#E0EFEB]/50 text-[#245F59]' : 'hover:bg-[#F0EBE2]/60 text-[#4D4842]'
+                            }`}
+                          >
+                            {isDone ? (
+                              <CheckSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#368A80]" />
+                            ) : (
+                              <Square className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#8C8479]" />
+                            )}
+                            <span className={isDone ? 'line-through opacity-75' : ''}>{item.task}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </article>
-          ))}
+
+                {/* Wave Action Bar */}
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#D8CFC2]/60">
+                  {wave.files[0] && (
+                    <button
+                      onClick={() =>
+                        onFocusInGraph ? onFocusInGraph(wave.files[0]) : onNavigateTab?.('graph')
+                      }
+                      className="btn-brand-pill px-3 py-1.5 text-xs inline-flex items-center gap-1.5 shadow-xs"
+                    >
+                      <Network className="w-3.5 h-3.5" />
+                      <span>Focus Wave in Graph</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() =>
+                      onNavigateToTests ? onNavigateToTests() : onNavigateTab?.('tests')
+                    }
+                    className="btn-brand-outline-pill px-3 py-1.5 text-xs inline-flex items-center gap-1.5"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Run Characterization Tests</span>
+                  </button>
+                  <button
+                    onClick={() => onNavigateTab?.('refactor')}
+                    className="btn-brand-outline-pill px-3 py-1.5 text-xs inline-flex items-center gap-1.5"
+                  >
+                    <Wrench className="w-3.5 h-3.5" />
+                    <span>Preview Refactors</span>
+                  </button>
+                </div>
+              </article>
+            );
+          })}
         </div>
       </section>
     </div>

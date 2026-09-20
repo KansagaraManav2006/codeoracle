@@ -9,9 +9,12 @@ from app.analysis.models import ProjectAnalysis, decorate_findings, summarize_fi
 from app.analysis.service import build_analysis_findings
 from app.migration.models import (
     ChangeImpact,
+    ChecklistItem,
     MigrationPhase,
+    MigrationWave,
     MigrationPlanResponse,
     ReadinessCategory,
+    ScoreBlocker,
 )
 from app.models.db import Job, JobState, Project, ProjectAnalysisRecord, ProjectRefactorRecord, ProjectTestRecord
 from app.refactor.models import ProjectRefactorResult
@@ -118,6 +121,375 @@ def _phase_files(items: Iterable[ChangeImpact], limit: int = 8) -> List[str]:
     return result
 
 
+def _compute_score_blockers(
+    categories: List[ReadinessCategory],
+    modules: List,
+    graph,
+    impacts: List[ChangeImpact],
+    tests_by_target: Dict[str, List[str]],
+) -> List[ScoreBlocker]:
+    blockers: List[ScoreBlocker] = []
+
+    for cat in categories:
+        if cat.score >= 60:
+            continue
+        if cat.key == "maintainability":
+            # Identify modules with highest legacy warning weights
+            for mod in sorted(
+                modules,
+                key=lambda m: sum({"risk": 3, "warning": 2, "info": 1}.get(w.severity, 1) for w in m.legacy_warnings),
+                reverse=True,
+            ):
+                if mod.legacy_warnings:
+                    blockers.append(ScoreBlocker(
+                        category_key=cat.key,
+                        label=cat.label,
+                        current_score=cat.score,
+                        target_file=mod.relative_path,
+                        blocker_reason=f"{len(mod.legacy_warnings)} legacy code issue(s) in {mod.relative_path} (e.g. {mod.legacy_warnings[0].code}).",
+                        unblocking_action=f"Modernize legacy patterns in {mod.relative_path} to unblock maintainability score.",
+                    ))
+                    break
+        elif cat.key == "coupling":
+            if graph.summary.cycle_count > 0:
+                cycle_files: Set[str] = set()
+                for c in graph.cycles:
+                    for f in c:
+                        cycle_files.add(f)
+                first_f = sorted(list(cycle_files))[0] if cycle_files else None
+                blockers.append(ScoreBlocker(
+                    category_key=cat.key,
+                    label=cat.label,
+                    current_score=cat.score,
+                    target_file=first_f,
+                    blocker_reason=f"{graph.summary.cycle_count} circular dependency loop(s) detected, creating coupling deadlock.",
+                    unblocking_action="Untangle circular imports by extracting shared interfaces or inversion.",
+                ))
+        elif cat.key == "complexity":
+            for mod in sorted(modules, key=lambda m: m.complexity.cyclomatic_complexity, reverse=True):
+                if mod.complexity.rating in {"high", "critical"}:
+                    blockers.append(ScoreBlocker(
+                        category_key=cat.key,
+                        label=cat.label,
+                        current_score=cat.score,
+                        target_file=mod.relative_path,
+                        blocker_reason=f"High complexity score ({mod.complexity.cyclomatic_complexity}) in {mod.relative_path}.",
+                        unblocking_action=f"Refactor complex branches in {mod.relative_path} into focused utility functions.",
+                    ))
+                    break
+        elif cat.key == "testability":
+            untested = [m.relative_path for m in modules if not tests_by_target.get(m.relative_path)]
+            target_f = untested[0] if untested else (modules[0].relative_path if modules else None)
+            blockers.append(ScoreBlocker(
+                category_key=cat.key,
+                label=cat.label,
+                current_score=cat.score,
+                target_file=target_f,
+                blocker_reason=cat.reason,
+                unblocking_action="Generate characterization tests in the Generated Tests tab before modifying code.",
+            ))
+        elif cat.key == "analysis":
+            imperfect = [m.relative_path for m in modules if m.parse_status != "complete"]
+            target_f = imperfect[0] if imperfect else None
+            blockers.append(ScoreBlocker(
+                category_key=cat.key,
+                label=cat.label,
+                current_score=cat.score,
+                target_file=target_f,
+                blocker_reason=cat.reason,
+                unblocking_action="Fix syntax or tokenizer errors so all source files can be fully analyzed.",
+            ))
+
+    return blockers
+
+
+def _build_migration_waves(
+    impacts: List[ChangeImpact],
+    categories: List[ReadinessCategory],
+    score_blockers: List[ScoreBlocker],
+    tests_by_target: Dict[str, List[str]],
+    diff_paths: Set[str],
+) -> List[MigrationWave]:
+    impact_by_path = {item.relative_path: item for item in impacts}
+    waves: List[MigrationWave] = []
+
+    # Wave 0: Safety Net & Baseline Tests
+    wave0_files: List[str] = []
+    seen0: Set[str] = set()
+    for blocker in score_blockers:
+        if blocker.target_file and blocker.target_file in impact_by_path and blocker.target_file not in seen0:
+            wave0_files.append(blocker.target_file)
+            seen0.add(blocker.target_file)
+    for item in impacts:
+        if item.risk_level in {"critical", "high"} and item.relative_path not in seen0:
+            wave0_files.append(item.relative_path)
+            seen0.add(item.relative_path)
+    if not wave0_files and impacts:
+        wave0_files.append(impacts[0].relative_path)
+
+    wave0_tests: List[str] = []
+    for f in wave0_files:
+        for t in tests_by_target.get(f, []):
+            if t not in wave0_tests:
+                wave0_tests.append(t)
+    if not wave0_tests:
+        wave0_tests = [f"Generate characterization tests for {f}" for f in wave0_files[:3]]
+
+    wave0_checklist = [
+        ChecklistItem(
+            id=f"w0_test_{f}",
+            task=f"Generate and lock characterization tests for {f}",
+            target_file=f,
+            action_type="test",
+        )
+        for f in wave0_files[:4]
+    ]
+    wave0_checklist.append(
+        ChecklistItem(
+            id="w0_syntax_check",
+            task="Verify baseline test suite passes with 100% syntax validation",
+            action_type="test",
+        )
+    )
+
+    waves.append(
+        MigrationWave(
+            wave=0,
+            name="Wave 0",
+            title="Wave 0: Safety Net & Baseline Tests",
+            goal="Establish characterization test coverage and resolve score blockers before editing code.",
+            strategy="Locking in current behavior prevents regressions. High-risk modules and readiness score blockers must be protected first.",
+            risk_level="low",
+            files=wave0_files,
+            total_direct_dependents=sum(len(impact_by_path[f].direct_dependents) for f in wave0_files if f in impact_by_path),
+            total_transitive_blast_radius=sum(impact_by_path[f].blast_radius for f in wave0_files if f in impact_by_path),
+            affected_entry_points=sorted(list(set(ep for f in wave0_files if f in impact_by_path for ep in impact_by_path[f].affected_entry_points))),
+            suggested_test_order=wave0_tests[:8],
+            checklist=wave0_checklist,
+        )
+    )
+
+    # Wave 1: Leaf & Isolated Modules
+    wave1_impacts = [item for item in impacts if item.wave == 1]
+    wave1_files = [item.relative_path for item in wave1_impacts]
+    wave1_tests: List[str] = []
+    for f in wave1_files:
+        for t in tests_by_target.get(f, []):
+            if t not in wave1_tests:
+                wave1_tests.append(t)
+    if not wave1_tests and wave1_files:
+        wave1_tests = [f"Unit test suite for {f}" for f in wave1_files[:3]]
+
+    wave1_checklist = []
+    for item in wave1_impacts[:5]:
+        if item.relative_path in diff_paths:
+            wave1_checklist.append(
+                ChecklistItem(
+                    id=f"w1_apply_{item.relative_path}",
+                    task=f"Apply and verify automated modernization diff for {item.relative_path}",
+                    target_file=item.relative_path,
+                    action_type="refactor",
+                )
+            )
+        else:
+            wave1_checklist.append(
+                ChecklistItem(
+                    id=f"w1_review_{item.relative_path}",
+                    task=f"Review and modernize leaf utility logic in {item.relative_path}",
+                    target_file=item.relative_path,
+                    action_type="refactor",
+                )
+            )
+
+    waves.append(
+        MigrationWave(
+            wave=1,
+            name="Wave 1",
+            title="Wave 1: Leaf & Isolated Modules",
+            goal="Modernize standalone and leaf utilities with zero or minimal downstream blast radius.",
+            strategy="Safe quick wins: because no other internal modules depend on these files, changes carry zero downstream regression risk.",
+            risk_level="low",
+            files=wave1_files,
+            total_direct_dependents=sum(len(item.direct_dependents) for item in wave1_impacts),
+            total_transitive_blast_radius=sum(item.blast_radius for item in wave1_impacts),
+            affected_entry_points=sorted(list(set(ep for item in wave1_impacts for ep in item.affected_entry_points))),
+            suggested_test_order=wave1_tests[:8],
+            checklist=wave1_checklist,
+        )
+    )
+
+    # Wave 2: Dependency Cycle Decoupling
+    wave2_impacts = [item for item in impacts if item.wave == 2]
+    wave2_files = [item.relative_path for item in wave2_impacts]
+    if wave2_files:
+        wave2_tests: List[str] = []
+        for f in wave2_files:
+            for t in tests_by_target.get(f, []):
+                if t not in wave2_tests:
+                    wave2_tests.append(t)
+        if not wave2_tests:
+            wave2_tests = [f"Cycle contract test for {f}" for f in wave2_files[:3]]
+
+        wave2_checklist = []
+        for item in wave2_impacts[:4]:
+            wave2_checklist.append(
+                ChecklistItem(
+                    id=f"w2_cycle_{item.relative_path}",
+                    task=f"Untangle cyclic dependency in {item.relative_path} (extract interfaces/types)",
+                    target_file=item.relative_path,
+                    action_type="cycle_decouple",
+                )
+            )
+        wave2_checklist.append(
+            ChecklistItem(
+                id="w2_verify_cycles",
+                task="Re-run dependency analysis to confirm cycle count drops to 0",
+                action_type="test",
+            )
+        )
+
+        waves.append(
+            MigrationWave(
+                wave=2,
+                name="Wave 2",
+                title="Wave 2: Cycle Untangling & Decoupling",
+                goal="Break circular dependency loops and extract clean shared boundaries.",
+                strategy="Circular dependencies cause recursive regressions. Breaking cycles early isolates downstream changes.",
+                risk_level="high",
+                files=wave2_files,
+                total_direct_dependents=sum(len(item.direct_dependents) for item in wave2_impacts),
+                total_transitive_blast_radius=sum(item.blast_radius for item in wave2_impacts),
+                affected_entry_points=sorted(list(set(ep for item in wave2_impacts for ep in item.affected_entry_points))),
+                suggested_test_order=wave2_tests[:8],
+                checklist=wave2_checklist,
+            )
+        )
+
+    # Wave 3: Intermediate Business Logic & Shared Services
+    wave3_impacts = [item for item in impacts if item.wave == 3]
+    wave3_files = [item.relative_path for item in wave3_impacts]
+    if wave3_files:
+        wave3_tests: List[str] = []
+        for f in wave3_files:
+            for t in tests_by_target.get(f, []):
+                if t not in wave3_tests:
+                    wave3_tests.append(t)
+        if not wave3_tests:
+            wave3_tests = [f"Integration test for {f}" for f in wave3_files[:3]]
+
+        wave3_checklist = [
+            ChecklistItem(
+                id=f"w3_service_{item.relative_path}",
+                task=f"Modernize service functions in {item.relative_path}",
+                target_file=item.relative_path,
+                action_type="refactor",
+            )
+            for item in wave3_impacts[:5]
+        ]
+        wave3_checklist.append(
+            ChecklistItem(
+                id="w3_regression",
+                task="Run regression test suite for downstream callers",
+                action_type="test",
+            )
+        )
+
+        waves.append(
+            MigrationWave(
+                wave=3,
+                name="Wave 3",
+                title="Wave 3: Intermediate Services & Business Logic",
+                goal="Modernize core domain logic once underlying leaves and cycle boundaries are verified.",
+                strategy="Intermediate services carry moderate blast radius. Modernizing after leaf modules guarantees dependable dependencies.",
+                risk_level="medium",
+                files=wave3_files,
+                total_direct_dependents=sum(len(item.direct_dependents) for item in wave3_impacts),
+                total_transitive_blast_radius=sum(item.blast_radius for item in wave3_impacts),
+                affected_entry_points=sorted(list(set(ep for item in wave3_impacts for ep in item.affected_entry_points))),
+                suggested_test_order=wave3_tests[:8],
+                checklist=wave3_checklist,
+            )
+        )
+
+    # Wave 4: Entry Points & Orchestration
+    wave4_impacts = [item for item in impacts if item.wave == 4]
+    wave4_files = [item.relative_path for item in wave4_impacts]
+    if wave4_files:
+        wave4_tests: List[str] = []
+        for f in wave4_files:
+            for t in tests_by_target.get(f, []):
+                if t not in wave4_tests:
+                    wave4_tests.append(t)
+        if not wave4_tests:
+            wave4_tests = [f"E2E / CLI smoke test for {f}" for f in wave4_files[:3]]
+
+        wave4_checklist = [
+            ChecklistItem(
+                id=f"w4_entry_{item.relative_path}",
+                task=f"Modernize startup/bootstrap code in entry point {item.relative_path}",
+                target_file=item.relative_path,
+                action_type="entry_verify",
+            )
+            for item in wave4_impacts[:4]
+        ]
+        wave4_checklist.append(
+            ChecklistItem(
+                id="w4_full_regression",
+                task="Execute end-to-end verification and prepare release rollback plan",
+                action_type="entry_verify",
+            )
+        )
+
+        waves.append(
+            MigrationWave(
+                wave=4,
+                name="Wave 4",
+                title="Wave 4: Entry Points & Orchestration",
+                goal="Modernize application entry points and orchestration after all dependencies are stable.",
+                strategy="Entry points tie the entire system together. Changing them last prevents breaking the runtime during active refactoring.",
+                risk_level="high",
+                files=wave4_files,
+                total_direct_dependents=sum(len(item.direct_dependents) for item in wave4_impacts),
+                total_transitive_blast_radius=sum(item.blast_radius for item in wave4_impacts),
+                affected_entry_points=sorted(list(set(ep for item in wave4_impacts for ep in item.affected_entry_points))),
+                suggested_test_order=wave4_tests[:8],
+                checklist=wave4_checklist,
+            )
+        )
+
+    return waves
+
+
+def _synthesize_first_action(
+    waves: List[MigrationWave],
+    score_blockers: List[ScoreBlocker],
+    impacts: List[ChangeImpact],
+) -> str:
+    parts: List[str] = []
+
+    if score_blockers:
+        b = score_blockers[0]
+        if b.target_file:
+            parts.append(f"Establish Wave 0 safety test protection on {b.target_file} to resolve the primary score blocker ({b.blocker_reason}).")
+        else:
+            parts.append(f"Resolve the primary readiness blocker: {b.unblocking_action}.")
+
+    w1 = next((w for w in waves if w.wave == 1), None)
+    if w1 and w1.files:
+        sample_files = ", ".join(w1.files[:2])
+        parts.append(f"Modernize Wave 1 leaf modules first ({sample_files}) because they have 0 downstream dependents and zero regression blast radius.")
+
+    w2 = next((w for w in waves if w.wave == 2), None)
+    if w2 and w2.files:
+        parts.append(f"Untangle Wave 2 circular dependency in {w2.files[0]} before refactoring intermediate services to eliminate cascading feedback loops.")
+
+    w4 = next((w for w in waves if w.wave == 4), None)
+    if w4 and w4.files:
+        parts.append(f"Modernize Wave 4 entry points ({w4.files[0]}) last once all underlying dependencies have verified characterization test suites.")
+
+    return " ".join(parts) if parts else "Modernize leaf utility files first, followed by shared services and entry points."
+
+
 def build_migration_plan(db: Session, project_id: str) -> MigrationPlanResponse:
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
@@ -217,22 +589,53 @@ def build_migration_plan(db: Session, project_id: str) -> MigrationPlanResponse:
         else:
             recommended_action = "Safe for targeted refactoring: minimal downstream blast radius."
 
-        suggested_tests = sorted(tests_by_target.get(module.relative_path, []))
-        if not suggested_tests:
-            suggested_tests = [f"Generate tests for {module.relative_path}"]
+        ordered_suggested_tests: List[str] = []
+        if tests_by_target.get(module.relative_path):
+            ordered_suggested_tests.extend(tests_by_target[module.relative_path])
+        for dep_path in direct_dependents:
+            if tests_by_target.get(dep_path):
+                for t in tests_by_target[dep_path]:
+                    if t not in ordered_suggested_tests:
+                        ordered_suggested_tests.append(t)
+        for ep_path in affected_entries:
+            if tests_by_target.get(ep_path):
+                for t in tests_by_target[ep_path]:
+                    if t not in ordered_suggested_tests:
+                        ordered_suggested_tests.append(t)
+        if not ordered_suggested_tests:
+            ordered_suggested_tests = [f"Generate characterization tests for {module.relative_path}"]
+
+        if mod_cycles:
+            item_wave = 2
+            item_wave_title = "Wave 2: Cycle Untangling & Decoupling"
+        elif module.is_entry_point:
+            item_wave = 4
+            item_wave_title = "Wave 4: Entry Points & Orchestration"
+        elif len(direct_dependencies) == 0 or len(direct_dependents) == 0:
+            item_wave = 1
+            item_wave_title = "Wave 1: Leaf & Isolated Modules"
+        else:
+            item_wave = 3
+            item_wave_title = "Wave 3: Intermediate Services & Business Logic"
 
         impacts.append(ChangeImpact(
             module_id=module.module_id,
             relative_path=module.relative_path,
             risk_level=risk_level,
             blast_radius=len(transitive),
+            direct_blast_radius=len(direct_dependents),
+            transitive_blast_radius=len(transitive),
             dependency_depth=depth,
+            wave=item_wave,
+            wave_title=item_wave_title,
+            is_cycle_participant=bool(mod_cycles),
+            is_score_blocker=False,
             direct_dependents=direct_dependents,
             transitive_dependents=transitive_dependents,
             direct_dependencies=direct_dependencies,
             affected_entry_points=affected_entries,
             cycles=mod_cycles,
-            suggested_tests=suggested_tests,
+            suggested_tests=ordered_suggested_tests,
             reasons=reasons,
             risk_evidence=risk_evidence,
             recommended_action=recommended_action,
@@ -288,6 +691,15 @@ def build_migration_plan(db: Session, project_id: str) -> MigrationPlanResponse:
     weights = {"analysis": .20, "complexity": .20, "coupling": .20, "maintainability": .20, "testability": .20}
     readiness_score = _bounded(sum(item.score * weights[item.key] for item in categories))
 
+    score_blockers = _compute_score_blockers(categories, modules, graph, impacts, tests_by_target)
+    blocker_files = {b.target_file for b in score_blockers if b.target_file}
+    for imp in impacts:
+        if imp.relative_path in blocker_files:
+            imp.is_score_blocker = True
+
+    waves = _build_migration_waves(impacts, categories, score_blockers, tests_by_target, diff_paths)
+    first_action_summary = _synthesize_first_action(waves, score_blockers, impacts)
+
     low_risk_wins = [item for item in impacts if item.risk_level in {"low", "medium"} and "suggestion" in " ".join(item.reasons).lower()]
     core_items = [item for item in impacts if item.blast_radius > 0 or item.risk_level in {"high", "critical"}]
     entry_items = [item for item in impacts if item.affected_entry_points or module_by_id[item.module_id].is_entry_point]
@@ -309,10 +721,13 @@ def build_migration_plan(db: Session, project_id: str) -> MigrationPlanResponse:
         readiness_score=readiness_score,
         readiness_label=_status(readiness_score),
         executive_summary=executive_summary,
+        first_action_summary=first_action_summary,
         categories=categories,
+        score_blockers=score_blockers,
         top_priorities=top_priorities,
         impacts=sorted(impacts, key=lambda item: item.relative_path),
         phases=phases,
+        waves=waves,
         findings=findings,
         finding_funnel=summarize_findings(findings),
     )
@@ -326,6 +741,41 @@ def migration_plan_markdown(plan: MigrationPlanResponse, project_name: str) -> s
         "",
         plan.executive_summary,
         "",
+    ]
+    if plan.first_action_summary:
+        lines.extend(["## Recommended First Action", "", plan.first_action_summary, ""])
+    if plan.score_blockers:
+        lines.extend(["## Readiness Score Blockers", ""])
+        for b in plan.score_blockers:
+            target = f" (`{b.target_file}`)" if b.target_file else ""
+            lines.append(f"- **{b.label} Blocked**{target}: {b.blocker_reason} ➔ *Action:* {b.unblocking_action}")
+        lines.append("")
+    if plan.waves:
+        lines.extend(["## Migration Waves", ""])
+        for wave in plan.waves:
+            lines.extend([
+                f"### {wave.title} ({wave.risk_level.title()} Risk)",
+                "",
+                f"**Goal:** {wave.goal}",
+                "",
+                f"**Strategy:** {wave.strategy}",
+                "",
+                f"**Direct Callers:** {wave.total_direct_dependents} | **Transitive Blast Radius:** {wave.total_transitive_blast_radius}",
+                "",
+            ])
+            if wave.files:
+                lines.append("Files in wave:")
+                lines.extend(f"- `{f}`" for f in wave.files)
+                lines.append("")
+            if wave.suggested_test_order:
+                lines.append("Suggested test order:")
+                lines.extend(f"- `{t}`" for t in wave.suggested_test_order)
+                lines.append("")
+            if wave.checklist:
+                lines.append("Checklist:")
+                lines.extend(f"- [ ] {item.task}" for item in wave.checklist)
+                lines.append("")
+    lines.extend([
         "## Finding funnel",
         "",
         f"- **{plan.finding_funnel.total_findings} total findings**",
@@ -337,7 +787,7 @@ def migration_plan_markdown(plan: MigrationPlanResponse, project_name: str) -> s
         "",
         "## Readiness breakdown",
         "",
-    ]
+    ])
     lines.extend(f"- **{item.label}: {item.score}/100** — {item.reason}" for item in plan.categories)
     lines.extend(["", "## Highest-impact files", ""])
     lines.extend(f"- **{item.relative_path}** — {item.risk_level.title()} risk, {item.blast_radius} downstream file(s)" for item in plan.top_priorities)

@@ -62,12 +62,35 @@ export interface ReadinessCategory {
   reason: string;
 }
 
+export interface ChecklistItem {
+  id: string;
+  task: string;
+  target_file?: string | null;
+  action_type: 'test' | 'refactor' | 'cycle_decouple' | 'entry_verify' | string;
+  completed?: boolean;
+}
+
+export interface ScoreBlocker {
+  category_key: string;
+  label: string;
+  current_score: number;
+  target_file?: string | null;
+  blocker_reason: string;
+  unblocking_action: string;
+}
+
 export interface ChangeImpact {
   module_id: string;
   relative_path: string;
   risk_level: 'low' | 'medium' | 'high' | 'critical';
   blast_radius: number;
+  direct_blast_radius?: number;
+  transitive_blast_radius?: number;
   dependency_depth: number;
+  wave?: number;
+  wave_title?: string;
+  is_cycle_participant?: boolean;
+  is_score_blocker?: boolean;
   direct_dependents: string[];
   transitive_dependents: string[];
   direct_dependencies: string[];
@@ -88,15 +111,33 @@ export interface MigrationPhase {
   actions: string[];
 }
 
+export interface MigrationWave {
+  wave: number;
+  name: string;
+  title: string;
+  goal: string;
+  strategy: string;
+  risk_level: 'low' | 'medium' | 'high' | 'critical' | string;
+  files: string[];
+  total_direct_dependents: number;
+  total_transitive_blast_radius: number;
+  affected_entry_points: string[];
+  suggested_test_order: string[];
+  checklist: ChecklistItem[];
+}
+
 export interface MigrationPlanResponse {
   project_id: string;
   readiness_score: number;
   readiness_label: string;
   executive_summary: string;
+  first_action_summary?: string;
   categories: ReadinessCategory[];
+  score_blockers?: ScoreBlocker[];
   top_priorities: ChangeImpact[];
   impacts: ChangeImpact[];
   phases: MigrationPhase[];
+  waves?: MigrationWave[];
   findings: Finding[];
   finding_funnel: FindingFunnel;
 }
