@@ -335,12 +335,18 @@ export interface GeneratedTestFile {
   safe_test_path: string;
   code: string;
   generation_strategy: string;
+  test_category: string;
+  test_categories?: string[];
+  covered_symbols: string[];
+  is_import_only: boolean;
+  protection_type: string;
   syntax_valid: boolean;
   syntax_error_message?: string | null;
   execution_status: 'not_run' | 'passed' | 'failed' | 'timed_out' | 'unavailable';
   test_count: number;
   execution_output?: string | null;
   line_coverage?: number | null;
+  covered_lines: number[];
   uncovered_lines: number[];
   warnings: string[];
 }
@@ -365,6 +371,10 @@ export interface ProjectTestResult {
   generation_duration_ms: number;
   execution_duration_ms: number;
   iteration_count: number;
+  protected_files?: string[];
+  unprotected_files?: string[];
+  category_counts?: Record<string, number>;
+  is_measured?: boolean;
 }
 
 // --- Refactor Proposal Interfaces ---

@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.analysis.models import ProjectAnalysis
+from app.analysis.models import ModuleAnalysis, ProjectAnalysis
 from app.analysis.service import run_analysis_for_project
 from app.config import settings
 from app.database import SessionLocal
@@ -18,6 +18,61 @@ from app.testgen.python_generator import generate_python_unit_tests
 from app.testgen.runner import execute_generated_tests_safely
 
 logger = logging.getLogger(__name__)
+
+
+def is_non_testable_module(module: ModuleAnalysis) -> bool:
+    """Detects empty __init__.py, barrel re-export files, type-only files, or config files
+
+    to avoid inflating test counts with spurious test suites.
+    """
+    rel_lower = module.relative_path.lower().replace("\\", "/")
+    filename = Path(rel_lower).name
+
+    # 1. Empty or re-export-only __init__.py
+    if filename == "__init__.py":
+        if len(module.functions) == 0 and len(module.classes) == 0:
+            return True
+
+    # 2. Barrel files (index.ts / index.js / index.tsx with no functions or classes)
+    if filename in ("index.ts", "index.js", "index.tsx", "index.jsx"):
+        if len(module.functions) == 0 and len(module.classes) == 0:
+            return True
+
+    # 3. Type-only files (.d.ts or types/interfaces files with no runtime functions/classes)
+    if filename.endswith(".d.ts"):
+        return True
+    if (
+        filename in ("types.ts", "interfaces.ts", "models.ts", "declarations.ts")
+        and len(module.functions) == 0
+        and len(module.classes) == 0
+    ):
+        return True
+
+    # 4. Configuration-only modules
+    config_prefixes = (
+        "vite.config.",
+        "webpack.config.",
+        "next.config.",
+        "jest.config.",
+        "vitest.config.",
+        "babel.config.",
+        "tailwind.config.",
+        "postcss.config.",
+        "rollup.config.",
+        "commitlint.config.",
+        "eslint",
+        "prettier.config.",
+    )
+    if any(filename.startswith(cfg) for cfg in config_prefixes):
+        return True
+    if (
+        filename in ("setup.py", "pyproject.toml", "conftest.py")
+        and len(module.functions) == 0
+        and len(module.classes) == 0
+    ):
+        return True
+
+    return False
 
 
 def run_test_generation_for_project(
@@ -93,6 +148,9 @@ def run_test_generation_for_project(
         for module in analysis.modules:
             if module.parse_status == "failed":
                 continue
+            # Avoid inflating counts for empty __init__.py, barrel, type-only, or config modules
+            if is_non_testable_module(module):
+                continue
 
             if module.language == "python":
                 tf = generate_python_unit_tests(module, analysis)
@@ -126,12 +184,44 @@ def run_test_generation_for_project(
 
     gen_duration_ms = int((time.time() - gen_start) * 1000)
 
+    # If executed coverage was obtained, update protection_type
+    is_measured = overall_coverage is not None
+    if is_measured:
+        for tf in test_files:
+            if not tf.is_import_only and tf.syntax_valid:
+                tf.protection_type = "measured"
+
     # Compute aggregate metrics
     syntax_valid_cnt = sum(1 for tf in test_files if tf.syntax_valid)
     total_tests = sum(tf.test_count for tf in test_files)
     executed_cnt = sum(1 for tf in test_files if tf.execution_status in ("passed", "failed"))
     passed_cnt = sum(1 for tf in test_files if tf.execution_status == "passed")
     failed_cnt = sum(1 for tf in test_files if tf.execution_status == "failed")
+
+    # Protected vs unprotected files
+    protected_files = [
+        tf.target_relative_path
+        for tf in test_files
+        if tf.syntax_valid and not tf.is_import_only
+    ]
+    protected_set = set(protected_files)
+    unprotected_files = [
+        m.relative_path
+        for m in analysis.modules
+        if m.relative_path not in protected_set
+    ]
+
+    # Category counts
+    category_counts: Dict[str, int] = {
+        "function contract test": 0,
+        "error-path test": 0,
+        "edge-case test": 0,
+        "integration test": 0,
+        "import smoke test": 0,
+    }
+    for tf in test_files:
+        for cat in tf.test_categories:
+            category_counts[cat] = category_counts.get(cat, 0) + 1
 
     result = ProjectTestResult(
         project_id=project_id,
@@ -154,6 +244,10 @@ def run_test_generation_for_project(
         execution_duration_ms=exec_duration_ms,
         iteration_count=iteration_count,
         iteration_log=iteration_log,
+        protected_files=protected_files,
+        unprotected_files=unprotected_files,
+        category_counts=category_counts,
+        is_measured=is_measured,
     )
 
     # Persist in DB

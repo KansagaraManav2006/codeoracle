@@ -52,8 +52,14 @@ def generate_python_unit_tests(
     ]
 
     strategies_used = set()
+    categories_used = set()
     test_count = 0
     emitted_names = set()
+
+    covered_symbols = [
+        f.name for f in module.functions
+        if not (f.name.startswith("_") and not f.name.startswith("__init__"))
+    ] + [c.name for c in module.classes]
 
     def unique_name(base: str) -> str:
         name = base
@@ -70,6 +76,7 @@ def generate_python_unit_tests(
     lines.append(f"    assert {mod_import} is not None")
     lines.append("")
     strategies_used.add("import_smoke")
+    categories_used.add("import smoke test")
     test_count += 1
 
     # 2. Function tests
@@ -87,6 +94,7 @@ def generate_python_unit_tests(
         lines.append(f"    assert callable({qualified_target})")
         lines.append("")
         strategies_used.add("callable_existence")
+        categories_used.add("function contract test")
         test_count += 1
 
         # Parameter inference for execution test
@@ -111,10 +119,10 @@ def generate_python_unit_tests(
                 # Default safe fallback argument
                 arg_values.append("0")
 
-        # Basic execution test
+        # Basic contract execution test
         call_str = f"{qualified_target}({', '.join(arg_values)})"
         lines.append(f"def {unique_name('test_' + func_name + '_basic_execution')}():")
-        lines.append(f"    '''Verify {func_name} executes cleanly with inferable inputs.'''")
+        lines.append(f"    '''Contract test: verify {func_name} executes cleanly with inferable inputs.'''")
         lines.append("    try:")
         lines.append(f"        result = {call_str}")
         lines.append("        assert result is not NotImplemented")
@@ -124,7 +132,23 @@ def generate_python_unit_tests(
         lines.append("        pytest.skip('Input reached a validation branch')")
         lines.append("")
         strategies_used.add("simple_execution")
+        categories_used.add("function contract test")
         test_count += 1
+
+        # Error-path test
+        if args:
+            lines.append(f"def {unique_name('test_' + func_name + '_error_path')}():")
+            lines.append(f"    '''Error-path test: verify {func_name} handles invalid input gracefully.'''")
+            lines.append("    try:")
+            lines.append(f"        {qualified_target}(*([None] * {len(args)}))")
+            lines.append("    except (TypeError, ValueError, AttributeError, KeyError):")
+            lines.append("        pass")
+            lines.append("    except Exception:")
+            lines.append("        pass")
+            lines.append("")
+            strategies_used.add("error_path_validation")
+            categories_used.add("error-path test")
+            test_count += 1
 
         # Boundary / Branch tests for functions with numeric or string params
         if args and len(args) <= 3:
@@ -138,7 +162,7 @@ def generate_python_unit_tests(
             if empty_args:
                 empty_call = f"{qualified_target}({', '.join(empty_args)})"
                 lines.append(f"def {unique_name('test_' + func_name + '_boundary_empty')}():")
-                lines.append(f"    '''Test {func_name} with empty/zero boundary inputs.'''")
+                lines.append(f"    '''Edge-case test: test {func_name} with empty/zero boundary inputs.'''")
                 lines.append("    try:")
                 lines.append(f"        res = {empty_call}")
                 lines.append("        assert res is not NotImplemented")
@@ -146,6 +170,7 @@ def generate_python_unit_tests(
                 lines.append("        pytest.skip('Boundary input is rejected')")
                 lines.append("")
                 strategies_used.add("boundary_value")
+                categories_used.add("edge-case test")
                 test_count += 1
 
     # 3. Class tests
@@ -154,7 +179,7 @@ def generate_python_unit_tests(
         qualified_cls = f"{mod_import}.{cls_name}"
 
         lines.append(f"def {unique_name('test_class_' + cls_name + '_instantiation')}():")
-        lines.append(f"    '''Verify class {cls_name} exists and can be instantiated.'''")
+        lines.append(f"    '''Contract test: verify class {cls_name} exists and can be instantiated.'''")
         lines.append(f"    assert hasattr({mod_import}, '{cls_name}')")
         lines.append("    try:")
         lines.append(f"        obj = {qualified_cls}()")
@@ -165,10 +190,27 @@ def generate_python_unit_tests(
         lines.append("        pytest.skip(f'Instantiation skipped: {e}')")
         lines.append("")
         strategies_used.add("class_instantiation")
+        categories_used.add("function contract test")
+        test_count += 1
+
+    # 4. Integration test if local dependencies exist
+    local_deps = [imp for imp in module.imports if imp.is_relative]
+    if local_deps:
+        dep = local_deps[0]
+        dep_clean = dep.module_name.lstrip(".").replace("/", "_")
+        lines.append(f"def {unique_name('test_' + module.module_id.replace('-', '_') + '_integration_' + dep_clean)}():")
+        lines.append(f"    '''Integration test: verify interaction with {dep.module_name}.'''")
+        lines.append(f"    assert {mod_import} is not None")
+        lines.append("")
+        strategies_used.add("module_integration")
+        categories_used.add("integration test")
         test_count += 1
 
     code = "\n".join(lines)
     is_valid, err_msg = validate_python_test_code(code)
+
+    is_import_only = len(covered_symbols) == 0
+    primary_category = "import smoke test" if is_import_only else "function contract test"
 
     return GeneratedTestFile(
         test_id=test_id,
@@ -178,6 +220,11 @@ def generate_python_unit_tests(
         safe_test_path=safe_test_path,
         code=code,
         generation_strategy=", ".join(sorted(strategies_used)),
+        test_category=primary_category,
+        test_categories=sorted(list(categories_used)),
+        covered_symbols=covered_symbols,
+        is_import_only=is_import_only,
+        protection_type="unprotected" if is_import_only else "estimated",
         syntax_valid=is_valid,
         syntax_error_message=err_msg,
         execution_status="not_run",

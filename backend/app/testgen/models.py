@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 TEST_GENERATOR_VERSION = "1.2.0"
 
 
+
 class GeneratedTestFile(BaseModel):
     test_id: str
     target_relative_path: str
@@ -12,6 +13,11 @@ class GeneratedTestFile(BaseModel):
     safe_test_path: str
     code: str
     generation_strategy: str
+    test_category: str = "function contract test"
+    test_categories: List[str] = Field(default_factory=list)
+    covered_symbols: List[str] = Field(default_factory=list)
+    is_import_only: bool = False
+    protection_type: str = "estimated"
     syntax_valid: bool = True
     syntax_error_message: Optional[str] = None
     execution_status: str = "not_run"  # "not_run", "passed", "failed", "timed_out", "unavailable"
@@ -45,6 +51,10 @@ class ProjectTestResult(BaseModel):
     execution_duration_ms: int = 0
     iteration_count: int = 1
     iteration_log: List[Dict[str, Any]] = Field(default_factory=list)
+    protected_files: List[str] = Field(default_factory=list)
+    unprotected_files: List[str] = Field(default_factory=list)
+    category_counts: Dict[str, int] = Field(default_factory=dict)
+    is_measured: bool = False
 
 
 class GenerateTestsRequest(BaseModel):

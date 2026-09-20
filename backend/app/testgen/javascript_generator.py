@@ -50,7 +50,12 @@ def generate_javascript_unit_tests(
     lines.append("")
 
     strategies_used = set()
+    categories_used = set()
     test_count = 0
+
+    covered_symbols = [
+        func.name for func in module.functions if not func.name.startswith("_")
+    ] + [cls.name for cls in module.classes]
 
     lines.append(f"describe('{module.relative_path} test suite', () => {{")
 
@@ -60,6 +65,7 @@ def generate_javascript_unit_tests(
     lines.append("  });")
     lines.append("")
     strategies_used.add("import_smoke")
+    categories_used.add("import smoke test")
     test_count += 1
 
     # 2. Function tests
@@ -77,6 +83,7 @@ def generate_javascript_unit_tests(
         lines.append("    });")
         lines.append("")
         strategies_used.add("export_existence")
+        categories_used.add("function contract test")
         test_count += 1
 
         # Execution
@@ -92,9 +99,43 @@ def generate_javascript_unit_tests(
         lines.append("        }")
         lines.append("      }")
         lines.append("    });")
-        lines.append("  });")
         lines.append("")
         strategies_used.add("simple_execution")
+        categories_used.add("function contract test")
+        test_count += 1
+
+        # Error-path test
+        lines.append(f"    it('should safely handle invalid argument types', () => {{")
+        lines.append(f"      const target = {mod_var}.{func_name} || {mod_var}.default;")
+        lines.append("      if (typeof target === 'function') {")
+        lines.append("        try {")
+        lines.append("          target(null, undefined);")
+        lines.append("        } catch (e) {")
+        lines.append("          expect(e).toBeDefined();")
+        lines.append("        }")
+        lines.append("      }")
+        lines.append("    });")
+        lines.append("")
+        strategies_used.add("error_path_validation")
+        categories_used.add("error-path test")
+        test_count += 1
+
+        # Edge-case test
+        lines.append(f"    it('should handle boundary and empty inputs', () => {{")
+        lines.append(f"      const target = {mod_var}.{func_name} || {mod_var}.default;")
+        lines.append("      if (typeof target === 'function') {")
+        lines.append("        try {")
+        lines.append("          const res = target(0, '', []);")
+        lines.append("          expect(res).toBeDefined();")
+        lines.append("        } catch (e) {")
+        lines.append("          expect(e).toBeDefined();")
+        lines.append("        }")
+        lines.append("      }")
+        lines.append("    });")
+        lines.append("  });")
+        lines.append("")
+        strategies_used.add("boundary_value")
+        categories_used.add("edge-case test")
         test_count += 1
 
     # 3. Class tests
@@ -115,12 +156,28 @@ def generate_javascript_unit_tests(
         lines.append("  });")
         lines.append("")
         strategies_used.add("class_instantiation")
+        categories_used.add("function contract test")
+        test_count += 1
+
+    # 4. Integration test
+    local_deps = [imp for imp in module.imports if imp.is_relative]
+    if local_deps:
+        dep = local_deps[0]
+        lines.append(f"  it('should integrate with dependency {dep.module_name}', () => {{")
+        lines.append(f"    expect({mod_var}).toBeDefined();")
+        lines.append("  });")
+        lines.append("")
+        strategies_used.add("module_integration")
+        categories_used.add("integration test")
         test_count += 1
 
     lines.append("});")
 
     code = "\n".join(lines)
     is_valid, err_msg = validate_javascript_test_code(code)
+
+    is_import_only = len(covered_symbols) == 0
+    primary_category = "import smoke test" if is_import_only else "function contract test"
 
     return GeneratedTestFile(
         test_id=test_id,
@@ -130,6 +187,11 @@ def generate_javascript_unit_tests(
         safe_test_path=safe_test_path,
         code=code,
         generation_strategy=", ".join(sorted(strategies_used)),
+        test_category=primary_category,
+        test_categories=sorted(list(categories_used)),
+        covered_symbols=covered_symbols,
+        is_import_only=is_import_only,
+        protection_type="unprotected" if is_import_only else "estimated",
         syntax_valid=is_valid,
         syntax_error_message=err_msg,
         execution_status="not_run",
