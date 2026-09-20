@@ -1,50 +1,152 @@
-import React from 'react';
-import { BookOpen, Flame, GitFork, Map, TestTube, Wand2 } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
+import { BookOpen, Workflow, TestTube, Wand2, Map, LucideIcon } from 'lucide-react';
 import { TabType } from '../types';
 
 interface TabNavigationProps {
   activeTab: TabType;
   onTabChange: (tab: TabType) => void;
   targetFile?: string | null;
+  hasDependencyLoops?: boolean;
+  hasHumanReviewRequired?: boolean;
 }
 
-export const TabNavigation: React.FC<TabNavigationProps> = ({ activeTab, onTabChange, targetFile }) => {
-  const tabs = [
-    { id: 'explanation' as TabType, label: 'Architecture Overview', icon: BookOpen },
-    { id: 'hotspots' as TabType, label: 'Risk Hotspots', icon: Flame },
-    { id: 'graph' as TabType, label: 'Dependency Map', icon: GitFork },
-    { id: 'tests' as TabType, label: 'Safety Tests', icon: TestTube },
-    { id: 'refactor' as TabType, label: 'Modernization', icon: Wand2 },
-    { id: 'migration' as TabType, label: 'Impact & Plan', icon: Map },
+interface TabConfig {
+  id: TabType;
+  label: string;
+  icon: LucideIcon;
+  statusDot?: 'red' | 'amber';
+}
+
+export const TabNavigation: React.FC<TabNavigationProps> = ({
+  activeTab,
+  onTabChange,
+  targetFile,
+  hasDependencyLoops = false,
+  hasHumanReviewRequired = false,
+}) => {
+  const tabsListRef = useRef<HTMLDivElement>(null);
+  const tabButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  const tabs: TabConfig[] = [
+    { id: 'explanation', label: 'Explanation', icon: BookOpen },
+    {
+      id: 'graph',
+      label: 'Dependency Graph',
+      icon: Workflow,
+      statusDot: hasDependencyLoops ? 'red' : undefined,
+    },
+    { id: 'tests', label: 'Generated Tests', icon: TestTube },
+    { id: 'refactor', label: 'Refactored Code', icon: Wand2 },
+    {
+      id: 'migration',
+      label: 'Migration Plan',
+      icon: Map,
+      statusDot: hasHumanReviewRequired ? 'amber' : undefined,
+    },
   ];
 
+  // Scroll active tab into view on smaller screens
+  useEffect(() => {
+    const activeBtn = tabButtonRefs.current[activeTab];
+    if (activeBtn && tabsListRef.current) {
+      const container = tabsListRef.current;
+      const left = activeBtn.offsetLeft - container.offsetLeft - 8;
+      container.scrollTo({ left, behavior: 'smooth' });
+    }
+  }, [activeTab]);
+
+  const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
+    const tabKeys = tabs.map((t) => t.id);
+    let targetIndex = -1;
+
+    if (e.key === 'ArrowRight') {
+      targetIndex = (index + 1) % tabs.length;
+    } else if (e.key === 'ArrowLeft') {
+      targetIndex = (index - 1 + tabs.length) % tabs.length;
+    } else if (e.key === 'Home') {
+      targetIndex = 0;
+    } else if (e.key === 'End') {
+      targetIndex = tabs.length - 1;
+    }
+
+    if (targetIndex !== -1) {
+      e.preventDefault();
+      const targetTab = tabKeys[targetIndex];
+      onTabChange(targetTab);
+      tabButtonRefs.current[targetTab]?.focus();
+    }
+  };
+
   return (
-    <div className="sticky top-[57px] z-40 -mx-3 mb-5 overflow-x-auto border-b-2 border-[#C8BEB0] bg-[#ECE5DA]/95 px-3 py-2 shadow-xs backdrop-blur sm:top-[61px] sm:mx-0 sm:mb-6 sm:px-2 rounded-2xl">
-      <div className="mb-2 flex min-w-max items-center gap-2 px-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#6B645A]">
-        <span className="text-[#292622]">Guided modernization workflow</span>
-        <span className="text-[#A3998E]">Audit → risk → impact → protect → modernize → plan</span>
-        {targetFile && (
-          <span className="max-w-[260px] truncate rounded-full border border-[#C7C4F7] bg-[#EAE9FB] px-2 py-0.5 font-mono normal-case tracking-normal text-[#4340A0]" title={targetFile}>
-            Target: {targetFile}
+    <div className="w-full mb-6">
+      {/* Context banner if target file is active */}
+      {targetFile && (
+        <div className="mb-3 flex items-center justify-between gap-2 px-1">
+          <span className="text-[11px] font-sans font-semibold text-ink-3 uppercase tracking-wider">
+            Focused Target:
           </span>
-        )}
-      </div>
-      <div className="flex min-w-max space-x-1.5 sm:space-x-2">
-        {tabs.map((tab) => {
+          <span
+            className="max-w-[320px] truncate rounded-pill bg-indigo-surface px-2.5 py-0.5 font-mono text-xs font-semibold text-indigo-text border border-indigo/20"
+            title={targetFile}
+          >
+            {targetFile}
+          </span>
+        </div>
+      )}
+
+      {/* Tab bar track */}
+      <div
+        ref={tabsListRef}
+        role="tablist"
+        aria-label="Workspace Tabs"
+        className="w-full flex items-center gap-2 p-2 bg-track rounded-xl overflow-x-auto custom-scrollbar scroll-smooth snap-x select-none"
+      >
+        {tabs.map((tab, idx) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
+
           return (
             <button
               key={tab.id}
+              ref={(el) => {
+                tabButtonRefs.current[tab.id] = el;
+              }}
+              id={`tab-${tab.id}`}
+              role="tab"
+              aria-selected={isActive}
+              aria-controls={`tabpanel-${tab.id}`}
+              tabIndex={isActive ? 0 : -1}
               onClick={() => onTabChange(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all duration-150 sm:px-5 sm:text-sm ${
+              onKeyDown={(e) => handleKeyDown(e, idx)}
+              className={`relative flex items-center gap-2 h-10 px-4 rounded-pill font-sans text-sm font-semibold whitespace-nowrap snap-start transition-[background-color,border-color,transform,box-shadow] duration-fast ${
                 isActive
-                  ? 'bg-[#181715] text-white shadow-md ring-1 ring-black/10'
-                  : 'bg-[#FFFDFC] text-[#3B3733] border border-[#C8BEB0] hover:bg-[#181715] hover:text-white hover:border-[#181715]'
-              }`}
+                  ? 'bg-ink text-white shadow-none border border-transparent'
+                  : 'bg-surface text-ink border border-line shadow-1 hover:border-line-strong hover:-translate-y-[1px]'
+              } focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo focus-visible:outline-offset-2`}
             >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-[#C7953D]' : 'text-[#5C554D]'}`} />
+              <Icon
+                className={`w-[18px] h-[18px] shrink-0 ${
+                  isActive ? 'text-amber-on-dark' : 'text-ink'
+                }`}
+                strokeWidth={1.75}
+              />
               <span>{tab.label}</span>
+
+              {/* Status dot if present */}
+              {tab.statusDot === 'red' && (
+                <span
+                  className="w-2 h-2 rounded-full bg-red shrink-0"
+                  aria-label="Dependency cycles detected"
+                  title="Dependency cycles detected"
+                />
+              )}
+              {tab.statusDot === 'amber' && (
+                <span
+                  className="w-2 h-2 rounded-full bg-amber shrink-0"
+                  aria-label="Human review recommended"
+                  title="Human review recommended"
+                />
+              )}
             </button>
           );
         })}

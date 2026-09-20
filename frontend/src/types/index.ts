@@ -50,7 +50,7 @@ export interface ProjectFilesListResponse {
   files: ProjectFileResponse[];
 }
 
-export type TabType = 'explanation' | 'hotspots' | 'graph' | 'tests' | 'refactor' | 'migration';
+export type TabType = 'explanation' | 'graph' | 'tests' | 'refactor' | 'migration';
 
 export interface HotspotFactors {
   complexity_raw: number;

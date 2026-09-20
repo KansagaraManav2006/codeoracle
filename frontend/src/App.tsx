@@ -1,54 +1,157 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import Header from './components/Header';
+import WorkspaceShell from './components/WorkspaceShell';
+import TabNavigation from './components/TabNavigation';
+import ProjectResultsView from './components/ProjectResultsView';
 import InputSection from './components/InputSection';
 import JobProgressView from './components/JobProgressView';
-import ProjectResultsView from './components/ProjectResultsView';
-import TabNavigation from './components/TabNavigation';
+import RecentProjectsSection from './components/RecentProjectsSection';
 import ExplanationTab from './components/ExplanationTab';
-import HotspotsTab from './components/HotspotsTab';
 import DependencyGraphTab from './components/DependencyGraphTab';
 import GeneratedTestsTab from './components/GeneratedTestsTab';
 import RefactoredCodeTab from './components/RefactoredCodeTab';
 import MigrationPlanTab from './components/MigrationPlanTab';
-import RecentProjectsSection from './components/RecentProjectsSection';
+import { ToastProvider } from './components/common/Toast';
+import ShortcutsModal from './components/common/ShortcutsModal';
 import { useJobPoller } from './hooks/useJobPoller';
 import { TabType } from './types';
 
-export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabType>('explanation');
-  const [targetFile, setTargetFile] = useState<string | null>(null);
+const AppContent: React.FC = () => {
+  // Sync tab with URL query param '?tab=' per DESIGN.md §11.3
+  const getInitialTab = (): TabType => {
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get('tab') as TabType;
+    if (t === 'graph' || t === 'tests' || t === 'refactor' || t === 'migration') {
+      return t;
+    }
+    return 'explanation';
+  };
+
+  const getInitialFile = (): string | null => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('file') || null;
+  };
+
+  const [activeTab, setActiveTab] = useState<TabType>(getInitialTab);
+  const [targetFile, setTargetFile] = useState<string | null>(getInitialFile);
   const [testRevision, setTestRevision] = useState(0);
-  const [isGeneratingTests, setIsGeneratingTests] = useState(false);
-  const [testGenError, setTestGenError] = useState<string | null>(null);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   const { job, project, files, loading, error, errorCode, submitZip, submitGithub, loadDemo, openProject, reset } =
     useJobPoller();
 
-  // A selected risk target belongs to the currently opened project only. Clear it
-  // when switching repositories so impact panels never show stale context.
+  // Update URL search parameters when tab or file changes
+  const updateUrlParams = useCallback((newTab: TabType, newFile: string | null) => {
+    const params = new URLSearchParams(window.location.search);
+    params.set('tab', newTab);
+    if (newFile) {
+      params.set('file', newFile);
+    } else {
+      params.delete('file');
+    }
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState({}, '', newUrl);
+  }, []);
+
+  const handleTabChange = useCallback((tab: TabType) => {
+    setActiveTab(tab);
+    updateUrlParams(tab, targetFile);
+  }, [targetFile, updateUrlParams]);
+
+  const handleSelectFile = useCallback((filePath: string) => {
+    setTargetFile(filePath);
+    updateUrlParams(activeTab, filePath);
+  }, [activeTab, updateUrlParams]);
+
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const t = (params.get('tab') as TabType) || 'explanation';
+      const f = params.get('file') || null;
+      setActiveTab(t);
+      setTargetFile(f);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Clear target file when repository changes
   useEffect(() => {
     setTargetFile(null);
   }, [project?.project_id]);
+
+  // Global keyboard shortcuts per DESIGN.md §11.3:
+  // 1-5: switch tabs, /: focus search, c: copy code, ?: shortcuts modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      if (e.key === '?') {
+        e.preventDefault();
+        setShowShortcuts((v) => !v);
+      } else if (e.key === '1') {
+        handleTabChange('explanation');
+      } else if (e.key === '2') {
+        handleTabChange('graph');
+      } else if (e.key === '3') {
+        handleTabChange('tests');
+      } else if (e.key === '4') {
+        handleTabChange('refactor');
+      } else if (e.key === '5') {
+        handleTabChange('migration');
+      } else if (e.key === '/') {
+        e.preventDefault();
+        const searchInput = document.querySelector<HTMLInputElement>(
+          'input[type="text"][placeholder*="Search"], input[type="text"][placeholder*="Filter"]'
+        );
+        searchInput?.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleTabChange]);
 
   const handleTestsUpdated = () => {
     setTestRevision((prev) => prev + 1);
   };
 
   const handleInspectImpact = (filePath: string) => {
-    setTargetFile(filePath);
-    setActiveTab('migration');
+    handleSelectFile(filePath);
+    handleTabChange('migration');
   };
 
   const handleFocusInGraph = (filePath: string) => {
-    setTargetFile(filePath);
-    setActiveTab('graph');
+    handleSelectFile(filePath);
+    handleTabChange('graph');
   };
 
   return (
-    <div className="min-h-screen bg-[#F7F4EE] text-[#292622] flex flex-col font-sans antialiased">
+    <div className="min-h-screen bg-canvas text-ink-2 flex flex-col font-sans antialiased">
+      {/* Skip to Content for Accessibility per DESIGN.md §12 */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-toast focus:px-4 focus:py-2 focus:bg-ink focus:text-white focus:rounded-pill focus:shadow-3 focus:outline-none"
+      >
+        Skip to content
+      </a>
+
+      {/* 68px Dark Sticky Application Header */}
       <Header />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 py-4 sm:px-4 sm:py-6 lg:px-6 lg:py-8">
+      {/* Main Page Canvas with Warm Cream Background per DESIGN.md §4.1 */}
+      <main
+        id="main-content"
+        className="flex-1 w-full max-w-[1200px] mx-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-8"
+      >
         {!project ? (
           <div className="space-y-6 sm:space-y-8">
             <InputSection
@@ -57,13 +160,16 @@ export const App: React.FC = () => {
               onLoadDemo={loadDemo}
               disabled={loading}
             />
+
             <JobProgressView
               job={job}
               loading={loading}
               error={error}
               errorCode={errorCode}
               onRetry={reset}
+              onCancel={reset}
             />
+
             {!loading && (
               <RecentProjectsSection
                 onOpenProject={openProject}
@@ -72,75 +178,90 @@ export const App: React.FC = () => {
             )}
           </div>
         ) : (
-          <ProjectResultsView project={project} files={files} onReset={reset} />
-        )}
+          <div className="space-y-6 sm:space-y-8">
+            {/* Project Summary Panel & Source Files Card per DESIGN.md §8.1 */}
+            <ProjectResultsView
+              project={project}
+              files={files}
+              onReset={reset}
+              onSelectFile={handleSelectFile}
+            />
 
-        {project && (
-          <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[20px] p-3 shadow-warm sm:p-4 lg:p-6 transition-all duration-150">
-            <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} targetFile={targetFile} />
+            {/* Centered Workspace Shell holding the 5 tabs */}
+            <WorkspaceShell>
+              <TabNavigation
+                activeTab={activeTab}
+                onTabChange={handleTabChange}
+                targetFile={targetFile}
+              />
 
-            <div className="mt-4">
-              {activeTab === 'explanation' && (
-                <ExplanationTab
-                  projectId={project.project_id}
-                  onNavigateTab={setActiveTab}
-                  onSelectFile={setTargetFile}
-                />
-              )}
-              {activeTab === 'hotspots' && (
-                <HotspotsTab
-                  projectId={project.project_id}
-                  onNavigateTab={setActiveTab}
-                  onSelectFile={setTargetFile}
-                  onFocusInGraph={handleFocusInGraph}
-                  onInspectImpact={handleInspectImpact}
-                />
-              )}
-              {activeTab === 'graph' && (
-                <DependencyGraphTab
-                  projectId={project.project_id}
-                  targetFile={targetFile}
-                  onInspectImpact={handleInspectImpact}
-                />
-              )}
-              {activeTab === 'tests' && (
-                <GeneratedTestsTab
-                  projectId={project.project_id}
-                  trustedDemo={project.source_type === 'demo_benchmark'}
-                  onTestsUpdated={handleTestsUpdated}
-                  onStatusChange={(generating, err) => {
-                    setIsGeneratingTests(generating);
-                    setTestGenError(err || null);
-                  }}
-                />
-              )}
-              {activeTab === 'refactor' && (
-                <RefactoredCodeTab
-                  projectId={project.project_id}
-                  trustedDemo={project.source_type === 'demo_benchmark'}
-                />
-              )}
-              {activeTab === 'migration' && (
-                <MigrationPlanTab
-                  projectId={project.project_id}
-                  refreshKey={testRevision}
-                  isGeneratingTests={isGeneratingTests}
-                  testGenError={testGenError}
-                  targetFile={targetFile}
-                  onNavigateTab={setActiveTab}
-                  onFocusInGraph={handleFocusInGraph}
-                  onNavigateToTests={() => setActiveTab('tests')}
-                />
-              )}
-            </div>
+              <div className="mt-4">
+                {activeTab === 'explanation' && (
+                  <ExplanationTab
+                    projectId={project.project_id}
+                    projectName={project.display_name}
+                    onNavigateTab={handleTabChange}
+                    onSelectFile={handleSelectFile}
+                  />
+                )}
+                {activeTab === 'graph' && (
+                  <DependencyGraphTab
+                    projectId={project.project_id}
+                    projectName={project.display_name}
+                    targetFile={targetFile}
+                    onInspectImpact={handleInspectImpact}
+                    onNavigateTab={handleTabChange}
+                    onSelectFile={handleSelectFile}
+                  />
+                )}
+                {activeTab === 'tests' && (
+                  <GeneratedTestsTab
+                    projectId={project.project_id}
+                    projectName={project.display_name}
+                    trustedDemo={project.source_type === 'demo_benchmark'}
+                    onTestsUpdated={handleTestsUpdated}
+                  />
+                )}
+                {activeTab === 'refactor' && (
+                  <RefactoredCodeTab
+                    projectId={project.project_id}
+                    projectName={project.display_name}
+                    trustedDemo={project.source_type === 'demo_benchmark'}
+                  />
+                )}
+                {activeTab === 'migration' && (
+                  <MigrationPlanTab
+                    projectId={project.project_id}
+                    projectName={project.display_name}
+                    refreshKey={testRevision}
+                    targetFile={targetFile}
+                    onNavigateTab={handleTabChange}
+                    onFocusInGraph={handleFocusInGraph}
+                    onNavigateToTests={() => handleTabChange('tests')}
+                  />
+                )}
+              </div>
+            </WorkspaceShell>
           </div>
         )}
       </main>
 
-      <footer className="border-t border-[#D8CFC2] px-4 py-4 text-center text-[11px] text-[#6B645A] sm:text-xs bg-[#FFFDFC]/50">
-        CodeOracle &copy; 2026 — Legacy Codebase Intelligence Engine
+      {/* Shortcuts Modal */}
+      <ShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+
+      {/* Footer */}
+      <footer className="border-t border-line px-4 py-4 text-center text-xs text-ink-3 bg-surface/60">
+        CodeOracle Pro Engine &copy; 2026 — Legacy Codebase Intelligence &amp; Refactoring Engine
       </footer>
     </div>
+  );
+};
+
+export const App: React.FC = () => {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
   );
 };
 
