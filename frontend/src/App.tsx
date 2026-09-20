@@ -7,6 +7,7 @@ import InputSection from './components/InputSection';
 import JobProgressView from './components/JobProgressView';
 import RecentProjectsSection from './components/RecentProjectsSection';
 import ExplanationTab from './components/ExplanationTab';
+import HotspotsTab from './components/HotspotsTab';
 import DependencyGraphTab from './components/DependencyGraphTab';
 import GeneratedTestsTab from './components/GeneratedTestsTab';
 import RefactoredCodeTab from './components/RefactoredCodeTab';
@@ -21,7 +22,13 @@ const AppContent: React.FC = () => {
   const getInitialTab = (): TabType => {
     const params = new URLSearchParams(window.location.search);
     const t = params.get('tab') as TabType;
-    if (t === 'graph' || t === 'tests' || t === 'refactor' || t === 'migration') {
+    if (
+      t === 'hotspots' ||
+      t === 'graph' ||
+      t === 'tests' ||
+      t === 'refactor' ||
+      t === 'migration'
+    ) {
       return t;
     }
     return 'explanation';
@@ -36,9 +43,46 @@ const AppContent: React.FC = () => {
   const [targetFile, setTargetFile] = useState<string | null>(getInitialFile);
   const [testRevision, setTestRevision] = useState(0);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [isGeneratingTests, setIsGeneratingTests] = useState(false);
+  const [testGenError, setTestGenError] = useState<string | null>(null);
+  const [hasDependencyLoops, setHasDependencyLoops] = useState(false);
+  const [hasHumanReviewRequired, setHasHumanReviewRequired] = useState(false);
 
   const { job, project, files, loading, error, errorCode, submitZip, submitGithub, loadDemo, openProject, reset } =
     useJobPoller();
+
+  // Check background summary metrics for status dots on tabs
+  useEffect(() => {
+    if (!project?.project_id) {
+      setHasDependencyLoops(false);
+      setHasHumanReviewRequired(false);
+      return;
+    }
+
+    // Check cycles
+    fetch(`/api/projects/${project.project_id}/graph?level=module`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.cycles && data.cycles.length > 0) {
+          setHasDependencyLoops(true);
+        } else {
+          setHasDependencyLoops(false);
+        }
+      })
+      .catch(() => setHasDependencyLoops(false));
+
+    // Check human review needed
+    fetch(`/api/projects/${project.project_id}/refactor`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && (data.breaking_warning_count > 0 || data.changed_files > 0)) {
+          setHasHumanReviewRequired(true);
+        } else {
+          setHasHumanReviewRequired(false);
+        }
+      })
+      .catch(() => setHasHumanReviewRequired(false));
+  }, [project?.project_id]);
 
   // Update URL search parameters when tab or file changes
   const updateUrlParams = useCallback((newTab: TabType, newFile: string | null) => {
@@ -82,7 +126,7 @@ const AppContent: React.FC = () => {
   }, [project?.project_id]);
 
   // Global keyboard shortcuts per DESIGN.md §11.3:
-  // 1-5: switch tabs, /: focus search, c: copy code, ?: shortcuts modal
+  // 1-6: switch tabs, /: focus search, c: copy code, ?: shortcuts modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -100,12 +144,14 @@ const AppContent: React.FC = () => {
       } else if (e.key === '1') {
         handleTabChange('explanation');
       } else if (e.key === '2') {
-        handleTabChange('graph');
+        handleTabChange('hotspots');
       } else if (e.key === '3') {
-        handleTabChange('tests');
+        handleTabChange('graph');
       } else if (e.key === '4') {
-        handleTabChange('refactor');
+        handleTabChange('tests');
       } else if (e.key === '5') {
+        handleTabChange('refactor');
+      } else if (e.key === '6') {
         handleTabChange('migration');
       } else if (e.key === '/') {
         e.preventDefault();
@@ -187,12 +233,14 @@ const AppContent: React.FC = () => {
               onSelectFile={handleSelectFile}
             />
 
-            {/* Centered Workspace Shell holding the 5 tabs */}
+            {/* Centered Workspace Shell holding the 6 tabs */}
             <WorkspaceShell>
               <TabNavigation
                 activeTab={activeTab}
                 onTabChange={handleTabChange}
                 targetFile={targetFile}
+                hasDependencyLoops={hasDependencyLoops}
+                hasHumanReviewRequired={hasHumanReviewRequired}
               />
 
               <div className="mt-4">
@@ -202,6 +250,15 @@ const AppContent: React.FC = () => {
                     projectName={project.display_name}
                     onNavigateTab={handleTabChange}
                     onSelectFile={handleSelectFile}
+                  />
+                )}
+                {activeTab === 'hotspots' && (
+                  <HotspotsTab
+                    projectId={project.project_id}
+                    onNavigateTab={handleTabChange}
+                    onSelectFile={handleSelectFile}
+                    onFocusInGraph={handleFocusInGraph}
+                    onInspectImpact={handleInspectImpact}
                   />
                 )}
                 {activeTab === 'graph' && (
@@ -220,6 +277,10 @@ const AppContent: React.FC = () => {
                     projectName={project.display_name}
                     trustedDemo={project.source_type === 'demo_benchmark'}
                     onTestsUpdated={handleTestsUpdated}
+                    onStatusChange={(generating, err) => {
+                      setIsGeneratingTests(generating);
+                      setTestGenError(err || null);
+                    }}
                   />
                 )}
                 {activeTab === 'refactor' && (
@@ -234,6 +295,8 @@ const AppContent: React.FC = () => {
                     projectId={project.project_id}
                     projectName={project.display_name}
                     refreshKey={testRevision}
+                    isGeneratingTests={isGeneratingTests}
+                    testGenError={testGenError}
                     targetFile={targetFile}
                     onNavigateTab={handleTabChange}
                     onFocusInGraph={handleFocusInGraph}

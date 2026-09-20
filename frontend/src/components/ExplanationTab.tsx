@@ -8,8 +8,11 @@ import {
   Target,
   Play,
   Wand2,
+  FolderGit2,
+  AlertTriangle,
+  Flame,
 } from 'lucide-react';
-import { ProjectAnalysis, GraphResponse, TabType } from '../types';
+import { ProjectAnalysis, GraphResponse, TabType, WarningInfo } from '../types';
 import { truncateMiddle, formatNumber, getDownloadFileName } from '../utils/formatters';
 import Button from './common/Button';
 import KpiCard from './common/KpiCard';
@@ -38,6 +41,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [languageFilter, setLanguageFilter] = useState('all');
+  const [selectedLayer, setSelectedLayer] = useState<string | null>(null);
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
   const [visibleCount, setVisibleCount] = useState(60);
 
@@ -97,10 +101,104 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
     });
   };
 
+  // Cycle node IDs set
+  const cycleNodeIds = useMemo(() => {
+    const set = new Set<string>();
+    if (graph?.cycles) {
+      graph.cycles.forEach((c) => c.forEach((id) => set.add(id)));
+    }
+    return set;
+  }, [graph]);
+
+  // Compute Architecture Layers Breakdown
+  const architectureLayers = useMemo(() => {
+    if (!analysis || analysis.modules.length === 0) return [];
+    const layersMap = new Map<
+      string,
+      { fileCount: number; lines: number; hasCycle: boolean; role: string }
+    >();
+
+    const getRole = (folder: string) => {
+      const f = folder.toLowerCase();
+      if (f.includes('api') || f.includes('route') || f.includes('endpoint')) return 'API & Routing';
+      if (f.includes('model') || f.includes('schema') || f.includes('entity')) return 'Data & Schemas';
+      if (f.includes('service') || f.includes('core') || f.includes('analysis')) return 'Core Business Logic';
+      if (f.includes('test') || f.includes('spec')) return 'Test Suite';
+      if (f.includes('util') || f.includes('helper') || f.includes('common')) return 'Shared Utilities';
+      if (f.includes('component') || f.includes('view') || f.includes('ui')) return 'User Interface';
+      if (f.includes('migration') || f.includes('refactor')) return 'Modernization Logic';
+      if (f === 'root') return 'Entry & Configuration';
+      return 'Module Layer';
+    };
+
+    analysis.modules.forEach((mod) => {
+      const norm = mod.relative_path.replace(/\\/g, '/');
+      const parts = norm.split('/');
+      const layerName = parts.length > 1 ? parts[0] : 'root';
+      const existing = layersMap.get(layerName) || {
+        fileCount: 0,
+        lines: 0,
+        hasCycle: false,
+        role: getRole(layerName),
+      };
+
+      existing.fileCount += 1;
+      existing.lines += mod.line_count;
+      if (cycleNodeIds.has(mod.module_id)) existing.hasCycle = true;
+      layersMap.set(layerName, existing);
+    });
+
+    const total = analysis.modules.length;
+    return Array.from(layersMap.entries()).map(([name, data]) => ({
+      name,
+      ...data,
+      percentage: Math.round((data.fileCount / total) * 100),
+    }));
+  }, [analysis, cycleNodeIds]);
+
+  // Compute Top-Risk Modules Leaderboard
+  const topRiskModules = useMemo(() => {
+    if (!analysis) return [];
+    return [...analysis.modules]
+      .map((mod) => {
+        const inCycle = cycleNodeIds.has(mod.module_id);
+        const isHighComp = mod.complexity.rating === 'high' || mod.complexity.rating === 'critical';
+        const score =
+          mod.complexity.cyclomatic_complexity +
+          mod.legacy_warnings.length * 3 +
+          (inCycle ? 20 : 0) +
+          (isHighComp ? 15 : 0) +
+          (mod.parse_status !== 'complete' ? 10 : 0);
+
+        let primaryRisk = 'Elevated Complexity';
+        if (inCycle) primaryRisk = 'In Cyclic Import Loop';
+        else if (mod.legacy_warnings.length > 5) primaryRisk = `${mod.legacy_warnings.length} Modernization Warnings`;
+        else if (mod.complexity.cyclomatic_complexity > 15) primaryRisk = `Cyclomatic Complexity ${mod.complexity.cyclomatic_complexity}`;
+        else if (mod.parse_status !== 'complete') primaryRisk = 'Partial Parse Limitation';
+
+        return {
+          mod,
+          score,
+          primaryRisk,
+          inCycle,
+        };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3);
+  }, [analysis, cycleNodeIds]);
+
   // Filtered modules
   const filteredModules = useMemo(() => {
     if (!analysis) return [];
     return analysis.modules.filter((m) => {
+      const normPath = m.relative_path.replace(/\\/g, '/');
+      if (selectedLayer && selectedLayer !== 'root' && !normPath.startsWith(selectedLayer)) {
+        return false;
+      }
+      if (selectedLayer === 'root' && normPath.includes('/')) {
+        return false;
+      }
+
       const matchesSearch =
         !searchQuery.trim() ||
         m.relative_path.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -116,7 +214,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
 
       return matchesSearch && matchesLang;
     });
-  }, [analysis, searchQuery, languageFilter]);
+  }, [analysis, searchQuery, languageFilter, selectedLayer]);
 
   const handleDownloadMarkdown = () => {
     if (!analysis) return;
@@ -197,7 +295,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
 
   return (
     <div className="space-y-6 animate-[fade-up_250ms_ease-out_both]" role="tabpanel" id="tabpanel-explanation" aria-labelledby="tab-explanation">
-      {/* 1. Section Header Card per DESIGN.md §7.5 c) and §8.2 */}
+      {/* 1. Section Header Card */}
       <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-line">
           <div className="flex items-center gap-3.5 min-w-0">
@@ -209,10 +307,10 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
             </div>
             <div className="min-w-0">
               <h2 className="font-display font-bold text-lg sm:text-[20px] text-ink leading-tight">
-                Codebase Explanation
+                Codebase Explanation &amp; Architecture Command Center
               </h2>
               <p className="font-sans text-xs text-ink-3 mt-0.5">
-                Deterministic overview of project modules, architecture, and complexity.
+                Deterministic overview of project modules, structural layers, and priority risk targets.
               </p>
             </div>
           </div>
@@ -239,7 +337,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
           </div>
         </div>
 
-        {/* 4 KPI Cards: Files understood, Total lines, Suggestions (amber highlight), Connections */}
+        {/* 4 KPI Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-5">
           <KpiCard
             label="FILES UNDERSTOOD"
@@ -264,7 +362,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
           />
         </div>
 
-        {/* 2. "In simple words" panel per DESIGN.md §7.5 h) and §8.2 */}
+        {/* "In simple words" panel */}
         <div className="bg-panel rounded-xl p-5 sm:p-6 mt-6">
           <h3 className="font-display font-bold text-base text-ink mb-1">In simple words</h3>
           <p className="font-sans text-[13px] text-ink-2 leading-[1.6] max-w-3xl mb-5">
@@ -272,9 +370,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
               `This project contains ${analysis.total_files} files across ${analysis.languages.join(', ')}. CodeOracle parsed its imports, exported symbols, and runtime contracts.`}
           </p>
 
-          {/* 3 Sub-cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
-            {/* How it starts */}
             <div className="bg-surface border border-line rounded-md p-4 sm:p-5">
               <span className="font-sans text-[12px] font-bold text-indigo-text uppercase tracking-wider block mb-1.5">
                 How it starts
@@ -287,7 +383,6 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
               </p>
             </div>
 
-            {/* Important files */}
             <div className="bg-surface border border-line rounded-md p-4 sm:p-5">
               <span className="font-sans text-[12px] font-bold text-indigo-text uppercase tracking-wider block mb-1.5">
                 Important files
@@ -298,7 +393,6 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
               </p>
             </div>
 
-            {/* How files connect */}
             <div className="bg-surface border border-line rounded-md p-4 sm:p-5">
               <span className="font-sans text-[12px] font-bold text-indigo-text uppercase tracking-wider block mb-1.5">
                 How files connect
@@ -310,7 +404,6 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
             </div>
           </div>
 
-          {/* Panel footer: What CodeOracle noticed */}
           {analysis.explanation?.architectural_observations &&
             analysis.explanation.architectural_observations.length > 0 && (
               <div className="mt-5 pt-4 border-t border-ink/10">
@@ -330,7 +423,161 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
         </div>
       </section>
 
-      {/* 3. Filter Bar: Search + Language filter chips */}
+      {/* 2. Architecture Layers Breakdown Card (Phase 4) */}
+      {architectureLayers.length > 0 && (
+        <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-line">
+            <div className="flex items-center gap-2">
+              <FolderGit2 className="w-4 h-4 text-indigo" />
+              <h3 className="font-display font-bold text-base text-ink">
+                Architecture Structural Layers
+              </h3>
+            </div>
+            {selectedLayer && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedLayer(null)}
+                className="text-xs"
+              >
+                Clear Layer Filter ({selectedLayer})
+              </Button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {architectureLayers.map((layer) => {
+              const isSelected = selectedLayer === layer.name;
+              return (
+                <div
+                  key={layer.name}
+                  onClick={() => setSelectedLayer(isSelected ? null : layer.name)}
+                  className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                    isSelected
+                      ? 'border-indigo bg-indigo-surface ring-2 ring-indigo ring-offset-1'
+                      : 'border-line bg-tile hover:bg-track'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1 mb-1.5">
+                    <span className="font-mono text-xs font-bold text-ink truncate" title={layer.name}>
+                      /{layer.name}
+                    </span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-pill bg-surface border border-line text-ink-3">
+                      {layer.role}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-ink-3 mb-2">
+                    <span>{layer.fileCount} {layer.fileCount === 1 ? 'file' : 'files'}</span>
+                    <span className="num font-mono">{formatNumber(layer.lines)} LOC</span>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="h-1.5 w-full bg-track rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-indigo rounded-full"
+                      style={{ width: `${Math.max(layer.percentage, 5)}%` }}
+                    />
+                  </div>
+
+                  {layer.hasCycle && (
+                    <div className="mt-2 text-[10px] font-bold text-red flex items-center gap-1">
+                      <span>• Cyclic dependency participant</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* 3. Top-Risk Modules Panel (Phase 4) */}
+      {topRiskModules.length > 0 && (
+        <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-line">
+            <div className="flex items-center gap-2">
+              <Flame className="w-4 h-4 text-red" />
+              <h3 className="font-display font-bold text-base text-ink">
+                Priority Modernization Targets
+              </h3>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onNavigateTab?.('hotspots')}
+              icon={<Flame className="w-3.5 h-3.5 text-amber-strong" />}
+            >
+              View All Hotspots →
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+            {topRiskModules.map(({ mod, primaryRisk, inCycle }, index) => (
+              <div
+                key={mod.module_id}
+                className="bg-tile border border-line rounded-lg p-4 space-y-3 flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span className="font-mono text-xs font-bold text-ink truncate" title={mod.relative_path}>
+                      #{index + 1} {truncateMiddle(mod.relative_path, 24)}
+                    </span>
+                    <StatusTag
+                      status={inCycle ? 'critical' : 'complex'}
+                      label={inCycle ? 'CYCLE' : mod.complexity.rating.toUpperCase()}
+                    />
+                  </div>
+                  <div className="text-xs text-ink-3">
+                    <span className="font-bold text-ink-2">{primaryRisk}</span> · {formatNumber(mod.line_count)} lines
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-line">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      onSelectFile?.(mod.relative_path);
+                      onNavigateTab?.('migration');
+                    }}
+                    icon={<Target className="w-3 h-3" />}
+                    className="text-xs !py-1"
+                  >
+                    What Breaks?
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      onSelectFile?.(mod.relative_path);
+                      onNavigateTab?.('graph');
+                    }}
+                    icon={<Network className="w-3 h-3" />}
+                    className="text-xs !py-1"
+                  >
+                    Graph
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      onSelectFile?.(mod.relative_path);
+                      onNavigateTab?.('refactor');
+                    }}
+                    icon={<Wand2 className="w-3 h-3" />}
+                    className="text-xs !py-1"
+                  >
+                    Modernize
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* 4. Filter Bar: Search + Language filter chips */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface border border-line rounded-lg p-3 sm:px-4 shadow-1">
         <SearchField
           id="explanation-search"
@@ -374,7 +621,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
         </div>
       </div>
 
-      {/* 4. Module Accordion Rows per DESIGN.md §7.5 j) */}
+      {/* 5. Module Accordion Rows */}
       <div className="space-y-2.5" role="region" aria-label="Analyzed Modules List">
         {filteredModules.length === 0 ? (
           <div className="bg-surface border border-line rounded-lg p-10 text-center text-sm text-ink-3">
@@ -383,6 +630,11 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
         ) : (
           filteredModules.slice(0, visibleCount).map((mod) => {
             const isExpanded = expandedModules.has(mod.module_id);
+            const warningGroups = mod.legacy_warnings.reduce<Record<string, WarningInfo[]>>((groups, warning) => {
+              (groups[warning.code] ||= []).push(warning);
+              return groups;
+            }, {});
+
             return (
               <div
                 key={mod.module_id}
@@ -415,6 +667,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                         <LanguageTag language={mod.language} />
                         <StatusTag status="analyzed" />
                         {mod.is_entry_point && <StatusTag status="entry-point" label="ENTRY" />}
+                        {cycleNodeIds.has(mod.module_id) && <StatusTag status="critical" label="CYCLE" />}
                       </div>
 
                       {mod.explanation?.responsibility && (
@@ -490,6 +743,27 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                         Modernize Code
                       </Button>
                     </div>
+
+                    {/* Legacy Warnings Breakdown */}
+                    {Object.keys(warningGroups).length > 0 && (
+                      <div className="bg-amber-surface border border-amber/30 rounded-lg p-3.5 space-y-2">
+                        <div className="flex items-center gap-2 text-xs font-bold text-amber-strong">
+                          <AlertTriangle className="w-4 h-4" />
+                          <span>Legacy Code Findings ({mod.legacy_warnings.length}):</span>
+                        </div>
+                        <div className="space-y-1.5 pt-1">
+                          {Object.entries(warningGroups).map(([code, warnings]) => (
+                            <div key={code} className="text-xs bg-surface/80 rounded p-2 border border-amber/20">
+                              <span className="font-mono font-bold text-amber-strong mr-2">{code}</span>
+                              <span className="text-ink-2">{warnings[0]?.message}</span>
+                              {warnings.length > 1 && (
+                                <span className="ml-2 text-ink-3">({warnings.length} occurrences)</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Classes & Functions details */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">

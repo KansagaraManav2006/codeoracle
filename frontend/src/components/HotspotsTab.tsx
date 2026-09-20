@@ -1,22 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
-  AlertTriangle,
-  ArrowRight,
-  ChevronDown,
-  ChevronUp,
   Flame,
-  GitFork,
-  HelpCircle,
-  Info,
-  Map,
-  RefreshCw,
-  Search,
-  SlidersHorizontal,
+  Zap,
+  Network,
   TestTube,
   Wand2,
-  Zap,
+  Map,
+  ChevronDown,
+  ChevronUp,
+  SlidersHorizontal,
+  Info,
+  RefreshCw,
+  AlertTriangle,
 } from 'lucide-react';
 import { HotspotsResponse, TabType } from '../types';
+import { truncateMiddle, formatNumber } from '../utils/formatters';
+import Button from './common/Button';
+import KpiCard from './common/KpiCard';
+import SearchField from './common/SearchField';
+import { FilterChip } from './common/Chips';
+import { StatusTag } from './common/Tags';
 
 interface HotspotsTabProps {
   projectId: string;
@@ -67,277 +70,264 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
     }
   }, [projectId]);
 
+  const filtered = useMemo(() => {
+    if (!data) return [];
+    let list = data.hotspots.filter((item) => {
+      const matchesSearch =
+        item.file.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.reason.toLowerCase().includes(searchTerm.toLowerCase());
+      if (!matchesSearch) return false;
+      if (riskFilter === 'all') return true;
+      return item.risk_level === riskFilter;
+    });
+
+    list.sort((a, b) => {
+      let comparison = 0;
+      if (sortField === 'score') comparison = a.hotspot_score - b.hotspot_score;
+      else if (sortField === 'complexity') comparison = a.complexity - b.complexity;
+      else if (sortField === 'blast_radius') comparison = a.blast_radius - b.blast_radius;
+      else if (sortField === 'fan_in') comparison = a.dependency_fan_in - b.dependency_fan_in;
+      else if (sortField === 'loc') comparison = a.lines_of_code - b.lines_of_code;
+      else if (sortField === 'warnings') comparison = a.warnings_count - b.warnings_count;
+
+      return sortAsc ? comparison : -comparison;
+    });
+
+    return list;
+  }, [data, searchTerm, riskFilter, sortField, sortAsc]);
+
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 bg-white rounded-2xl border border-[#D8CFC2] min-h-[400px]">
-        <div className="relative">
-          <div className="w-12 h-12 rounded-full border-4 border-[#C7953D]/20 border-t-[#C7953D] animate-spin" />
-          <Flame className="w-6 h-6 text-[#C7953D] absolute inset-0 m-auto" />
+      <div className="space-y-6">
+        <div className="skeleton h-32 w-full" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="skeleton h-24" />
+          <div className="skeleton h-24" />
+          <div className="skeleton h-24" />
+          <div className="skeleton h-24" />
         </div>
-        <p className="mt-4 text-sm font-semibold text-[#5C554D]">
-          Computing static hotspot scores and dependency ripple matrices...
-        </p>
+        <div className="skeleton h-64 w-full" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="p-8 bg-[#FDF8F7] border border-[#EAC4C1] rounded-2xl text-center space-y-4">
-        <AlertTriangle className="w-8 h-8 text-[#C45F58] mx-auto" />
-        <h3 className="text-base font-bold text-[#8C3B35]">Unable to calculate project hotspots</h3>
-        <p className="text-xs text-[#5C554D] max-w-md mx-auto">{error}</p>
-        <button
-          onClick={fetchHotspots}
-          className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-[#D8CFC2] rounded-xl text-xs font-semibold text-[#292622] hover:bg-[#F7F4EE]"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          <span>Retry Analysis</span>
-        </button>
+      <div className="p-8 bg-red-surface rounded-xl border border-red-line text-center space-y-4">
+        <AlertTriangle className="w-8 h-8 text-red mx-auto" />
+        <h3 className="text-base font-bold text-red-text">Unable to calculate project hotspots</h3>
+        <p className="text-xs text-ink-3 max-w-md mx-auto">{error}</p>
+        <Button variant="outline" size="sm" onClick={fetchHotspots} icon={<RefreshCw className="w-3.5 h-3.5" />}>
+          Retry Analysis
+        </Button>
       </div>
     );
   }
 
   if (!data || data.hotspots.length === 0) {
     return (
-      <div className="p-12 bg-white rounded-2xl border border-[#D8CFC2] text-center space-y-3">
-        <Info className="w-8 h-8 text-[#5C554D] mx-auto" />
-        <h3 className="text-base font-bold text-[#292622]">No source files detected</h3>
-        <p className="text-xs text-[#6B645A]">
+      <div className="p-12 bg-surface rounded-xl border border-line text-center space-y-3">
+        <Info className="w-8 h-8 text-ink-3 mx-auto" />
+        <h3 className="text-base font-bold text-ink">No source files detected</h3>
+        <p className="text-xs text-ink-3">
           This project does not currently have analyzed source files to evaluate for refactoring hotspots.
         </p>
       </div>
     );
   }
 
-  // Filter & sort
-  let filtered = data.hotspots.filter((item) => {
-    const matchesSearch =
-      item.file.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.reason.toLowerCase().includes(searchTerm.toLowerCase());
-    if (!matchesSearch) return false;
-    if (riskFilter === 'all') return true;
-    return item.risk_level === riskFilter;
-  });
-
-  filtered.sort((a, b) => {
-    let comparison = 0;
-    if (sortField === 'score') comparison = a.hotspot_score - b.hotspot_score;
-    else if (sortField === 'complexity') comparison = a.complexity - b.complexity;
-    else if (sortField === 'blast_radius') comparison = a.blast_radius - b.blast_radius;
-    else if (sortField === 'fan_in') comparison = a.dependency_fan_in - b.dependency_fan_in;
-    else if (sortField === 'loc') comparison = a.lines_of_code - b.lines_of_code;
-    else if (sortField === 'warnings') comparison = a.warnings_count - b.warnings_count;
-
-    return sortAsc ? comparison : -comparison;
-  });
-
   const topHotspot = data.hotspots[0];
 
   const getScoreColor = (score: number) => {
-    if (score >= 70) return 'text-[#C45F58] bg-[#FDF2F2] border-[#F2B8B5]';
-    if (score >= 45) return 'text-[#C7953D] bg-[#FEF9EE] border-[#F5DCB7]';
-    if (score >= 20) return 'text-[#3E63DD] bg-[#F0F4FF] border-[#B8CCFA]';
-    return 'text-[#2B7D5B] bg-[#EDF8F3] border-[#B7E5D0]';
-  };
-
-  const getBadgeColor = (risk: string) => {
-    switch (risk) {
-      case 'critical':
-        return 'bg-[#C45F58] text-white';
-      case 'high':
-        return 'bg-[#C7953D] text-white';
-      case 'medium':
-        return 'bg-[#3E63DD] text-white';
-      default:
-        return 'bg-[#2B7D5B] text-white';
-    }
+    if (score >= 70) return 'text-red bg-red-surface border-red-line';
+    if (score >= 45) return 'text-amber-strong bg-amber-surface border-amber/30';
+    if (score >= 20) return 'text-indigo-text bg-indigo-surface border-indigo/20';
+    return 'text-teal-strong bg-teal-surface border-teal/20';
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header & Score Mode Indicator */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-[#D8CFC2] shadow-xs">
-        <div>
-          <div className="flex items-center gap-2">
-            <Flame className="w-5 h-5 text-[#C7953D]" />
-            <h2 className="text-lg font-black tracking-tight text-[#292622]">Refactoring Hotspots</h2>
-            <span className="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-[#181715] text-white uppercase tracking-wider">
-              Priority Matrix
-            </span>
+    <div className="space-y-6 animate-[fade-up_250ms_ease-out_both]" role="tabpanel" id="tabpanel-hotspots" aria-labelledby="tab-hotspots">
+      {/* 1. Header Card */}
+      <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-line">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div
+              className="w-11 h-11 rounded-md bg-amber-surface text-amber-strong flex items-center justify-center shrink-0 border border-amber/20"
+              aria-hidden="true"
+            >
+              <Flame className="w-5 h-5" strokeWidth={1.75} />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="font-display font-bold text-lg sm:text-[20px] text-ink leading-tight">
+                  Risk Hotspots &amp; Prioritization
+                </h2>
+                <span className="px-2 py-0.5 text-[10px] font-bold rounded-pill bg-ink text-white uppercase tracking-wider">
+                  PRIORITY MATRIX
+                </span>
+              </div>
+              <p className="font-sans text-xs text-ink-3 mt-0.5">
+                Deterministic static evaluation of complexity, lines of code, dependency fan-in, warnings, and blast radius.
+              </p>
+            </div>
           </div>
-          <p className="mt-1 text-xs text-[#5C554D]">
-            Where should the team start refactoring? Deterministic static evaluation of complexity, lines of code, dependency fan-in, warnings, and blast radius.
-          </p>
+
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-tile border border-line rounded-lg text-xs font-mono text-ink-2 shrink-0">
+            <span className="w-2 h-2 rounded-full bg-teal-strong inline-block" />
+            <span>Score Mode: Static (AST Based)</span>
+          </div>
         </div>
 
-        {/* Static Score Mode Badge */}
-        <div className="flex items-center gap-2 px-3 py-2 bg-[#F7F4EE] border border-[#D8CFC2] rounded-xl self-start sm:self-auto">
-          <div className="w-2.5 h-2.5 rounded-full bg-[#C7953D] animate-pulse" />
-          <div className="text-[11px]">
-            <span className="font-bold text-[#292622]">Score Mode: Static</span>
-            <span className="text-[#6B645A] block sm:inline sm:ml-1.5">• Git Churn Not Required</span>
-          </div>
+        {/* 4 KPI Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-5">
+          <KpiCard
+            label="TOTAL MODULES"
+            value={formatNumber(data.total_files)}
+            subtext="Evaluated statically"
+          />
+          <KpiCard
+            label="CRITICAL RISK (≥70)"
+            value={formatNumber(data.summary.critical_count ?? 0)}
+            variant={data.summary.critical_count ? 'highlight' : 'default'}
+            subtext="Urgent refactoring targets"
+          />
+          <KpiCard
+            label="HIGH RISK (≥45)"
+            value={formatNumber(data.summary.high_count ?? 0)}
+            subtext="Heavy callers or wide ripple"
+          />
+          <KpiCard
+            label="TOP HOTSPOT SCORE"
+            value={`${data.summary.highest_score ?? 0} / 100`}
+            variant="selected"
+            subtext="Normalized max severity"
+          />
         </div>
-      </div>
+      </section>
 
-      {/* Hero Recommendation Card: "Where Should I Start Refactoring?" */}
+      {/* 2. Hero Recommendation Card: #1 Recommended Starting Point */}
       {topHotspot && (
-        <div className="relative overflow-hidden bg-gradient-to-br from-[#1F1E1C] to-[#2B2925] rounded-2xl p-5 sm:p-6 text-white shadow-md border border-[#3E3A34]">
-          <div className="absolute -right-8 -bottom-8 opacity-10 pointer-events-none">
-            <Flame className="w-64 h-64 text-[#C7953D]" />
-          </div>
-
-          <div className="relative z-10 space-y-4">
+        <section className="bg-gradient-to-br from-[#1C1A17] to-[#2B2823] rounded-xl p-5 sm:p-6 text-white border border-[#3E3A34] shadow-2">
+          <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <span className="px-3 py-1 text-[11px] font-black rounded-lg bg-[#C7953D] text-[#181715] uppercase tracking-wider flex items-center gap-1.5">
+              <span className="px-2.5 py-1 text-[11px] font-bold rounded-pill bg-amber-on-dark text-ink uppercase tracking-wider flex items-center gap-1.5">
                 <Zap className="w-3.5 h-3.5 fill-current" />
                 #1 Recommended Starting Point
               </span>
-              <span className="text-xs text-[#C8BEB0]">Maximum ROI & Risk Mitigation</span>
+              <span className="text-xs text-ink-3 font-mono">Maximum ROI &amp; Risk Mitigation</span>
             </div>
 
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <h3 className="text-xl sm:text-2xl font-black text-white font-mono">{topHotspot.file}</h3>
-                <p className="mt-1.5 text-xs sm:text-sm text-[#D8CFC2] max-w-3xl leading-relaxed">
+                <h3 className="text-lg sm:text-xl font-mono font-bold text-white break-all">
+                  {topHotspot.file}
+                </h3>
+                <p className="mt-1 text-xs sm:text-[13px] text-[#D8CFC2] max-w-2xl leading-relaxed">
                   {data.recommended_start_reason || topHotspot.reason}
                 </p>
               </div>
 
-              <div className="flex items-center gap-3 self-start md:self-auto bg-white/10 px-4 py-3 rounded-xl border border-white/10 shrink-0">
+              <div className="flex items-center gap-3 bg-white/10 px-4 py-2.5 rounded-lg border border-white/15 shrink-0 self-start md:self-auto">
                 <div className="text-right">
-                  <div className="text-[10px] uppercase tracking-wider text-[#C8BEB0] font-bold">Hotspot Score</div>
-                  <div className="text-2xl font-black text-[#C7953D]">{topHotspot.hotspot_score} <span className="text-xs text-[#C8BEB0]">/ 100</span></div>
+                  <div className="text-[10px] uppercase font-bold text-amber-on-dark">HOTSPOT SCORE</div>
+                  <div className="text-2xl font-bold font-mono text-amber-on-dark">
+                    {topHotspot.hotspot_score} <span className="text-xs text-white/60">/ 100</span>
+                  </div>
                 </div>
                 <div className="w-px h-8 bg-white/20" />
-                <div className="text-left text-[11px] text-[#C8BEB0] space-y-0.5">
+                <div className="text-left text-xs text-white/80 font-mono space-y-0.5">
                   <div>CC: <span className="text-white font-bold">{topHotspot.complexity}</span></div>
                   <div>Fan-in: <span className="text-white font-bold">{topHotspot.dependency_fan_in} callers</span></div>
                 </div>
               </div>
             </div>
 
-            {/* Direct 1-Click Action Buttons connecting to the other 4 tabs */}
-            <div className="pt-2 border-t border-white/10 flex flex-wrap items-center gap-2">
-              <button
+            {/* Quick 1-Click Action Buttons */}
+            <div className="pt-2 border-t border-white/15 flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="!text-white !border-white/20 hover:!bg-white/10"
                 onClick={() => {
                   onFocusInGraph?.(topHotspot.file);
                   onNavigateTab?.('graph');
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-xs font-semibold text-white transition-colors"
-                title="Inspect in Dependency Graph"
+                icon={<Network className="w-3.5 h-3.5 text-amber-on-dark" />}
               >
-                <GitFork className="w-3.5 h-3.5 text-[#C7953D]" />
-                <span>Inspect in Graph</span>
-              </button>
-
-              <button
+                Inspect in Graph
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="!text-white !border-white/20 hover:!bg-white/10"
                 onClick={() => {
                   onSelectFile?.(topHotspot.file);
                   onNavigateTab?.('tests');
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-xs font-semibold text-white transition-colors"
-                title="Generate Characterization Tests"
+                icon={<TestTube className="w-3.5 h-3.5 text-amber-on-dark" />}
               >
-                <TestTube className="w-3.5 h-3.5 text-[#C7953D]" />
-                <span>Generate Tests</span>
-              </button>
-
-              <button
+                Generate Tests
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="!text-white !border-white/20 hover:!bg-white/10"
                 onClick={() => {
                   onSelectFile?.(topHotspot.file);
                   onNavigateTab?.('refactor');
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-xs font-semibold text-white transition-colors"
-                title="Preview Refactored Code"
+                icon={<Wand2 className="w-3.5 h-3.5 text-amber-on-dark" />}
               >
-                <Wand2 className="w-3.5 h-3.5 text-[#C7953D]" />
-                <span>Preview Refactor</span>
-              </button>
-
-              <button
+                Modernize Code
+              </Button>
+              <Button
+                variant="indigo"
+                size="sm"
                 onClick={() => {
                   onInspectImpact?.(topHotspot.file);
                   onNavigateTab?.('migration');
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#C7953D] hover:bg-[#B38332] text-[#181715] rounded-xl text-xs font-bold transition-colors ml-auto"
-                title="View Full Cascade Impact"
+                icon={<Map className="w-3.5 h-3.5" />}
               >
-                <Map className="w-3.5 h-3.5" />
-                <span>View Migration Impact</span>
-                <ArrowRight className="w-3.5 h-3.5 ml-1" />
-              </button>
+                View Migration Impact →
+              </Button>
             </div>
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Summary KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white p-4 rounded-xl border border-[#D8CFC2] shadow-xs">
-          <div className="text-[11px] font-bold text-[#5C554D] uppercase tracking-wider">Total Modules</div>
-          <div className="mt-1 text-2xl font-black text-[#292622]">{data.total_files}</div>
-          <div className="mt-0.5 text-[10px] text-[#6B645A]">Evaluated statically</div>
-        </div>
+      {/* 3. Search, Filter & Sort Controls */}
+      <div className="bg-surface border border-line rounded-lg p-3 sm:px-4 shadow-1 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <SearchField
+            id="hotspots-search"
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Search hotspot path or reason…"
+            resultCount={{
+              current: filtered.length,
+              total: data.hotspots.length,
+              unit: 'modules',
+            }}
+            className="w-full sm:w-80"
+          />
 
-        <div className="bg-white p-4 rounded-xl border border-[#D8CFC2] shadow-xs">
-          <div className="text-[11px] font-bold text-[#C45F58] uppercase tracking-wider">Critical Risk (≥70)</div>
-          <div className="mt-1 text-2xl font-black text-[#C45F58]">{data.summary.critical_count ?? 0}</div>
-          <div className="mt-0.5 text-[10px] text-[#6B645A]">Urgent modernization targets</div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-[#D8CFC2] shadow-xs">
-          <div className="text-[11px] font-bold text-[#C7953D] uppercase tracking-wider">High Risk (≥45)</div>
-          <div className="mt-1 text-2xl font-black text-[#C7953D]">{data.summary.high_count ?? 0}</div>
-          <div className="mt-0.5 text-[10px] text-[#6B645A]">Heavy callers or wide ripple</div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-[#D8CFC2] shadow-xs">
-          <div className="text-[11px] font-bold text-[#292622] uppercase tracking-wider">Top Score</div>
-          <div className="mt-1 text-2xl font-black text-[#292622]">
-            {data.summary.highest_score ?? 0} <span className="text-xs text-[#6B645A]">/ 100</span>
-          </div>
-          <div className="mt-0.5 text-[10px] text-[#6B645A]">Normalized severity</div>
-        </div>
-      </div>
-
-      {/* Filters and Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-[#D8CFC2] shadow-xs space-y-3">
-        <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
-          {/* Search */}
-          <div className="relative w-full md:w-80">
-            <Search className="w-4 h-4 text-[#5C554D] absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search file name or reason..."
-              className="w-full pl-9 pr-3 py-2 text-xs bg-[#F7F4EE] border border-[#D8CFC2] rounded-xl focus:outline-hidden focus:border-[#C7953D] focus:ring-1 focus:ring-[#C7953D]"
-            />
-          </div>
-
-          {/* Risk Level Filters */}
-          <div className="flex flex-wrap gap-1.5 w-full md:w-auto">
-            {(['all', 'critical', 'high', 'medium', 'low'] as const).map((level) => (
-              <button
-                key={level}
-                onClick={() => setRiskFilter(level)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg capitalize transition-colors ${
-                  riskFilter === level
-                    ? 'bg-[#181715] text-white'
-                    : 'bg-[#F7F4EE] text-[#5C554D] hover:bg-[#ECE5DA] border border-[#D8CFC2]'
-                }`}
-              >
-                {level === 'all' ? 'All Files' : level}
-              </button>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-sans text-xs font-bold text-ink-2 shrink-0 mr-1">Risk:</span>
+            {(['all', 'critical', 'high', 'medium', 'low'] as const).map((lvl) => (
+              <FilterChip
+                key={lvl}
+                label={lvl === 'all' ? 'ALL' : lvl.toUpperCase()}
+                active={riskFilter === lvl}
+                onClick={() => setRiskFilter(lvl)}
+              />
             ))}
           </div>
         </div>
 
         {/* Sort Controls */}
-        <div className="flex items-center gap-2 pt-2 border-t border-[#ECE5DA] overflow-x-auto text-xs text-[#5C554D]">
-          <span className="font-bold shrink-0 flex items-center gap-1">
+        <div className="flex items-center gap-2 pt-2 border-t border-line overflow-x-auto text-xs text-ink-3">
+          <span className="font-bold shrink-0 flex items-center gap-1 text-ink-2">
             <SlidersHorizontal className="w-3.5 h-3.5" />
             Sort by:
           </span>
@@ -359,10 +349,10 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
                   setSortAsc(false);
                 }
               }}
-              className={`px-2.5 py-1 rounded-md font-medium shrink-0 flex items-center gap-1 transition-colors ${
+              className={`px-2.5 py-1 rounded-md font-sans text-xs shrink-0 flex items-center gap-1 transition-colors ${
                 sortField === s.id
-                  ? 'bg-[#EAE4D9] text-[#181715] font-bold'
-                  : 'hover:bg-[#F7F4EE] text-[#5C554D]'
+                  ? 'bg-ink text-white font-semibold'
+                  : 'bg-tile text-ink-2 hover:bg-track border border-line'
               }`}
             >
               <span>{s.label}</span>
@@ -372,10 +362,10 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
         </div>
       </div>
 
-      {/* Hotspots List */}
-      <div className="space-y-3">
+      {/* 4. Hotspots List with Factor Breakdown */}
+      <div className="space-y-2.5">
         {filtered.length === 0 ? (
-          <div className="p-8 bg-white rounded-xl border border-[#D8CFC2] text-center text-xs text-[#5C554D]">
+          <div className="p-8 bg-surface rounded-lg border border-line text-center text-xs text-ink-3">
             No files match the selected search and risk criteria.
           </div>
         ) : (
@@ -386,183 +376,140 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
             return (
               <div
                 key={item.file}
-                className="bg-white rounded-xl border border-[#D8CFC2] p-4 shadow-xs hover:border-[#C8BEB0] transition-all space-y-3"
+                className="bg-surface rounded-lg border border-line shadow-1 overflow-hidden transition-all"
               >
-                {/* File Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-start sm:items-center gap-3">
-                    {/* Rank Badge */}
-                    <div className="w-7 h-7 rounded-lg bg-[#F7F4EE] border border-[#D8CFC2] flex items-center justify-center font-bold text-xs text-[#5C554D] shrink-0">
+                <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-start sm:items-center gap-3 min-w-0">
+                    <span className="w-7 h-7 rounded-md bg-tile border border-line flex items-center justify-center font-mono font-bold text-xs text-ink-2 shrink-0">
                       #{index + 1}
-                    </div>
+                    </span>
 
-                    <div>
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono font-bold text-sm text-[#181715]">{item.file}</span>
-                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md uppercase tracking-wider ${getBadgeColor(item.risk_level)}`}>
-                          {item.risk_level}
+                        <span className="font-mono font-bold text-[13px] text-ink truncate" title={item.file}>
+                          {truncateMiddle(item.file, 36)}
                         </span>
+                        <StatusTag status={item.risk_level === 'critical' ? 'critical' : item.risk_level === 'high' ? 'complex' : 'analyzed'} label={item.risk_level.toUpperCase()} />
                         {item.is_partially_parsed && (
-                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-[#FFF4E5] text-[#B25E00] border border-[#F5DCB7]">
-                            Partially Parsed
-                          </span>
+                          <StatusTag status="warning" label="PARTIAL AST" />
                         )}
                       </div>
-                      <p className="mt-1 text-xs text-[#5C554D]">{item.reason}</p>
+                      <p className="mt-1 text-xs text-ink-3 truncate max-w-xl">{item.reason}</p>
                     </div>
                   </div>
 
-                  {/* Hotspot Score Pill */}
                   <div className="flex items-center gap-3 self-end sm:self-auto shrink-0">
-                    <div className={`px-3 py-1.5 rounded-xl border font-mono font-black text-sm flex items-center gap-1.5 ${getScoreColor(item.hotspot_score)}`}>
-                      <Flame className="w-4 h-4 fill-current" />
+                    <div className={`px-2.5 py-1 rounded-md border font-mono font-bold text-xs flex items-center gap-1.5 ${getScoreColor(item.hotspot_score)}`}>
+                      <Flame className="w-3.5 h-3.5 fill-current" />
                       <span>{item.hotspot_score}</span>
-                      <span className="text-[10px] opacity-75 font-normal">/ 100</span>
+                      <span className="text-[10px] opacity-70">/ 100</span>
                     </div>
 
                     <button
+                      type="button"
                       onClick={() => setExpandedFile(isExpanded ? null : item.file)}
-                      className="p-1.5 hover:bg-[#F7F4EE] rounded-lg text-[#5C554D] border border-transparent hover:border-[#D8CFC2]"
-                      title="Toggle Score Breakdown"
+                      aria-expanded={isExpanded}
+                      className="px-2.5 py-1 text-xs font-semibold rounded-md border border-line bg-tile hover:bg-track text-ink-2 flex items-center gap-1 transition-colors"
                     >
-                      {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      <span>Factors</span>
+                      {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 </div>
 
-                {/* 5-Factor Key Metrics Chips */}
-                <div className="flex flex-wrap gap-2 text-xs">
-                  <div className="px-2.5 py-1 rounded-lg bg-[#F7F4EE] border border-[#D8CFC2] text-[#292622] flex items-center gap-1.5">
-                    <span className="text-[#6B645A]">Complexity:</span>
-                    <span className="font-bold">{item.complexity}</span>
-                    <span className="text-[10px] text-[#6B645A]">({item.complexity_rating})</span>
-                  </div>
-
-                  <div className="px-2.5 py-1 rounded-lg bg-[#F7F4EE] border border-[#D8CFC2] text-[#292622] flex items-center gap-1.5">
-                    <span className="text-[#6B645A]">Size:</span>
-                    <span className="font-bold">{item.lines_of_code} LOC</span>
-                  </div>
-
-                  <div className="px-2.5 py-1 rounded-lg bg-[#F7F4EE] border border-[#D8CFC2] text-[#292622] flex items-center gap-1.5">
-                    <span className="text-[#6B645A]">Fan-in:</span>
-                    <span className="font-bold text-[#3E63DD]">{item.dependency_fan_in} callers</span>
-                  </div>
-
-                  <div className="px-2.5 py-1 rounded-lg bg-[#F7F4EE] border border-[#D8CFC2] text-[#292622] flex items-center gap-1.5">
-                    <span className="text-[#6B645A]">Warnings:</span>
-                    <span className="font-bold text-[#C7953D]">{item.warnings_count}</span>
-                  </div>
-
-                  <div className="px-2.5 py-1 rounded-lg bg-[#F7F4EE] border border-[#D8CFC2] text-[#292622] flex items-center gap-1.5">
-                    <span className="text-[#6B645A]">Blast Radius:</span>
-                    <span className="font-bold text-[#C45F58]">{item.blast_radius} ripple</span>
-                  </div>
-                </div>
-
-                {/* Expanded Detailed 5-Factor Sub-Score Grid */}
-                {isExpanded && factors && (
-                  <div className="p-3.5 bg-[#FBF9F5] rounded-xl border border-[#D8CFC2] space-y-3">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#292622]">
-                      <HelpCircle className="w-3.5 h-3.5 text-[#C7953D]" />
-                      <span>Static Scoring Breakdown (0–100 total):</span>
+                {/* Expanded Score Factors Breakdown */}
+                {isExpanded && (
+                  <div className="px-5 pb-5 pt-3 border-t border-line/80 bg-tile/30 space-y-4 animate-[fade-up_150ms_ease-out_both]">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-ink-2">
+                        Transparent Scoring Factors (Sub-scores 0–100 weighted)
+                      </span>
+                      <span className="text-[11px] text-ink-3 font-mono">
+                        Formula: 25% CC + 20% FanIn + 20% Blast + 20% Warn + 15% LOC
+                      </span>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
-                      <div className="p-2 bg-white rounded-lg border border-[#D8CFC2]">
-                        <div className="text-[10px] text-[#6B645A] font-semibold">Complexity (max 25)</div>
-                        <div className="mt-1 font-mono font-bold text-[#292622]">+{factors.complexity_score} pts</div>
-                        <div className="text-[10px] text-[#6B645A]">raw: {factors.complexity_raw}</div>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                      <div className="p-2.5 bg-surface border border-line rounded-md">
+                        <div className="text-[10px] uppercase font-bold text-ink-3">Complexity</div>
+                        <div className="text-sm font-bold font-mono text-ink mt-0.5">{item.complexity} CC</div>
+                        <div className="text-[10px] text-ink-3">+{factors.complexity_score} pts</div>
                       </div>
-
-                      <div className="p-2 bg-white rounded-lg border border-[#D8CFC2]">
-                        <div className="text-[10px] text-[#6B645A] font-semibold">Size / LOC (max 15)</div>
-                        <div className="mt-1 font-mono font-bold text-[#292622]">+{factors.loc_score} pts</div>
-                        <div className="text-[10px] text-[#6B645A]">raw: {factors.loc_raw} LOC</div>
+                      <div className="p-2.5 bg-surface border border-line rounded-md">
+                        <div className="text-[10px] uppercase font-bold text-ink-3">Fan-in Callers</div>
+                        <div className="text-sm font-bold font-mono text-ink mt-0.5">{item.dependency_fan_in} callers</div>
+                        <div className="text-[10px] text-ink-3">+{factors.fan_in_score} pts</div>
                       </div>
-
-                      <div className="p-2 bg-white rounded-lg border border-[#D8CFC2]">
-                        <div className="text-[10px] text-[#6B645A] font-semibold">Fan-in (max 20)</div>
-                        <div className="mt-1 font-mono font-bold text-[#3E63DD]">+{factors.fan_in_score} pts</div>
-                        <div className="text-[10px] text-[#6B645A]">raw: {factors.fan_in_raw} callers</div>
+                      <div className="p-2.5 bg-surface border border-line rounded-md">
+                        <div className="text-[10px] uppercase font-bold text-ink-3">Blast Radius</div>
+                        <div className="text-sm font-bold font-mono text-ink mt-0.5">{item.blast_radius} files</div>
+                        <div className="text-[10px] text-ink-3">+{factors.blast_radius_score} pts</div>
                       </div>
-
-                      <div className="p-2 bg-white rounded-lg border border-[#D8CFC2]">
-                        <div className="text-[10px] text-[#6B645A] font-semibold">Warnings (max 20)</div>
-                        <div className="mt-1 font-mono font-bold text-[#C7953D]">+{factors.warnings_score} pts</div>
-                        <div className="text-[10px] text-[#6B645A]">raw: {factors.warnings_raw} issues</div>
+                      <div className="p-2.5 bg-surface border border-line rounded-md">
+                        <div className="text-[10px] uppercase font-bold text-ink-3">Warnings</div>
+                        <div className="text-sm font-bold font-mono text-ink mt-0.5">{item.warnings_count} notes</div>
+                        <div className="text-[10px] text-ink-3">+{factors.warnings_score} pts</div>
                       </div>
-
-                      <div className="p-2 bg-white rounded-lg border border-[#D8CFC2]">
-                        <div className="text-[10px] text-[#6B645A] font-semibold">Blast Radius (max 20)</div>
-                        <div className="mt-1 font-mono font-bold text-[#C45F58]">+{factors.blast_radius_score} pts</div>
-                        <div className="text-[10px] text-[#6B645A]">raw: {factors.blast_radius_raw} files</div>
+                      <div className="p-2.5 bg-surface border border-line rounded-md">
+                        <div className="text-[10px] uppercase font-bold text-ink-3">Code Volume</div>
+                        <div className="text-sm font-bold font-mono text-ink mt-0.5">{item.lines_of_code} LOC</div>
+                        <div className="text-[10px] text-ink-3">+{factors.loc_score} pts</div>
                       </div>
                     </div>
 
-                    {/* Recommendation */}
-                    <div className="text-xs text-[#5C554D] flex items-start gap-1.5 pt-1">
-                      <span className="font-bold text-[#292622] shrink-0">Recommendation:</span>
-                      <span>{item.recommended_action}</span>
+                    <div className="p-3 bg-surface border border-line rounded-md text-xs">
+                      <strong className="text-ink font-semibold">Recommended Remediation: </strong>
+                      <span className="text-ink-2">{item.recommended_action}</span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          onFocusInGraph?.(item.file);
+                          onNavigateTab?.('graph');
+                        }}
+                        icon={<Network className="w-3.5 h-3.5" />}
+                      >
+                        Inspect in Graph
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          onInspectImpact?.(item.file);
+                          onNavigateTab?.('migration');
+                        }}
+                        icon={<Map className="w-3.5 h-3.5" />}
+                      >
+                        Downstream Blast Radius
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          onSelectFile?.(item.file);
+                          onNavigateTab?.('tests');
+                        }}
+                        icon={<TestTube className="w-3.5 h-3.5" />}
+                      >
+                        Generate Tests
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          onSelectFile?.(item.file);
+                          onNavigateTab?.('refactor');
+                        }}
+                        icon={<Wand2 className="w-3.5 h-3.5" />}
+                      >
+                        Modernize Code
+                      </Button>
                     </div>
                   </div>
                 )}
-
-                {/* 4 Action Buttons on every card */}
-                <div className="pt-2 border-t border-[#ECE5DA] flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-[11px] text-[#6B645A]">
-                    {item.recommended_action}
-                  </div>
-
-                  <div className="flex items-center gap-1.5 ml-auto">
-                    <button
-                      onClick={() => {
-                        onFocusInGraph?.(item.file);
-                        onNavigateTab?.('graph');
-                      }}
-                      className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-[#F7F4EE] hover:bg-[#ECE5DA] border border-[#D8CFC2] text-[#292622] flex items-center gap-1 transition-colors"
-                      title="Focus module in Dependency Graph"
-                    >
-                      <GitFork className="w-3.5 h-3.5 text-[#5C554D]" />
-                      <span>Graph</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        onSelectFile?.(item.file);
-                        onNavigateTab?.('tests');
-                      }}
-                      className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-[#F7F4EE] hover:bg-[#ECE5DA] border border-[#D8CFC2] text-[#292622] flex items-center gap-1 transition-colors"
-                      title="Generate or inspect characterization tests"
-                    >
-                      <TestTube className="w-3.5 h-3.5 text-[#5C554D]" />
-                      <span>Tests</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        onSelectFile?.(item.file);
-                        onNavigateTab?.('refactor');
-                      }}
-                      className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-[#F7F4EE] hover:bg-[#ECE5DA] border border-[#D8CFC2] text-[#292622] flex items-center gap-1 transition-colors"
-                      title="Preview refactor diff proposals"
-                    >
-                      <Wand2 className="w-3.5 h-3.5 text-[#5C554D]" />
-                      <span>Refactor</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        onInspectImpact?.(item.file);
-                        onNavigateTab?.('migration');
-                      }}
-                      className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-[#181715] hover:bg-black text-white flex items-center gap-1 transition-colors"
-                      title="Inspect change impact in Migration Plan"
-                    >
-                      <Map className="w-3.5 h-3.5 text-[#C7953D]" />
-                      <span>Impact</span>
-                    </button>
-                  </div>
-                </div>
               </div>
             );
           })

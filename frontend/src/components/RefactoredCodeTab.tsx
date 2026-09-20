@@ -3,8 +3,13 @@ import {
   Wand2,
   Download,
   FileText,
+  ShieldCheck,
+  ShieldAlert,
+  Loader2,
+  CheckCircle2,
+  Lock,
 } from 'lucide-react';
-import { ProjectRefactorResult, RefactoredFile } from '../types';
+import { ProjectRefactorResult, RefactoredFile, RefactorVerificationResult } from '../types';
 import { truncateMiddle, formatNumber } from '../utils/formatters';
 import Button from './common/Button';
 import KpiCard from './common/KpiCard';
@@ -22,13 +27,14 @@ interface RefactoredCodeTabProps {
 export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
   projectId,
   projectName: _projectName = 'project',
-  trustedDemo: _trustedDemo = false,
+  trustedDemo = false,
 }) => {
   const [result, setResult] = useState<ProjectRefactorResult | null>(null);
   const [selectedPath, setSelectedPath] = useState('');
   const [mode, setMode] = useState<DiffMode>('diff');
   const [loading, setLoading] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
@@ -43,6 +49,17 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
       if (response.status === 409) return;
       if (!response.ok) throw new Error(`Failed to load proposal (${response.status})`);
       const data: ProjectRefactorResult = await response.json();
+
+      // Check if existing verification exists
+      try {
+        const vRes = await fetch(`/api/projects/${projectId}/refactor/verify`);
+        if (vRes.ok) {
+          data.verification = await vRes.json();
+        }
+      } catch {
+        // Verification is optional/pre-computed
+      }
+
       setResult(data);
 
       const firstChanged = data.files.find((f) => f.changed)?.relative_path || data.files[0]?.relative_path || '';
@@ -80,6 +97,32 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
       showToast(msg, 'error');
     } finally {
       setRegenerating(false);
+    }
+  };
+
+  const handleVerify = async () => {
+    if (!projectId || !trustedDemo || verifying) return;
+    setVerifying(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/refactor/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: true }),
+      });
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.detail || `Verification failed (${response.status})`);
+      }
+      const verifData: RefactorVerificationResult = await response.json();
+      setResult((prev) => (prev ? { ...prev, verification: verifData } : prev));
+      showToast('Modernization verified in disposable sandbox', 'success');
+    } catch (err: any) {
+      const msg = err instanceof Error ? err.message : 'Verification failed';
+      setError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -134,6 +177,7 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
   const filesWithSuggestions = result?.changed_files || changedFiles.length;
   const suggestedUpdates = result?.total_changes || 0;
   const breakingRisks = result?.breaking_warning_count || 0;
+  const verification = result?.verification;
 
   return (
     <div
@@ -142,7 +186,7 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
       id="tabpanel-refactor"
       aria-labelledby="tab-refactor"
     >
-      {/* 1. Header Bar per DESIGN.md §8.5 */}
+      {/* 1. Header Bar */}
       <section className="bg-surface border border-line rounded-lg p-4 sm:p-5 shadow-1 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5 min-w-0">
           <div
@@ -153,10 +197,10 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
           </div>
           <div className="min-w-0">
             <h2 className="font-display font-bold text-lg sm:text-[20px] text-ink leading-tight">
-              Modernization Proposal
+              Modernization Proposal &amp; Verification
             </h2>
             <p className="font-sans text-xs text-ink-3 mt-0.5">
-              Suggested updates shown as reviewable before-and-after changes.
+              Suggested updates shown as reviewable diffs, tested in a disposable sandbox before merging.
             </p>
           </div>
         </div>
@@ -184,7 +228,7 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
         </div>
       </section>
 
-      {/* 2. Four KPI Cards per DESIGN.md §8.5 */}
+      {/* 2. Four KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <KpiCard
           label="FILES REVIEWED"
@@ -210,7 +254,157 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
         />
       </div>
 
-      {/* 3. Amber Notice per DESIGN.md §8.5 */}
+      {/* 3. Verified Modernization Sandbox Panel (Phase 7) */}
+      <section className="bg-surface border border-line rounded-xl p-5 shadow-1 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-line">
+          <div className="flex items-center gap-3">
+            <div
+              className={`p-2.5 rounded-lg border shrink-0 ${
+                verification?.verified
+                  ? 'bg-teal-surface text-teal-strong border-teal/20'
+                  : verification?.status === 'safety_locked'
+                  ? 'bg-amber-surface text-amber-strong border-amber/20'
+                  : verification?.status === 'failed'
+                  ? 'bg-red-surface text-red-text border-red-line'
+                  : 'bg-indigo-surface text-indigo-text border-indigo/20'
+              }`}
+            >
+              {verification?.verified ? (
+                <ShieldCheck className="w-5 h-5" strokeWidth={2} />
+              ) : (
+                <ShieldAlert className="w-5 h-5" strokeWidth={2} />
+              )}
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-display font-bold text-sm sm:text-base text-ink">
+                  Modernization Verification Loop
+                </h3>
+                <span
+                  className={`px-2 py-0.5 rounded-pill font-sans text-[10px] font-bold uppercase tracking-wider border ${
+                    verification?.verified
+                      ? 'border-teal/30 bg-teal-surface text-teal-strong'
+                      : verification?.status === 'safety_locked'
+                      ? 'border-amber/30 bg-amber-surface text-amber-strong'
+                      : verification?.status === 'failed'
+                      ? 'border-red-line bg-red-surface text-red-text'
+                      : 'border-line bg-tile text-ink-3'
+                  }`}
+                >
+                  {verification?.verified
+                    ? 'Status: Verified'
+                    : verification?.status === 'safety_locked'
+                    ? 'Status: Safety Locked'
+                    : verification?.status === 'failed'
+                    ? 'Status: Regression Detected'
+                    : 'Status: Unverified'}
+                </span>
+              </div>
+              <p className="font-sans text-xs text-ink-3 mt-0.5">
+                {verification?.verification_summary ||
+                  (!trustedDemo
+                    ? 'Untrusted uploaded repositories are execution-locked to prevent arbitrary code execution. Sandbox verification is enabled for trusted built-in demos.'
+                    : 'Execute characterization tests in an isolated disposable sandbox to verify the modernization before-and-after.')}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {!trustedDemo ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-xs font-semibold bg-amber-surface text-amber-strong border border-amber/30">
+                <Lock className="w-3.5 h-3.5" />
+                <span>Execution Locked (Untrusted)</span>
+              </span>
+            ) : (
+              <Button
+                variant={verification?.verified ? 'outline' : 'indigo'}
+                size="sm"
+                onClick={handleVerify}
+                disabled={verifying}
+                icon={
+                  verifying ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  )
+                }
+              >
+                {verifying
+                  ? 'Verifying in Sandbox…'
+                  : verification
+                  ? 'Re-verify in Sandbox'
+                  : 'Verify in Disposable Sandbox'}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Verification Metrics Grid */}
+        {verification && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+            <div className="bg-tile border border-line rounded-lg p-3">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
+                Regression Tests
+              </span>
+              <p className="mt-1 font-mono text-base font-bold text-ink">
+                {verification.after_tests.passed_tests} / {verification.baseline_tests.passed_tests} passed
+              </p>
+              <p className="text-[11px] text-ink-3 mt-0.5">
+                Baseline: {verification.baseline_tests.passed_tests} · Modernized: {verification.after_tests.passed_tests}
+              </p>
+            </div>
+
+            <div className="bg-tile border border-line rounded-lg p-3">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
+                Syntax Validation
+              </span>
+              <p
+                className={`mt-1 font-mono text-base font-bold ${
+                  verification.syntax_status === 'passed' ? 'text-teal-strong' : 'text-red'
+                }`}
+              >
+                {verification.syntax_status === 'passed' ? 'AST Validated' : 'Syntax Error'}
+              </p>
+              <p className="text-[11px] text-ink-3 mt-0.5">
+                {verification.changed_files.length} modified file(s) checked
+              </p>
+            </div>
+
+            <div className="bg-tile border border-line rounded-lg p-3">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
+                Dependency Loops
+              </span>
+              <p
+                className={`mt-1 font-mono text-base font-bold ${
+                  verification.metrics.new_cycles === 0 ? 'text-teal-strong' : 'text-red'
+                }`}
+              >
+                {verification.metrics.new_cycles} new cycles
+              </p>
+              <p className="text-[11px] text-ink-3 mt-0.5">
+                Total loops after: {verification.metrics.cycles_after}
+              </p>
+            </div>
+
+            <div className="bg-tile border border-line rounded-lg p-3">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
+                Readiness Score Delta
+              </span>
+              <p className="mt-1 font-mono text-base font-bold text-ink">
+                {verification.metrics.readiness_before}/100 → {verification.metrics.readiness_after}/100
+              </p>
+              <p className="text-[11px] font-semibold text-teal-strong mt-0.5">
+                {verification.metrics.readiness_delta >= 0
+                  ? `+${verification.metrics.readiness_delta} pts improvement`
+                  : `${verification.metrics.readiness_delta} pts`}
+              </p>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* 4. Amber Notice */}
       <Notice type="warning">
         Human review required — Prepared {suggestedUpdates} modernization rule {suggestedUpdates === 1 ? 'group' : 'groups'} across {filesWithSuggestions} {filesWithSuggestions === 1 ? 'file' : 'files'}. Review every diff and run the generated tests before merging.
       </Notice>
@@ -221,7 +415,7 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
         </div>
       )}
 
-      {/* 4. Master–Detail Layout: Files with suggestions list (280px) + Dark Diff Viewer */}
+      {/* 5. Master–Detail Layout: Files with suggestions list (280px) + Dark Diff Viewer */}
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 items-start">
         {/* Left: Files with suggestions */}
         <div

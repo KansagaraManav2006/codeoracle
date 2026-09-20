@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { BookOpen, Workflow, TestTube, Wand2, Map, LucideIcon } from 'lucide-react';
+import { BookOpen, Flame, Workflow, TestTube, Wand2, Map, LucideIcon } from 'lucide-react';
 import { TabType } from '../types';
 
 interface TabNavigationProps {
@@ -28,18 +28,19 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
   const tabButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const tabs: TabConfig[] = [
-    { id: 'explanation', label: 'Explanation', icon: BookOpen },
+    { id: 'explanation', label: 'Architecture Overview', icon: BookOpen },
+    { id: 'hotspots', label: 'Risk Hotspots', icon: Flame },
     {
       id: 'graph',
-      label: 'Dependency Graph',
+      label: 'Dependency Map',
       icon: Workflow,
       statusDot: hasDependencyLoops ? 'red' : undefined,
     },
-    { id: 'tests', label: 'Generated Tests', icon: TestTube },
-    { id: 'refactor', label: 'Refactored Code', icon: Wand2 },
+    { id: 'tests', label: 'Safety Tests', icon: TestTube },
+    { id: 'refactor', label: 'Modernization', icon: Wand2 },
     {
       id: 'migration',
-      label: 'Migration Plan',
+      label: 'Impact & Plan',
       icon: Map,
       statusDot: hasHumanReviewRequired ? 'amber' : undefined,
     },
@@ -79,20 +80,30 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
 
   return (
     <div className="w-full mb-6">
-      {/* Context banner if target file is active */}
-      {targetFile && (
-        <div className="mb-3 flex items-center justify-between gap-2 px-1">
-          <span className="text-[11px] font-sans font-semibold text-ink-3 uppercase tracking-wider">
-            Focused Target:
+      {/* Guided modernization workflow subtitle banner */}
+      <div className="mb-2.5 flex min-w-max items-center justify-between gap-2 px-1 text-[11px] font-sans">
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-ink uppercase tracking-wider text-[10px]">
+            Guided workflow:
           </span>
-          <span
-            className="max-w-[320px] truncate rounded-pill bg-indigo-surface px-2.5 py-0.5 font-mono text-xs font-semibold text-indigo-text border border-indigo/20"
-            title={targetFile}
-          >
-            {targetFile}
+          <span className="text-ink-3 hidden sm:inline">
+            Audit → Risk Hotspots → Dependency Map → Safety Tests → Modernize → Impact &amp; Plan
           </span>
         </div>
-      )}
+        {targetFile && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-bold text-ink-3 uppercase tracking-wider">
+              Focused Target:
+            </span>
+            <span
+              className="max-w-[280px] truncate rounded-pill bg-indigo-surface px-2.5 py-0.5 font-mono text-xs font-semibold text-indigo-text border border-indigo/20"
+              title={targetFile}
+            >
+              {targetFile}
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* Tab bar track */}
       <div

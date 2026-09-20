@@ -25,7 +25,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
   if (!isOpen) return null;
 
   const shortcuts = [
-    { key: '1 – 5', description: 'Switch between workspace tabs in order' },
+    { key: '1 – 6', description: 'Switch between workspace tabs in order' },
     { key: '/', description: 'Focus search input on active view' },
     { key: 'c', description: 'Copy code or proposal in active viewer' },
     { key: 'g', description: 'Toggle dependency cycle highlighting' },

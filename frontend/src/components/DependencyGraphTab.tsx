@@ -19,6 +19,9 @@ import {
   ExternalLink,
   Target,
   List,
+  Filter,
+  ArrowUpRight,
+  ArrowDownLeft,
 } from 'lucide-react';
 import { GraphResponse, TabType } from '../types';
 import { truncateMiddle, formatNumber, getDownloadFileName } from '../utils/formatters';
@@ -26,7 +29,7 @@ import Button from './common/Button';
 import StatTile from './common/StatTile';
 import SearchField from './common/SearchField';
 import SegmentedControl from './common/SegmentedControl';
-import { ToggleChip } from './common/Chips';
+import { ToggleChip, FilterChip } from './common/Chips';
 import { LanguageTag, StatusTag } from './common/Tags';
 import { useToast } from './common/Toast';
 
@@ -39,7 +42,9 @@ interface DependencyGraphTabProps {
   onSelectFile?: (filePath: string) => void;
 }
 
-// Custom React Flow node component matching DESIGN.md §7.8
+type GraphFilterMode = 'all' | 'entry_points' | 'high_complexity' | 'cycles' | 'upstream' | 'downstream';
+
+// Custom React Flow node component
 const GraphNodeComponent = ({ data }: any) => {
   const { node, isSelected, isCycle, isEntryPoint, isExternal } = data;
 
@@ -126,6 +131,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [edgeFilter, setEdgeFilter] = useState<'all' | 'import' | 'require'>('all');
+  const [filterMode, setFilterMode] = useState<GraphFilterMode>('all');
   const [includeExternal, setIncludeExternal] = useState(false);
   const [highlightCycles, setHighlightCycles] = useState(true);
   const [viewMode, setViewMode] = useState<'graph' | 'list'>('graph');
@@ -190,6 +196,25 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
     return set;
   }, [graph]);
 
+  // Upstream and downstream sets for isolation
+  const upstreamNodeIds = useMemo(() => {
+    if (!selectedNodeId || !graph) return new Set<string>();
+    const set = new Set<string>([selectedNodeId]);
+    graph.edges.forEach((e) => {
+      if (e.target === selectedNodeId) set.add(e.source);
+    });
+    return set;
+  }, [selectedNodeId, graph]);
+
+  const downstreamNodeIds = useMemo(() => {
+    if (!selectedNodeId || !graph) return new Set<string>();
+    const set = new Set<string>([selectedNodeId]);
+    graph.edges.forEach((e) => {
+      if (e.source === selectedNodeId) set.add(e.target);
+    });
+    return set;
+  }, [selectedNodeId, graph]);
+
   // Filtered nodes
   const filteredNodes = useMemo(() => {
     if (!graph) return [];
@@ -198,9 +223,18 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
       if (searchQuery.trim() && !n.label.toLowerCase().includes(searchQuery.toLowerCase())) {
         return false;
       }
+
+      if (filterMode === 'entry_points' && !n.is_entry_point) return false;
+      if (filterMode === 'high_complexity' && n.complexity_rating !== 'high' && n.complexity_rating !== 'critical') {
+        return false;
+      }
+      if (filterMode === 'cycles' && !cycleNodeIds.has(n.id)) return false;
+      if (filterMode === 'upstream' && !upstreamNodeIds.has(n.id)) return false;
+      if (filterMode === 'downstream' && !downstreamNodeIds.has(n.id)) return false;
+
       return true;
     });
-  }, [graph, includeExternal, searchQuery]);
+  }, [graph, includeExternal, searchQuery, filterMode, cycleNodeIds, upstreamNodeIds, downstreamNodeIds]);
 
   const filteredNodeIds = useMemo(() => new Set(filteredNodes.map((n) => n.id)), [filteredNodes]);
 
@@ -242,7 +276,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
     });
   }, [filteredNodes, selectedNodeId, cycleNodeIds, highlightCycles]);
 
-  // React Flow Edges
+  // React Flow Edges with Type-Only visual distinction
   const rfEdges: Edge[] = useMemo(() => {
     return filteredEdges.map((e) => {
       const isCycle = cycleEdgePairs.has(`${e.source}->${e.target}`) && highlightCycles;
@@ -251,14 +285,21 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
 
       let stroke = 'rgba(77, 80, 215, 0.65)';
       let strokeWidth = 1.5;
-      let strokeDasharray = undefined;
+      let strokeDasharray: string | undefined = undefined;
       let opacity = selectedNodeId ? (isConnectedToSelected ? 1 : 0.15) : 0.75;
+      let label: string | undefined = undefined;
 
       if (isCycle) {
         stroke = 'var(--red)';
-        strokeWidth = 2;
+        strokeWidth = 2.2;
         strokeDasharray = '4 4';
         opacity = 1;
+      } else if (e.is_type_only) {
+        stroke = '#7862DE'; // Type-only import (violet)
+        strokeWidth = 1.5;
+        strokeDasharray = '3 3';
+        label = 'type';
+        opacity = selectedNodeId ? (isConnectedToSelected ? 0.9 : 0.15) : 0.65;
       } else if (isConnectedToSelected) {
         stroke = 'var(--indigo)';
         strokeWidth = 2.5;
@@ -271,6 +312,8 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
         target: e.target,
         type: 'smoothstep',
         animated: isCycle,
+        label,
+        labelStyle: { fill: '#7862DE', fontSize: 10, fontFamily: 'monospace', fontWeight: 600 },
         style: { stroke, strokeWidth, strokeDasharray, opacity },
       };
     });
@@ -281,15 +324,25 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
     return graph.nodes.find((n) => n.id === selectedNodeId) || null;
   }, [selectedNodeId, graph]);
 
-  // Upstream / downstream for selected
-  const upstreamDependencies = useMemo(() => {
+  // Incoming / outgoing edge breakdown
+  const incomingEdges = useMemo(() => {
     if (!selectedNodeId || !graph) return [];
-    return graph.edges.filter((e) => e.target === selectedNodeId).map((e) => e.source);
+    return graph.edges.filter((e) => e.target === selectedNodeId);
   }, [selectedNodeId, graph]);
 
-  const downstreamDependents = useMemo(() => {
+  const outgoingEdges = useMemo(() => {
     if (!selectedNodeId || !graph) return [];
-    return graph.edges.filter((e) => e.source === selectedNodeId).map((e) => e.target);
+    return graph.edges.filter((e) => e.source === selectedNodeId);
+  }, [selectedNodeId, graph]);
+
+  const inRuntime = incomingEdges.filter((e) => !e.is_type_only).length;
+  const inTypeOnly = incomingEdges.filter((e) => e.is_type_only).length;
+  const outRuntime = outgoingEdges.filter((e) => !e.is_type_only).length;
+  const outTypeOnly = outgoingEdges.filter((e) => e.is_type_only).length;
+
+  const cyclesWithNode = useMemo(() => {
+    if (!selectedNodeId || !graph) return [];
+    return graph.cycles.filter((c) => c.includes(selectedNodeId));
   }, [selectedNodeId, graph]);
 
   const handleDownloadMermaid = () => {
@@ -303,7 +356,8 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
     graph.edges.forEach((e) => {
       const src = e.source.replace(/[^a-zA-Z0-9_.-]/g, '_');
       const tgt = e.target.replace(/[^a-zA-Z0-9_.-]/g, '_');
-      mmd += `  ${src} --> ${tgt}\n`;
+      const arrow = e.is_type_only ? '-.->' : '-->';
+      mmd += `  ${src} ${arrow} ${tgt}\n`;
     });
 
     const blob = new Blob([mmd], { type: 'text/plain;charset=utf-8' });
@@ -349,7 +403,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
 
   return (
     <div className="space-y-6 animate-[fade-up_250ms_ease-out_both]" role="tabpanel" id="tabpanel-graph" aria-labelledby="tab-graph">
-      {/* 1. Section Header Card per DESIGN.md §8.3 */}
+      {/* 1. Section Header Card */}
       <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-line">
           <div className="flex items-center gap-3.5 min-w-0">
@@ -362,7 +416,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="font-display font-bold text-lg sm:text-[20px] text-ink leading-tight">
-                  Code Relationships
+                  Code Relationships &amp; Architecture Map
                 </h2>
                 <StatusTag status="project-view" label="PROJECT VIEW" />
                 {cycleCount > 0 && (
@@ -372,7 +426,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                 )}
               </div>
               <p className="font-sans text-xs text-ink-3 mt-0.5">
-                See how files connect and identify areas that need attention.
+                Explore architectural dependencies, entry points, and verified runtime loops with type-only import separation.
               </p>
             </div>
           </div>
@@ -389,7 +443,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
           </div>
         </div>
 
-        {/* 6 Stat tiles across per DESIGN.md §7.5 f) and §8.3 */}
+        {/* 6 Stat tiles across */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-5">
           <StatTile label="Files shown" value={formatNumber(filteredNodes.length)} color="ink" />
           <StatTile label="Connections" value={formatNumber(filteredEdges.length)} color="indigo" />
@@ -400,7 +454,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
         </div>
       </section>
 
-      {/* 2. Toolbar per DESIGN.md §8.3 */}
+      {/* 2. Subgraph Views Toolbar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-surface border border-line rounded-lg p-3 sm:px-4 shadow-1">
         <SearchField
           id="graph-search"
@@ -408,10 +462,54 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
           onChange={setSearchQuery}
           placeholder="Search files and modules…"
           resultCount={{ current: filteredNodes.length, total: graph.nodes.length, unit: 'nodes' }}
-          className="w-full lg:w-72"
+          className="w-full lg:w-64"
         />
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        {/* Subgraph Filter Chips */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-xs font-bold text-ink-2 flex items-center gap-1 mr-1">
+            <Filter className="w-3 h-3 text-indigo" />
+            View:
+          </span>
+          <FilterChip
+            label="ALL"
+            active={filterMode === 'all'}
+            onClick={() => setFilterMode('all')}
+          />
+          <FilterChip
+            label="ENTRY POINTS"
+            active={filterMode === 'entry_points'}
+            onClick={() => setFilterMode('entry_points')}
+          />
+          <FilterChip
+            label="COMPLEX"
+            active={filterMode === 'high_complexity'}
+            onClick={() => setFilterMode('high_complexity')}
+          />
+          {cycleCount > 0 && (
+            <FilterChip
+              label={`CYCLES (${cycleCount})`}
+              active={filterMode === 'cycles'}
+              onClick={() => setFilterMode('cycles')}
+            />
+          )}
+          {selectedNodeId && (
+            <>
+              <FilterChip
+                label="UPSTREAM"
+                active={filterMode === 'upstream'}
+                onClick={() => setFilterMode(filterMode === 'upstream' ? 'all' : 'upstream')}
+              />
+              <FilterChip
+                label="DOWNSTREAM"
+                active={filterMode === 'downstream'}
+                onClick={() => setFilterMode(filterMode === 'downstream' ? 'all' : 'downstream')}
+              />
+            </>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
           {/* ALL | IMPORT | REQUIRE */}
           <SegmentedControl<'all' | 'import' | 'require'>
             options={[
@@ -423,22 +521,20 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
             onChange={setEdgeFilter}
           />
 
-          {/* Toggle chips */}
           <ToggleChip
-            label={includeExternal ? 'EXTERNAL: ON' : 'EXTERNAL: OFF'}
+            label={includeExternal ? 'EXT: ON' : 'EXT: OFF'}
             active={includeExternal}
             tone="slate"
             onToggle={() => setIncludeExternal((v) => !v)}
           />
 
           <ToggleChip
-            label={highlightCycles ? 'CYCLES: HIGHLIGHTED' : 'CYCLES: NORMAL'}
+            label={highlightCycles ? 'CYCLES: ON' : 'CYCLES: OFF'}
             active={highlightCycles}
             tone="red"
             onToggle={() => setHighlightCycles((v) => !v)}
           />
 
-          {/* List view alternative toggle */}
           <Button
             variant={viewMode === 'list' ? 'indigo' : 'outline'}
             size="sm"
@@ -452,16 +548,21 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
 
       {/* 3. Main Workspace: Graph Canvas vs List View + Side Panel */}
       {viewMode === 'graph' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-4 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4 items-start">
           {/* React Flow Canvas */}
-          <div className="relative w-full h-[520px] sm:h-[600px] rounded-lg border border-line overflow-hidden graph-dot-grid">
+          <div className="relative w-full h-[540px] sm:h-[620px] rounded-lg border border-line overflow-hidden graph-dot-grid">
             <ReactFlowProvider>
               <ReactFlow
                 nodes={rfNodes}
                 edges={rfEdges}
                 nodeTypes={nodeTypes}
                 onNodeClick={(_, node) => setSelectedNodeId(node.id)}
-                onPaneClick={() => setSelectedNodeId(null)}
+                onPaneClick={() => {
+                  setSelectedNodeId(null);
+                  if (filterMode === 'upstream' || filterMode === 'downstream') {
+                    setFilterMode('all');
+                  }
+                }}
                 minZoom={0.2}
                 maxZoom={2.0}
                 fitView
@@ -474,7 +575,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
 
                 {/* Floating Legend */}
                 <Panel position="bottom-left" className="!m-3 !ml-16">
-                  <div className="bg-surface/95 backdrop-blur-sm border border-line rounded-pill px-3 py-1.5 shadow-1 flex items-center gap-3 text-xs">
+                  <div className="bg-surface/95 backdrop-blur-sm border border-line rounded-pill px-3 py-1.5 shadow-1 flex items-center gap-3 text-xs flex-wrap">
                     <span className="font-bold text-ink-2">Legend:</span>
                     <span className="flex items-center gap-1.5 text-ink-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-indigo" /> Python
@@ -486,17 +587,19 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                       <span className="w-2.5 h-2.5 rounded-full bg-[#7862DE]" /> TypeScript
                     </span>
                     <span className="flex items-center gap-1.5 text-ink-2">
+                      <span className="w-2.5 h-0.5 border-t border-dashed border-[#7862DE]" /> Type Import
+                    </span>
+                    <span className="flex items-center gap-1.5 text-ink-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-teal" /> Entry
                     </span>
-                    {includeExternal && (
-                      <span className="flex items-center gap-1.5 text-ink-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-slate" /> External
+                    {cycleCount > 0 && (
+                      <span className="flex items-center gap-1.5 text-red font-semibold">
+                        <span className="w-2.5 h-2.5 rounded-full bg-red" /> Cycle
                       </span>
                     )}
                   </div>
                 </Panel>
 
-                {/* Minimap (desktop only) */}
                 <MiniMap
                   className="!m-3 hidden md:block !bg-surface !border !border-line !rounded-md !w-40 !h-28"
                   nodeColor={(node: any) => {
@@ -512,13 +615,25 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
             </ReactFlowProvider>
           </div>
 
-          {/* Selected Item Side Panel per DESIGN.md §7.8 */}
-          <div className="bg-surface border border-line rounded-lg p-5 shadow-1 min-h-[360px] flex flex-col justify-between">
+          {/* Selected Item Side Panel */}
+          <div className="bg-surface border border-line rounded-lg p-5 shadow-1 min-h-[380px] flex flex-col justify-between">
             <div>
-              <div className="pb-3 border-b border-line mb-4">
+              <div className="pb-3 border-b border-line mb-4 flex items-center justify-between">
                 <span className="font-sans text-[11px] font-bold text-ink-2 uppercase tracking-wider block">
-                  SELECTED ITEM
+                  SELECTED NODE
                 </span>
+                {selectedNodeId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedNodeId(null);
+                      if (filterMode === 'upstream' || filterMode === 'downstream') setFilterMode('all');
+                    }}
+                    className="text-xs text-ink-3 hover:text-ink font-semibold"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
 
               {selectedNodeData ? (
@@ -538,10 +653,22 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                     </div>
                   </div>
 
-                  {/* Lines / Degree */}
-                  <div className="bg-tile rounded-md p-3 border border-line text-xs space-y-1 text-ink-2 font-mono">
+                  {/* Cycle Warning if applicable */}
+                  {cyclesWithNode.length > 0 && (
+                    <div className="p-2.5 rounded-md bg-red-surface border border-red-line text-xs space-y-1 text-red-text">
+                      <div className="font-bold flex items-center gap-1">
+                        <span>Part of {cyclesWithNode.length} Runtime Loop(s)</span>
+                      </div>
+                      <p className="text-[11px] opacity-90">
+                        Circular dependencies must be broken to enable isolated unit migration.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Lines / Degree / Type breakdown */}
+                  <div className="bg-tile rounded-md p-3 border border-line text-xs space-y-1.5 text-ink-2 font-mono">
                     <div className="flex justify-between">
-                      <span className="text-ink-3">Lines:</span>
+                      <span className="text-ink-3">Lines of Code:</span>
                       <span className="font-bold">{formatNumber(selectedNodeData.line_count)}</span>
                     </div>
                     <div className="flex justify-between">
@@ -550,24 +677,48 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                     </div>
                     <div className="flex justify-between">
                       <span className="text-ink-3">Incoming callers:</span>
-                      <span className="font-bold text-teal-strong">{upstreamDependencies.length}</span>
+                      <span className="font-bold text-teal-strong">
+                        {incomingEdges.length} ({inRuntime} run / {inTypeOnly} type)
+                      </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-ink-3">Direct dependencies:</span>
-                      <span className="font-bold text-indigo-text">{downstreamDependents.length}</span>
+                      <span className="text-ink-3">Dependencies:</span>
+                      <span className="font-bold text-indigo-text">
+                        {outgoingEdges.length} ({outRuntime} run / {outTypeOnly} type)
+                      </span>
                     </div>
                   </div>
 
-                  {/* Action links */}
-                  <div className="space-y-2 pt-1">
+                  {/* Subgraph Isolation Buttons */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <Button
+                      variant={filterMode === 'upstream' ? 'indigo' : 'outline'}
+                      size="sm"
+                      onClick={() => setFilterMode(filterMode === 'upstream' ? 'all' : 'upstream')}
+                      icon={<ArrowUpRight className="w-3 h-3" />}
+                    >
+                      Upstream
+                    </Button>
+                    <Button
+                      variant={filterMode === 'downstream' ? 'indigo' : 'outline'}
+                      size="sm"
+                      onClick={() => setFilterMode(filterMode === 'downstream' ? 'all' : 'downstream')}
+                      icon={<ArrowDownLeft className="w-3 h-3" />}
+                    >
+                      Downstream
+                    </Button>
+                  </div>
+
+                  {/* Cross-tab action links */}
+                  <div className="space-y-2 pt-1 border-t border-line">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => onInspectImpact?.(selectedNodeData.label)}
-                      icon={<Target className="w-3.5 h-3.5 text-red-text" strokeWidth={1.75} />}
+                      icon={<Target className="w-3.5 h-3.5 text-red" strokeWidth={1.75} />}
                       className="w-full justify-start text-xs"
                     >
-                      Calculate Blast Radius
+                      Downstream Blast Radius
                     </Button>
                     <Button
                       variant="ghost"
@@ -587,7 +738,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                 <div className="py-12 px-2 text-center text-ink-4 flex flex-col items-center">
                   <Info className="w-7 h-7 mb-2.5 stroke-1" />
                   <p className="text-xs text-ink-3 font-sans leading-relaxed">
-                    Select any node on the graph canvas to inspect its callers and dependencies.
+                    Select any node on the graph canvas to inspect callers, runtime vs type dependencies, and cycles.
                   </p>
                 </div>
               )}
@@ -595,7 +746,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
           </div>
         </div>
       ) : (
-        /* Accessible List View Table per DESIGN.md §12 and §7.8 */
+        /* Accessible List View Table */
         <div
           role="region"
           aria-label="Dependency graph data table"
@@ -619,7 +770,10 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                   <tr
                     key={n.id}
                     className="hover:bg-tile/70 cursor-pointer transition-colors"
-                    onClick={() => setSelectedNodeId(n.id)}
+                    onClick={() => {
+                      setSelectedNodeId(n.id);
+                      setViewMode('graph');
+                    }}
                   >
                     <td className="py-3 px-4 font-bold text-indigo-text">
                       {truncateMiddle(n.label, 40)}
