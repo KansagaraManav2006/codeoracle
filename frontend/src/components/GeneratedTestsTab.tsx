@@ -276,7 +276,20 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
   const validFiles = result
     ? `${result.syntax_valid_count} / ${result.test_files.length}`
     : '0 / 0';
-  const testRunStatus = trustedDemo ? 'Passed in Sandbox' : 'Safety locked';
+  const hasExecuted = Boolean(result?.test_files?.some((t) => t.execution_status === 'passed'));
+  const hasFailed = Boolean(result?.test_files?.some((t) => t.execution_status === 'failed'));
+  const testRunStatus = !trustedDemo
+    ? 'Safety locked'
+    : hasFailed
+    ? 'Regressions Found'
+    : hasExecuted
+    ? 'Passed in Sandbox'
+    : 'Ready in Sandbox';
+  const testRunSubtext = !trustedDemo
+    ? 'Execution safety locked (untrusted)'
+    : hasExecuted
+    ? 'Verified in disposable sandbox'
+    : 'Trusted demo runner ready';
   const measuredCoverage =
     result?.overall_line_coverage != null
       ? `${Math.round(result.overall_line_coverage)}%`
@@ -348,7 +361,7 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
         <KpiCard
           label="TEST RUN"
           value={testRunStatus}
-          subtext={trustedDemo ? 'Disposable runner' : 'Execution unmeasured'}
+          subtext={testRunSubtext}
         />
         <KpiCard
           label="MEASURED COVERAGE"
@@ -356,7 +369,7 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
           subtext={
             result?.overall_line_coverage != null
               ? 'Measured line coverage'
-              : 'Public repo unexecuted'
+              : 'Untrusted upload unexecuted'
           }
         />
       </div>

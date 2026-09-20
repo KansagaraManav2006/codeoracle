@@ -395,15 +395,17 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
     );
   }
 
-  const filesUnderstoodCount = analysis.parse_success_count || analysis.modules.length;
+  const filesUnderstoodCount =
+    analysis.parse_success_count != null ? analysis.parse_success_count : analysis.modules.length;
   const parseCoveragePercent = Math.round((filesUnderstoodCount / Math.max(analysis.total_files, 1)) * 100);
   const totalEdges = graph?.summary?.total_edges || analysis.dependency_edges?.length || 0;
   const cycleCount = graph?.cycles?.length || 0;
   const findingFunnel = analysis.finding_funnel || {
     total_findings: analysis.findings?.length || 0,
-    modernization_candidates: analysis.findings?.filter((f) => f.category === 'modernization').length || 0,
+    modernization_candidates:
+      analysis.findings?.filter((f) => f.category === 'modernization' || f.autofixable).length || 0,
     autofixable_findings: analysis.findings?.filter((f) => f.autofixable).length || 0,
-    generated_diffs: analysis.findings?.filter((f) => f.has_diff).length || 0,
+    generated_diffs: new Set(analysis.findings?.filter((f) => f.has_diff).map((f) => f.file)).size,
     verified_changes: analysis.findings?.filter((f) => f.verified).length || 0,
     verification_label: 'Static-only: diffs require test verification',
   };

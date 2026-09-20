@@ -32,6 +32,7 @@ import DiffViewer, { DiffMode } from './common/DiffViewer';
 import SearchField from './common/SearchField';
 import { StatusTag } from './common/Tags';
 import { useToast } from './common/Toast';
+import FindingFunnel from './common/FindingFunnel';
 
 interface RefactoredCodeTabProps {
   projectId?: string | null;
@@ -400,6 +401,11 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
           subtext="Requires runtime test audit"
         />
       </div>
+
+      {/* Finding Funnel Traceability (Connects total findings to diffs) */}
+      {result?.finding_funnel && (
+        <FindingFunnel funnel={result.finding_funnel} />
+      )}
 
       {/* 3. Verified Modernization Sandbox Command Center */}
       <section className="bg-surface border border-line rounded-xl p-5 shadow-1 space-y-4">
