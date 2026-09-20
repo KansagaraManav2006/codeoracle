@@ -14,6 +14,7 @@ import {
   Wand2,
   Map,
   Compass,
+  Flame,
 } from 'lucide-react';
 import { ChangeImpact, TabType } from '../../types';
 import { truncateMiddle, getRiskLevelStyle } from '../../utils/formatters';
@@ -579,6 +580,17 @@ export const ChangeImpactView: React.FC<ChangeImpactViewProps> = ({
           icon={<TestTube className="w-3.5 h-3.5" />}
         >
           Generate Tests
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            onSelectFile?.(impact.relative_path);
+            onNavigateTab?.('hotspots');
+          }}
+          icon={<Flame className="w-3.5 h-3.5 text-amber-strong" />}
+        >
+          Check Hotspots
         </Button>
         <Button
           variant="outline"

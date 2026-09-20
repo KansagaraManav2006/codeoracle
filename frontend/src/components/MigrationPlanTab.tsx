@@ -10,8 +10,16 @@ import {
   Flame,
   Loader2,
   AlertCircle,
+  AlertTriangle,
+  ShieldCheck,
+  TestTube,
+  Wand2,
+  CheckCircle2,
+  ListOrdered,
+  Compass,
+  Target,
 } from 'lucide-react';
-import { MigrationPlanResponse, ChangeImpact, TabType } from '../types';
+import { MigrationPlanResponse, ChangeImpact, TabType, ScoreBlocker } from '../types';
 import { truncateMiddle, getRiskLevelStyle } from '../utils/formatters';
 import Button from './common/Button';
 import ReadinessGauge from './common/ReadinessGauge';
@@ -20,7 +28,7 @@ import SearchField from './common/SearchField';
 import { FilterChip } from './common/Chips';
 import { StatusTag } from './common/Tags';
 import { useToast } from './common/Toast';
-
+import FindingFunnel from './common/FindingFunnel';
 import ChangeImpactView from './common/ChangeImpactView';
 
 interface MigrationPlanTabProps {
@@ -35,6 +43,54 @@ interface MigrationPlanTabProps {
   onNavigateToTests?: () => void;
   onSelectFile?: (filePath: string) => void;
 }
+
+// Deterministic explanation of remaining risk per wave
+const getWaveResidualRisk = (waveNum: number): { riskLevel: 'high' | 'medium' | 'low'; label: string; description: string } => {
+  switch (waveNum) {
+    case 0:
+      return {
+        riskLevel: 'high',
+        label: 'HIGH STRUCTURAL RISK',
+        description:
+          'Source code still contains legacy syntax, cyclomatic complexity, and circular coupling. Baseline tests now provide a regression harness for subsequent waves.',
+      };
+    case 1:
+      return {
+        riskLevel: 'high',
+        label: 'MODERATE-TO-HIGH RISK',
+        description:
+          'Standalone leaf utilities are modernized, but circular dependency loops and core business services remain unmodernized.',
+      };
+    case 2:
+      return {
+        riskLevel: 'medium',
+        label: 'CONTROLLED RISK',
+        description:
+          'Circular dependency loops are broken, but complex domain services and entry points still require refactoring and contract verification.',
+      };
+    case 3:
+      return {
+        riskLevel: 'medium',
+        label: 'MODERATE RISK',
+        description:
+          'Core domain logic is modernized; only root entry points and runtime orchestration remain to be verified.',
+      };
+    case 4:
+      return {
+        riskLevel: 'low',
+        label: 'LOW RESIDUAL RISK',
+        description:
+          'All internal layers modernized. Final end-to-end smoke verification and post-deployment monitoring required.',
+      };
+    default:
+      return {
+        riskLevel: 'low',
+        label: 'CONTROLLED RISK',
+        description:
+          'Follow automated test execution and verify behavioral equivalence in the disposable sandbox before merging.',
+      };
+  }
+};
 
 export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
   projectId,
@@ -122,6 +178,15 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
   const selectedItem: ChangeImpact | undefined =
     plan?.impacts.find((item) => item.module_id === selectedId) || filteredImpacts[0];
 
+  // Priority files list (use top_priorities if available, else top 6 from sortedImpacts)
+  const priorityFiles: ChangeImpact[] = useMemo(() => {
+    if (!plan) return [];
+    if (plan.top_priorities && plan.top_priorities.length > 0) {
+      return plan.top_priorities;
+    }
+    return sortedImpacts.slice(0, 6);
+  }, [plan, sortedImpacts]);
+
   const handleDownloadReport = () => {
     if (!projectId) return;
     window.location.href = `/api/projects/${projectId}/migration-plan/download`;
@@ -189,8 +254,8 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
         </div>
       )}
 
-      {/* 1. Hero Card: Modernization Intelligence & Executive Report */}
-      <section className="bg-surface border border-line rounded-xl p-6 sm:p-7 shadow-1">
+      {/* 1. Hero Card: Modernization Intelligence & Executive Plan */}
+      <section className="bg-surface border border-line rounded-xl p-6 sm:p-7 shadow-1 space-y-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="max-w-2xl space-y-3">
             <div className="flex items-center gap-3">
@@ -203,14 +268,14 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="font-display font-bold text-[20px] text-ink leading-tight">
-                    Modernization Intelligence
+                    Modernization Intelligence &amp; Plan
                   </h2>
                   <span className="inline-flex items-center px-2 py-0.5 rounded-pill bg-ink text-white font-sans text-[11px] font-bold tracking-[0.06em] uppercase select-none">
                     DECISION SUPPORT
                   </span>
                 </div>
                 <p className="font-sans text-xs text-ink-3 mt-0.5">
-                  Explainable readiness assessment and blast-radius impact analysis.
+                  Explainable readiness assessment, blast-radius ripple analysis, and staged modernization roadmap.
                 </p>
               </div>
             </div>
@@ -220,7 +285,7 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
                 'CodeOracle computed architecture readiness based on module complexity, dependency cycles, test isolation, and maintainability metrics.'}
             </p>
 
-            <div className="pt-2">
+            <div className="flex flex-wrap items-center gap-2.5 pt-1">
               <Button
                 variant="ink"
                 size="md"
@@ -232,20 +297,157 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
             </div>
           </div>
 
-          <div className="shrink-0 self-center lg:self-auto">
+          <div className="shrink-0 self-center lg:self-auto flex flex-col items-center">
             <ReadinessGauge
               score={plan.readiness_score}
               onExplainClick={() => setShowScoreModal(true)}
             />
+            <span className="text-[11px] font-mono text-ink-3 mt-1 uppercase tracking-wider">
+              Status: <strong className="text-ink">{plan.readiness_label || 'Calculated'}</strong>
+            </span>
+          </div>
+        </div>
+
+        {/* Cross-Tab Navigation Links Banner */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-line text-xs">
+          <div className="flex items-center gap-1.5 text-ink-3">
+            <span className="font-bold text-ink uppercase tracking-wider text-[10px]">
+              Explore Connected Views:
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onNavigateTab?.('graph')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-tile border border-line text-ink hover:border-indigo/40 transition-colors font-medium text-xs"
+            >
+              <Network className="w-3.5 h-3.5 text-indigo" />
+              <span>Dependency Map</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateTab?.('tests')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-tile border border-line text-ink hover:border-teal/40 transition-colors font-medium text-xs"
+            >
+              <TestTube className="w-3.5 h-3.5 text-teal-strong" />
+              <span>Safety Tests</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateTab?.('hotspots')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-tile border border-line text-ink hover:border-amber/40 transition-colors font-medium text-xs"
+            >
+              <Flame className="w-3.5 h-3.5 text-amber-strong" />
+              <span>Risk Hotspots</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateTab?.('refactor')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-tile border border-line text-ink hover:border-indigo/40 transition-colors font-medium text-xs"
+            >
+              <Wand2 className="w-3.5 h-3.5 text-indigo" />
+              <span>Modernization</span>
+            </button>
           </div>
         </div>
       </section>
 
-      {/* 2. Readiness Breakdown (5 Score Cards) */}
+      {/* 2. Recommended Action Order & Strategic Rationale */}
+      <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
+        <div className="flex items-center gap-2.5 pb-3 border-b border-line">
+          <div className="w-8 h-8 rounded-md bg-indigo-surface text-indigo flex items-center justify-center border border-indigo/20 shrink-0">
+            <ListOrdered className="w-4 h-4" strokeWidth={2} />
+          </div>
+          <div>
+            <h3 className="font-display font-bold text-base text-ink">
+              Recommended Action Order &amp; Strategy
+            </h3>
+            <p className="font-sans text-xs text-ink-3">
+              Answers: &ldquo;What should the engineering team modernize first, and why?&rdquo;
+            </p>
+          </div>
+        </div>
+
+        {plan.first_action_summary && (
+          <div className="p-3.5 bg-indigo-surface/50 border border-indigo/20 rounded-lg text-xs text-indigo-text space-y-1">
+            <div className="font-bold flex items-center gap-1.5 text-ink">
+              <Compass className="w-4 h-4 text-indigo shrink-0" />
+              <span>Executive Action Guidance:</span>
+            </div>
+            <p className="leading-relaxed text-ink-2 pl-5">
+              {plan.first_action_summary}
+            </p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-1">
+          <div className="p-3 bg-tile border border-line rounded-lg space-y-1.5">
+            <div className="flex items-center justify-between text-xs font-bold text-ink">
+              <span className="w-5 h-5 rounded-full bg-ink text-white flex items-center justify-center text-[10px]">1</span>
+              <span className="text-[10px] uppercase tracking-wider text-ink-3 font-mono">Wave 0</span>
+            </div>
+            <h4 className="font-bold text-xs text-ink">Lock Safety Net</h4>
+            <p className="text-[11px] text-ink-3 leading-snug">
+              Generate characterization tests for high-risk files to prevent regressions.
+            </p>
+          </div>
+
+          <div className="p-3 bg-tile border border-line rounded-lg space-y-1.5">
+            <div className="flex items-center justify-between text-xs font-bold text-ink">
+              <span className="w-5 h-5 rounded-full bg-ink text-white flex items-center justify-center text-[10px]">2</span>
+              <span className="text-[10px] uppercase tracking-wider text-ink-3 font-mono">Wave 1</span>
+            </div>
+            <h4 className="font-bold text-xs text-ink">Leaf Modules</h4>
+            <p className="text-[11px] text-ink-3 leading-snug">
+              Modernize standalone utilities with 0 downstream blast radius.
+            </p>
+          </div>
+
+          <div className="p-3 bg-tile border border-line rounded-lg space-y-1.5">
+            <div className="flex items-center justify-between text-xs font-bold text-ink">
+              <span className="w-5 h-5 rounded-full bg-ink text-white flex items-center justify-center text-[10px]">3</span>
+              <span className="text-[10px] uppercase tracking-wider text-ink-3 font-mono">Wave 2</span>
+            </div>
+            <h4 className="font-bold text-xs text-ink">Decouple Cycles</h4>
+            <p className="text-[11px] text-ink-3 leading-snug">
+              Break circular dependency loops to eliminate coupling deadlocks.
+            </p>
+          </div>
+
+          <div className="p-3 bg-tile border border-line rounded-lg space-y-1.5">
+            <div className="flex items-center justify-between text-xs font-bold text-ink">
+              <span className="w-5 h-5 rounded-full bg-ink text-white flex items-center justify-center text-[10px]">4</span>
+              <span className="text-[10px] uppercase tracking-wider text-ink-3 font-mono">Wave 3</span>
+            </div>
+            <h4 className="font-bold text-xs text-ink">Business Services</h4>
+            <p className="text-[11px] text-ink-3 leading-snug">
+              Refactor core domain logic once underlying leaves and cycles are stabilized.
+            </p>
+          </div>
+
+          <div className="p-3 bg-tile border border-line rounded-lg space-y-1.5">
+            <div className="flex items-center justify-between text-xs font-bold text-ink">
+              <span className="w-5 h-5 rounded-full bg-ink text-white flex items-center justify-center text-[10px]">5</span>
+              <span className="text-[10px] uppercase tracking-wider text-ink-3 font-mono">Wave 4</span>
+            </div>
+            <h4 className="font-bold text-xs text-ink">Entry Points</h4>
+            <p className="text-[11px] text-ink-3 leading-snug">
+              Update orchestration and perform end-to-end sandbox verification.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* 3. Readiness Breakdown (5 Score Cards) */}
       <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Gauge className="w-4 h-4 text-ink-2" strokeWidth={1.75} />
-          <h3 className="font-display font-bold text-base text-ink">Readiness Breakdown</h3>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Gauge className="w-4 h-4 text-ink-2" strokeWidth={1.75} />
+            <h3 className="font-display font-bold text-base text-ink">Readiness Breakdown</h3>
+          </div>
+          <span className="text-[11px] font-mono text-ink-3">
+            Deterministic AST Scoring (Static)
+          </span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
@@ -271,14 +473,287 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
         </div>
       </section>
 
-      {/* 3. "What Breaks If I Change This?" Section */}
+      {/* 4. Score Blockers Section */}
+      <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-line">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-md bg-amber-surface text-amber-strong flex items-center justify-center border border-amber/20 shrink-0">
+              <AlertTriangle className="w-4 h-4" strokeWidth={2} />
+            </div>
+            <div>
+              <h3 className="font-display font-bold text-base text-ink">
+                Score Blockers (Dragging Readiness Down)
+              </h3>
+              <p className="font-sans text-xs text-ink-3">
+                Identifies low-scoring categories, root causes, and explicit unblocking actions.
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-mono font-bold text-ink-2 px-2.5 py-1 rounded-pill bg-tile border border-line">
+            {plan.score_blockers?.length || 0} Blocker(s)
+          </span>
+        </div>
+
+        {plan.score_blockers && plan.score_blockers.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            {plan.score_blockers.map((blocker: ScoreBlocker, idx: number) => {
+              return (
+                <div
+                  key={idx}
+                  className="p-4 rounded-lg bg-amber-surface/30 border border-amber-line/70 space-y-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-amber-surface text-amber-strong border border-amber/30">
+                      {blocker.label}
+                    </span>
+                    <span className="text-xs font-mono font-bold text-red-text">
+                      Score: {blocker.current_score} / 100
+                    </span>
+                  </div>
+
+                  {blocker.target_file && (
+                    <div className="flex items-center gap-1.5 text-xs font-mono text-ink">
+                      <span className="text-ink-3 font-sans">Target:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedId(blocker.target_file!);
+                          onSelectFile?.(blocker.target_file!);
+                        }}
+                        className="font-bold text-indigo hover:underline truncate max-w-[280px]"
+                        title={blocker.target_file}
+                      >
+                        {truncateMiddle(blocker.target_file, 34)}
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="text-xs text-ink-2 space-y-1">
+                    <p className="leading-relaxed">
+                      <strong className="text-ink">Blocker Reason:</strong> {blocker.blocker_reason}
+                    </p>
+                    <p className="leading-relaxed text-teal-strong font-medium">
+                      <strong className="text-ink">Unblocking Action:</strong> {blocker.unblocking_action}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1 border-t border-amber-line/40">
+                    {blocker.target_file && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          onFocusInGraph?.(blocker.target_file!);
+                          onNavigateTab?.('graph');
+                        }}
+                        icon={<Network className="w-3 h-3" />}
+                      >
+                        Inspect in Graph
+                      </Button>
+                    )}
+                    {blocker.target_file && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          onSelectFile?.(blocker.target_file!);
+                          onNavigateTab?.('tests');
+                        }}
+                        icon={<TestTube className="w-3 h-3 text-teal-strong" />}
+                      >
+                        Generate Tests
+                      </Button>
+                    )}
+                    {blocker.target_file && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          onSelectFile?.(blocker.target_file!);
+                          onNavigateTab?.('hotspots');
+                        }}
+                        icon={<Flame className="w-3 h-3 text-amber-strong" />}
+                      >
+                        Check Hotspot
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-4 rounded-lg bg-teal-surface/40 border border-teal/20 text-xs flex items-center gap-3">
+            <CheckCircle2 className="w-4 h-4 text-teal-strong shrink-0" />
+            <div>
+              <strong className="font-bold text-ink block">Zero Critical Score Blockers Detected</strong>
+              <span className="text-ink-3">
+                All structural readiness dimensions meet baseline safety thresholds. Proceed through ordered migration waves.
+              </span>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* 5. Finding Funnel Section */}
+      {plan.finding_funnel && (
+        <FindingFunnel funnel={plan.finding_funnel} />
+      )}
+
+      {/* 6. Top Priority Files Section */}
+      <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-line">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-md bg-red-surface text-red-text flex items-center justify-center border border-red-line shrink-0">
+              <Target className="w-4 h-4" strokeWidth={2} />
+            </div>
+            <div>
+              <h3 className="font-display font-bold text-base text-ink">
+                Priority Files for Modernization
+              </h3>
+              <p className="font-sans text-xs text-ink-3">
+                Ranked by coupling risk, downstream blast radius, and migration wave dependency.
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-mono text-ink-3">
+            Showing {priorityFiles.length} priority target(s)
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-line bg-tile text-ink-2 font-bold text-[11px] uppercase tracking-wider">
+                <th className="p-2.5">Target Module</th>
+                <th className="p-2.5">Risk Level</th>
+                <th className="p-2.5">Wave</th>
+                <th className="p-2.5">Direct Blast</th>
+                <th className="p-2.5">Transitive Ripple</th>
+                <th className="p-2.5">Depth</th>
+                <th className="p-2.5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line/60 font-mono">
+              {priorityFiles.map((item) => {
+                const riskStyle = getRiskLevelStyle(item.risk_level);
+                const isSelected = selectedItem?.module_id === item.module_id;
+                const directCount = item.direct_dependents?.length || item.direct_blast_radius || 0;
+                const rippleCount = item.blast_radius || item.transitive_blast_radius || 0;
+
+                return (
+                  <tr
+                    key={item.module_id}
+                    className={`transition-colors hover:bg-tile/70 ${
+                      isSelected ? 'bg-indigo-surface/40 font-bold' : ''
+                    }`}
+                  >
+                    <td className="p-2.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedId(item.module_id);
+                          onSelectFile?.(item.relative_path);
+                        }}
+                        className="text-indigo hover:underline text-left block truncate max-w-[260px]"
+                        title={item.relative_path}
+                      >
+                        {truncateMiddle(item.relative_path, 32)}
+                      </button>
+                    </td>
+                    <td className="p-2.5 font-sans">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-pill uppercase tracking-wider ${riskStyle.badgeClass}`}>
+                        {riskStyle.label}
+                      </span>
+                    </td>
+                    <td className="p-2.5">
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-tile border border-line text-ink">
+                        WAVE {item.wave || 1}
+                      </span>
+                    </td>
+                    <td className="p-2.5 text-ink">
+                      {directCount}
+                    </td>
+                    <td className="p-2.5 text-ink font-bold">
+                      {rippleCount} files
+                    </td>
+                    <td className="p-2.5 text-ink-3">
+                      {item.dependency_depth || 0} hops
+                    </td>
+                    <td className="p-2.5 text-right font-sans">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedId(item.module_id);
+                            onSelectFile?.(item.relative_path);
+                          }}
+                          className="px-2 py-1 rounded text-[11px] font-semibold bg-tile hover:bg-indigo-surface text-ink hover:text-indigo border border-line"
+                        >
+                          Inspect
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onFocusInGraph?.(item.relative_path);
+                            onNavigateTab?.('graph');
+                          }}
+                          title="Focus in Dependency Map"
+                          className="p-1 rounded text-ink-3 hover:text-indigo hover:bg-tile"
+                        >
+                          <Network className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onSelectFile?.(item.relative_path);
+                            onNavigateTab?.('hotspots');
+                          }}
+                          title="View Hotspots"
+                          className="p-1 rounded text-ink-3 hover:text-amber-strong hover:bg-tile"
+                        >
+                          <Flame className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onSelectFile?.(item.relative_path);
+                            onNavigateTab?.('tests');
+                          }}
+                          title="Safety Tests"
+                          className="p-1 rounded text-ink-3 hover:text-teal-strong hover:bg-tile"
+                        >
+                          <TestTube className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onSelectFile?.(item.relative_path);
+                            onNavigateTab?.('refactor');
+                          }}
+                          title="Preview Modernization"
+                          className="p-1 rounded text-ink-3 hover:text-indigo hover:bg-tile"
+                        >
+                          <Wand2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* 7. "What Breaks If I Change This?" Section */}
       <section className="space-y-3">
         <div>
           <h3 className="font-display font-bold text-base text-ink">
             What Breaks If I Change This?
           </h3>
           <p className="font-sans text-xs text-ink-3 mt-0.5">
-            Select any file to calculate its downstream blast radius, affected callers, and recommended tests.
+            Select any file to calculate its downstream blast radius, direct callers, affected entry points, and required protection tests.
           </p>
         </div>
 
@@ -302,7 +777,7 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
             <div className="overflow-y-auto custom-scrollbar divide-y divide-line/40 mt-2 pr-1">
               {filteredImpacts.length === 0 ? (
                 <div className="p-6 text-center text-xs text-ink-3">
-                  No files match "{search}".
+                  No files match &ldquo;{search}&rdquo;.
                 </div>
               ) : (
                 filteredImpacts.map((item) => {
@@ -376,7 +851,7 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
         </div>
       </section>
 
-      {/* 4. Migration Waves: Staged Modernization Roadmap (Phase 8) */}
+      {/* 8. Migration Waves: Staged Modernization Roadmap */}
       <section className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-2.5">
@@ -419,6 +894,8 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
             ? plan.waves.filter((w) => selectedWaveFilter === null || w.wave === selectedWaveFilter)
             : []
           ).map((wave) => {
+            const residualRisk = getWaveResidualRisk(wave.wave);
+
             return (
               <article
                 key={wave.wave}
@@ -446,7 +923,9 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
                           label={wave.risk_level.toUpperCase()}
                         />
                       </div>
-                      <p className="text-xs text-ink-3 mt-0.5">{wave.goal}</p>
+                      <p className="text-xs text-ink-3 mt-0.5 font-medium">
+                        <strong className="text-ink font-sans">Goal:</strong> {wave.goal}
+                      </p>
                     </div>
                   </div>
 
@@ -460,23 +939,31 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
                   </div>
                 </div>
 
-                {/* Wave Strategy */}
-                <div className="p-3 bg-tile border border-line rounded-md text-xs">
-                  <span className="font-bold text-ink block mb-0.5">Execution Strategy:</span>
-                  <p className="text-ink-2 leading-relaxed">{wave.strategy}</p>
+                {/* Why this wave comes first / next (Topological Rationale) */}
+                <div className="p-3.5 bg-indigo-surface/40 border border-indigo/20 rounded-lg text-xs space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-ink">
+                    <Compass className="w-3.5 h-3.5 text-indigo shrink-0" />
+                    <span>Why this wave comes first / next:</span>
+                  </div>
+                  <p className="text-ink-2 leading-relaxed pl-5">
+                    {wave.strategy}
+                  </p>
                 </div>
 
-                {/* Wave Files */}
+                {/* Wave Files (Click to inspect in blast radius) */}
                 <div>
                   <span className="text-[11px] font-bold text-ink-3 uppercase tracking-wider block mb-2">
-                    Files in this wave (click to inspect in blast radius):
+                    Files in this wave ({wave.files.length}) &bull; Click to inspect blast radius:
                   </span>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto custom-scrollbar pr-1">
                     {wave.files.map((file) => (
                       <button
                         key={file}
                         type="button"
-                        onClick={() => setSelectedId(file)}
+                        onClick={() => {
+                          setSelectedId(file);
+                          onSelectFile?.(file);
+                        }}
                         className={`font-mono text-xs px-2.5 py-1 rounded-md border transition-colors ${
                           selectedId === file
                             ? 'bg-indigo-surface text-indigo-text font-bold border-indigo/30'
@@ -489,8 +976,38 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
                   </div>
                 </div>
 
-                {/* Interactive Checklist & Suggested Test Order */}
+                {/* Suggested Tests & Wave Checklist */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                  {/* Suggested Test Order */}
+                  <div className="bg-tile border border-line rounded-md p-3.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-ink block">
+                        Suggested Protection Tests to Run:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => onNavigateTab?.('tests')}
+                        className="text-[11px] font-semibold text-teal-strong hover:underline"
+                      >
+                        Open Safety Tests &rarr;
+                      </button>
+                    </div>
+
+                    {wave.suggested_test_order && wave.suggested_test_order.length > 0 ? (
+                      <ol className="space-y-1 list-decimal pl-4 font-mono text-[11px] text-ink-2 max-h-36 overflow-y-auto custom-scrollbar">
+                        {wave.suggested_test_order.slice(0, 6).map((testPath, idx) => (
+                          <li key={idx} className="truncate" title={testPath}>
+                            {testPath}
+                          </li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <p className="text-xs text-ink-3 italic">
+                        Run general project tests before and after modifying this wave.
+                      </p>
+                    )}
+                  </div>
+
                   {/* Checklist */}
                   <div className="bg-tile border border-line rounded-md p-3.5 space-y-2">
                     <div className="flex items-center justify-between">
@@ -525,26 +1042,28 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
                       })}
                     </div>
                   </div>
+                </div>
 
-                  {/* Suggested Test Order */}
-                  <div className="bg-tile border border-line rounded-md p-3.5 space-y-2">
-                    <span className="text-xs font-bold text-ink block">
-                      Suggested Test Execution Order:
+                {/* Residual Risk Remaining Box */}
+                <div
+                  className={`p-3 rounded-lg border text-xs space-y-1 ${
+                    residualRisk.riskLevel === 'high'
+                      ? 'bg-amber-surface/40 border-amber-line/70'
+                      : residualRisk.riskLevel === 'medium'
+                      ? 'bg-indigo-surface/30 border-indigo/20'
+                      : 'bg-teal-surface/30 border-teal/20'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-bold text-ink">
+                    <ShieldCheck className="w-3.5 h-3.5 text-teal-strong shrink-0" />
+                    <span>Residual Risk Remaining After Wave {wave.wave}:</span>
+                    <span className="text-[10px] px-2 py-0.2 rounded font-mono uppercase tracking-wider bg-surface border border-line">
+                      {residualRisk.label}
                     </span>
-                    {wave.suggested_test_order && wave.suggested_test_order.length > 0 ? (
-                      <ol className="space-y-1 list-decimal pl-4 font-mono text-[11px] text-ink-2 max-h-36 overflow-y-auto custom-scrollbar">
-                        {wave.suggested_test_order.slice(0, 6).map((testPath, idx) => (
-                          <li key={idx} className="truncate" title={testPath}>
-                            {testPath}
-                          </li>
-                        ))}
-                      </ol>
-                    ) : (
-                      <p className="text-xs text-ink-3 italic">
-                        Run general project tests before and after modifying this wave.
-                      </p>
-                    )}
                   </div>
+                  <p className="text-ink-2 pl-5 leading-relaxed">
+                    {residualRisk.description}
+                  </p>
                 </div>
 
                 {/* Wave Actions Bar */}
@@ -564,11 +1083,38 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
                       variant="outline"
                       size="sm"
                       onClick={() => {
+                        onSelectFile?.(wave.files[0]);
+                        onNavigateTab?.('tests');
+                      }}
+                      icon={<TestTube className="w-3.5 h-3.5 text-teal-strong" />}
+                    >
+                      Inspect Safety Tests
+                    </Button>
+                  )}
+                  {wave.files[0] && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        onSelectFile?.(wave.files[0]);
                         onNavigateTab?.('hotspots');
                       }}
                       icon={<Flame className="w-3.5 h-3.5 text-amber-strong" />}
                     >
                       Check Hotspots
+                    </Button>
+                  )}
+                  {wave.files[0] && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        onSelectFile?.(wave.files[0]);
+                        onNavigateTab?.('refactor');
+                      }}
+                      icon={<Wand2 className="w-3.5 h-3.5 text-indigo" />}
+                    >
+                      Preview Modernization
                     </Button>
                   )}
                 </div>
@@ -590,7 +1136,10 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
               How Readiness Is Calculated
             </h3>
             <p className="font-sans text-xs text-ink-2 leading-[1.6]">
-              CodeOracle evaluates five weighted dimensions: AST code understanding (20%), cyclomatic complexity hotspot distribution (20%), dependency safety &amp; cycles (20%), structural maintainability (20%), and characterization test coverage (20%).
+              CodeOracle evaluates five weighted structural dimensions: AST code understanding (20%), cyclomatic complexity hotspot distribution (20%), dependency safety &amp; cycles (20%), structural maintainability (20%), and characterization test coverage (20%).
+            </p>
+            <p className="font-sans text-xs text-ink-3">
+              Scores reflect deterministic static AST analysis and dependency graph topological heuristics. No subjective effort estimates or guesswork are applied.
             </p>
             <div className="pt-2 flex justify-end">
               <Button variant="outline" size="sm" onClick={() => setShowScoreModal(false)}>
