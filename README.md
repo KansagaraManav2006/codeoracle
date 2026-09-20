@@ -6,6 +6,7 @@ CodeOracle turns an unfamiliar Python or JavaScript codebase into an understanda
 
 ## What works
 
+
 - Simple project, module, class, and function explanations grounded in AST analysis
 - Interactive dependency graph with internal/external filtering, cycles, entry points, and drill-down
 - Deterministic pytest and Vitest generation with syntax validation and downloadable ZIPs
