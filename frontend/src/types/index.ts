@@ -50,7 +50,56 @@ export interface ProjectFilesListResponse {
   files: ProjectFileResponse[];
 }
 
-export type TabType = 'explanation' | 'graph' | 'tests' | 'refactor' | 'migration';
+export type TabType = 'explanation' | 'hotspots' | 'graph' | 'tests' | 'refactor' | 'migration';
+
+export interface HotspotFactors {
+  complexity_raw: number;
+  complexity_score: number;
+  loc_raw: number;
+  loc_score: number;
+  fan_in_raw: number;
+  fan_in_score: number;
+  warnings_raw: number;
+  warnings_score: number;
+  blast_radius_raw: number;
+  blast_radius_score: number;
+}
+
+export interface HotspotItem {
+  file: string;
+  hotspot_score: number;
+  score_mode: 'static' | string;
+  complexity: number;
+  complexity_rating: string;
+  lines_of_code: number;
+  dependency_fan_in: number;
+  warnings_count: number;
+  blast_radius: number;
+  transitive_dependents: string[];
+  direct_dependents: string[];
+  is_partially_parsed?: boolean;
+  risk_level: 'critical' | 'high' | 'medium' | 'low';
+  reason: string;
+  recommended_action: string;
+  score_factors: HotspotFactors;
+}
+
+export interface HotspotsResponse {
+  project_id: string;
+  project_name: string;
+  score_mode: 'static' | string;
+  total_files: number;
+  hotspots: HotspotItem[];
+  recommended_start_file?: string | null;
+  recommended_start_reason?: string | null;
+  summary: {
+    highest_score?: number;
+    critical_count?: number;
+    high_count?: number;
+    total_evaluated?: number;
+    scoring_engine?: string;
+  };
+}
 
 export type IngestionMode = 'zip' | 'github';
 

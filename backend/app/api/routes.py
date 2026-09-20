@@ -17,6 +17,8 @@ from app.database import get_db
 from app.models.db import Job, JobState, Project, ProjectAnalysisRecord, ProjectFile, ProjectRefactorRecord
 from app.migration.models import ChangeImpact, MigrationPlanResponse
 from app.migration.service import build_migration_plan, get_module_change_impact, migration_plan_markdown
+from app.hotspots.models import HotspotsResponse
+from app.hotspots.service import compute_project_hotspots
 from app.models.schema import (
     AnalyzeRequest,
     GitHubIngestRequest,
@@ -99,6 +101,30 @@ def get_project_change_impact(
     except Exception:
         logger.exception("Change impact calculation failed for project %s target %s", project_id, target)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unable to calculate change impact.")
+
+
+@router.get("/projects/{project_id}/hotspots", response_model=HotspotsResponse)
+def get_project_hotspots(
+    project_id: str,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> HotspotsResponse:
+    """Computes explainable, deterministic static hotspots ranking for refactoring prioritization."""
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    try:
+        return compute_project_hotspots(db, project_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    except Exception:
+        logger.exception("Hotspots calculation failed for project %s", project_id)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unable to calculate project hotspots.")
 
 
 from app.database import get_db_diagnostics

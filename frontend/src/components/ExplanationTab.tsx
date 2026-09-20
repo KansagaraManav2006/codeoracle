@@ -8,6 +8,7 @@ import {
   Cpu,
   Download,
   FileCode,
+  Flame,
   FolderGit2,
   GitFork,
   Hash,
@@ -710,6 +711,14 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onNav
                   >
                     <Wrench className="w-3 h-3" />
                     <span>Preview Refactor</span>
+                  </button>
+                  <button
+                    onClick={() => onNavigateTab?.('hotspots')}
+                    className="px-2.5 py-1 rounded-xl text-[10px] font-bold bg-[#FEF9EE] text-[#C7953D] border border-[#F5DCB7] hover:bg-[#FDF1D8] transition-colors flex items-center gap-1"
+                    title="View file hotspot ranking & ripple metrics"
+                  >
+                    <Flame className="w-3 h-3" />
+                    <span>Hotspot Score</span>
                   </button>
                 </div>
               </div>

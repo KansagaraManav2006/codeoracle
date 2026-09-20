@@ -5,6 +5,7 @@ import JobProgressView from './components/JobProgressView';
 import ProjectResultsView from './components/ProjectResultsView';
 import TabNavigation from './components/TabNavigation';
 import ExplanationTab from './components/ExplanationTab';
+import HotspotsTab from './components/HotspotsTab';
 import DependencyGraphTab from './components/DependencyGraphTab';
 import GeneratedTestsTab from './components/GeneratedTestsTab';
 import RefactoredCodeTab from './components/RefactoredCodeTab';
@@ -77,6 +78,14 @@ export const App: React.FC = () => {
                 <ExplanationTab
                   projectId={project.project_id}
                   onNavigateTab={setActiveTab}
+                />
+              )}
+              {activeTab === 'hotspots' && (
+                <HotspotsTab
+                  projectId={project.project_id}
+                  onNavigateTab={setActiveTab}
+                  onFocusInGraph={handleFocusInGraph}
+                  onInspectImpact={handleInspectImpact}
                 />
               )}
               {activeTab === 'graph' && (
