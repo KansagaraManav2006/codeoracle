@@ -6,7 +6,6 @@ CodeOracle turns an unfamiliar Python or JavaScript codebase into an understanda
 
 ## What works
 
-
 - Simple project, module, class, and function explanations grounded in AST analysis
 - Interactive dependency graph with internal/external filtering, cycles, entry points, and drill-down
 - Deterministic pytest and Vitest generation with syntax validation and downloadable ZIPs
@@ -21,6 +20,16 @@ CodeOracle turns an unfamiliar Python or JavaScript codebase into an understanda
 - Secure ZIP extraction and bounded, non-interactive public GitHub cloning
 
 Uploaded repositories are never executed by default. Only the bundled trusted benchmark may run generated tests automatically.
+
+## Modernization Safety Simulator Workflow
+
+1. **Understand** an unfamiliar legacy codebase with AST-grounded explanations.
+2. **Identify** a risky file or function using readiness scores and complexity metrics.
+3. **Analyze Impact**: Reveal downstream callers, entry points, and blast radius before making changes.
+4. **Pin Behavior**: Generate deterministic characterization tests (pytest / Vitest).
+5. **Preview Refactoring**: Non-destructively review unified diffs with syntax verification.
+6. **Validate Safely**: Run verification in a disposable trusted-demo copy without executing untrusted uploads.
+7. **Guide Migration**: Deliver evidence-backed migration plans with prioritized phases.
 
 ## Run locally
 
