@@ -18,6 +18,7 @@ import { ProjectAnalysis, WarningInfo } from '../types';
 import { cleanText, complexityLabel, severityLabel, warningTitle } from '../utils/presentation';
 import StatCard from './common/StatCard';
 import RiskBadge from './common/RiskBadge';
+import FindingFunnel from './common/FindingFunnel';
 
 interface ExplanationTabProps {
   projectId?: string | null;
@@ -203,6 +204,8 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
             icon={Cpu}
           />
         </div>
+
+        <FindingFunnel funnel={analysis.finding_funnel} />
 
         {/* Project Explanation Synthesis */}
         {analysis.explanation && (

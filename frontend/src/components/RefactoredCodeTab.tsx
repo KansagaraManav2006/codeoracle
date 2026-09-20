@@ -4,6 +4,7 @@ import { ProjectRefactorResult } from '../types';
 import { cleanText, warningTitle } from '../utils/presentation';
 import EmptyState from './common/EmptyState';
 import StatCard from './common/StatCard';
+import FindingFunnel from './common/FindingFunnel';
 
 interface Props {
   projectId?: string | null;
@@ -168,6 +169,8 @@ export const RefactoredCodeTab: React.FC<Props> = ({ projectId }) => {
               signalAmber={result.breaking_warning_count > 0}
             />
           </div>
+
+          <FindingFunnel funnel={result.finding_funnel} />
 
           <div className="rounded-2xl border border-[#E6D3A9] bg-[#F5E8CC] p-4 text-xs leading-5 text-[#76561B]">
             <div className="flex items-start gap-2.5">

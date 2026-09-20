@@ -5,14 +5,16 @@ from typing import Dict, Iterable, List, Optional, Set
 from sqlalchemy.orm import Session
 
 from app.analysis.graph_service import build_project_dependency_graph
-from app.analysis.models import ProjectAnalysis
+from app.analysis.models import ProjectAnalysis, decorate_findings, summarize_findings
+from app.analysis.service import build_analysis_findings
 from app.migration.models import (
     ChangeImpact,
     MigrationPhase,
     MigrationPlanResponse,
     ReadinessCategory,
 )
-from app.models.db import Job, JobState, Project, ProjectAnalysisRecord, ProjectTestRecord
+from app.models.db import Job, JobState, Project, ProjectAnalysisRecord, ProjectRefactorRecord, ProjectTestRecord
+from app.refactor.models import ProjectRefactorResult
 from app.testgen.models import ProjectTestResult, TEST_GENERATOR_VERSION
 
 logger = logging.getLogger(__name__)
@@ -69,6 +71,17 @@ def _read_test_result(db: Session, project_id: str) -> Optional[ProjectTestResul
         return None
 
 
+def _read_refactor_result(db: Session, project_id: str) -> Optional[ProjectRefactorResult]:
+    record = db.query(ProjectRefactorRecord).filter(ProjectRefactorRecord.project_id == project_id).first()
+    if not record:
+        return None
+    try:
+        return ProjectRefactorResult.model_validate(record.refactor_data)
+    except Exception:
+        logger.warning("Unable to read refactor results for project %s", project_id)
+        return None
+
+
 def _transitive_dependents(start: str, reverse_edges: Dict[str, Set[str]]) -> Set[str]:
     seen: Set[str] = set()
     queue = deque(reverse_edges.get(start, set()))
@@ -104,6 +117,13 @@ def build_migration_plan(db: Session, project_id: str) -> MigrationPlanResponse:
     module_by_id = {module.module_id: module for module in modules}
     path_by_id = {module.module_id: module.relative_path for module in modules}
     entry_ids = {module.module_id for module in modules if module.is_entry_point}
+    analysis_findings = analysis.findings or build_analysis_findings(
+        project_id, modules, analysis.dependency_edges,
+    )
+    refactor_result = _read_refactor_result(db, project_id)
+    diff_paths = {
+        item.relative_path for item in refactor_result.files if item.changed
+    } if refactor_result else set()
 
     dependencies: Dict[str, Set[str]] = defaultdict(set)
     dependents: Dict[str, Set[str]] = defaultdict(set)
@@ -143,13 +163,15 @@ def build_migration_plan(db: Session, project_id: str) -> MigrationPlanResponse:
         suggested_tests = sorted(tests_by_target.get(module.relative_path, []))
         if not suggested_tests:
             suggested_tests = [f"Generate tests for {module.relative_path}"]
+        direct_dependents = sorted(path_by_id[item] for item in direct_in)
+        direct_dependencies = sorted(path_by_id[item] for item in direct_out)
         impacts.append(ChangeImpact(
             module_id=module.module_id,
             relative_path=module.relative_path,
             risk_level=risk_level,
             blast_radius=len(transitive),
-            direct_dependents=sorted(path_by_id[item] for item in direct_in),
-            direct_dependencies=sorted(path_by_id[item] for item in direct_out),
+            direct_dependents=direct_dependents,
+            direct_dependencies=direct_dependencies,
             affected_entry_points=affected_entries,
             suggested_tests=suggested_tests,
             reasons=reasons,
@@ -217,6 +239,7 @@ def build_migration_plan(db: Session, project_id: str) -> MigrationPlanResponse:
     ]
     phases = [phase for phase in phases if phase.files or phase.phase == 1]
     top_priorities = impacts[: min(6, len(impacts))]
+    findings = decorate_findings(analysis_findings, diff_paths)
     executive_summary = (
         f"This project is {_status(readiness_score).lower()} for modernization with a readiness score of {readiness_score}/100. "
         f"Start by protecting the {len(top_priorities)} highest-impact file(s), then modernize isolated files before shared modules and entry points."
@@ -230,6 +253,8 @@ def build_migration_plan(db: Session, project_id: str) -> MigrationPlanResponse:
         top_priorities=top_priorities,
         impacts=sorted(impacts, key=lambda item: item.relative_path),
         phases=phases,
+        findings=findings,
+        finding_funnel=summarize_findings(findings),
     )
 
 
@@ -240,6 +265,15 @@ def migration_plan_markdown(plan: MigrationPlanResponse, project_name: str) -> s
         f"**Readiness:** {plan.readiness_score}/100 — {plan.readiness_label}",
         "",
         plan.executive_summary,
+        "",
+        "## Finding funnel",
+        "",
+        f"- **{plan.finding_funnel.total_findings} total findings**",
+        f"- **{plan.finding_funnel.modernization_candidates} modernization candidates**",
+        f"- **{plan.finding_funnel.generated_diffs} generated diffs**",
+        f"- **{plan.finding_funnel.verified_changes} verified changes**",
+        "",
+        plan.finding_funnel.verification_label,
         "",
         "## Readiness breakdown",
         "",

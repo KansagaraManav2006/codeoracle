@@ -81,6 +81,7 @@ def test_refactor_proposals_never_claim_automatic_safety(tmp_path, monkeypatch, 
     raw.mkdir(parents=True)
     (raw / relative_path).write_text(source, encoding="utf-8")
     monkeypatch.setattr("app.refactor.service.get_workspace_dir", lambda _: workspace)
+    monkeypatch.setattr("app.analysis.service.get_workspace_dir", lambda _: workspace)
     engine = create_engine(f"sqlite:///{tmp_path / 'refactor.db'}")
     Base.metadata.create_all(engine)
     with Session(engine) as db:
@@ -93,6 +94,10 @@ def test_refactor_proposals_never_claim_automatic_safety(tmp_path, monkeypatch, 
         assert result.changed_files == 1
         assert result.safe_to_apply_automatically is False
         assert result.files[0].syntax_valid is True
+        assert result.findings
+        assert result.finding_funnel.generated_diffs == 1
+        assert result.finding_funnel.verified_changes == 0
+        assert all(finding.confidence == "static" for finding in result.findings)
     engine.dispose()
 
 

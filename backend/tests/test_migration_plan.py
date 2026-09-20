@@ -108,6 +108,9 @@ def test_plan_scores_and_blast_radius():
     assert core.affected_entry_points == ["app.py"]
     assert plan.top_priorities[0].relative_path == "core.py"
     assert len(plan.phases) >= 3
+    assert plan.findings
+    assert plan.finding_funnel.total_findings >= 1
+    assert plan.finding_funnel.verified_changes == 0
 
 
 def test_explanation_and_graph_downloads_are_available():
@@ -132,6 +135,7 @@ def test_markdown_report_contains_decision_sections():
     report = migration_plan_markdown(plan, "Migration Sample")
     db.close()
     assert "# Migration Sample Modernization Plan" in report
+    assert "## Finding funnel" in report
     assert "## Readiness breakdown" in report
     assert "## Highest-impact files" in report
     assert "core.py" in report

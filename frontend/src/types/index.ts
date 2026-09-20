@@ -92,6 +92,8 @@ export interface MigrationPlanResponse {
   top_priorities: ChangeImpact[];
   impacts: ChangeImpact[];
   phases: MigrationPhase[];
+  findings: Finding[];
+  finding_funnel: FindingFunnel;
 }
 
 // --- Deterministic Analysis Interfaces ---
@@ -107,6 +109,33 @@ export interface WarningInfo {
   message: string;
   line?: number | null;
   severity: 'warning' | 'risk' | 'info';
+}
+
+export interface Finding {
+  id: string;
+  rule_id: string;
+  file: string;
+  line?: number | null;
+  severity: 'info' | 'warning' | 'risk';
+  category: string;
+  message: string;
+  evidence: string;
+  confidence: string;
+  autofixable: boolean;
+  has_diff: boolean;
+  verified: boolean;
+  related_dependencies: string[];
+  suggested_tests: string[];
+}
+
+export interface FindingFunnel {
+  total_findings: number;
+  modernization_candidates: number;
+  autofixable_findings: number;
+  generated_diffs: number;
+  verified_changes: number;
+  estimated_findings: number;
+  verification_label: string;
 }
 
 export interface ComplexitySummary {
@@ -215,6 +244,8 @@ export interface ProjectAnalysis {
   dependency_edges: DependencyEdge[];
   entry_points: string[];
   project_warnings: WarningInfo[];
+  findings: Finding[];
+  finding_funnel: FindingFunnel;
   parse_success_count: number;
   parse_partial_count: number;
   parse_failure_count: number;
@@ -361,4 +392,6 @@ export interface ProjectRefactorResult {
   breaking_warning_count: number;
   safe_to_apply_automatically: boolean;
   summary: string;
+  findings: Finding[];
+  finding_funnel: FindingFunnel;
 }

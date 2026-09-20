@@ -12,7 +12,9 @@ import tree_sitter
 import tree_sitter_javascript
 
 from app.ingestion.workspace import get_workspace_dir
-from app.models.db import Project, ProjectFile, ProjectRefactorRecord
+from app.analysis.models import ProjectAnalysis, decorate_findings, summarize_findings
+from app.analysis.service import build_analysis_findings, run_analysis_for_project
+from app.models.db import Project, ProjectAnalysisRecord, ProjectFile, ProjectRefactorRecord
 from app.refactor.models import (
     REFACTOR_ENGINE_VERSION,
     ProjectRefactorResult,
@@ -127,6 +129,17 @@ def _syntax_check(language: str, code: str) -> Tuple[bool, str | None]:
     return (not stack, None if not stack else "Unbalanced brackets after transformation.")
 
 
+def _load_project_findings(db: Session, project_id: str) -> List:
+    record = db.query(ProjectAnalysisRecord).filter(ProjectAnalysisRecord.project_id == project_id).first()
+    analysis = (
+        ProjectAnalysis.model_validate(record.analysis_data)
+        if record else run_analysis_for_project(db, project_id)
+    )
+    return analysis.findings or build_analysis_findings(
+        project_id, analysis.modules, analysis.dependency_edges,
+    )
+
+
 def run_refactor_for_project(db: Session, project_id: str, force: bool = False) -> ProjectRefactorResult:
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
@@ -183,6 +196,10 @@ def run_refactor_for_project(db: Session, project_id: str, force: bool = False) 
     changed_files = sum(item.changed for item in results)
     total_changes = sum(len(item.changes) for item in results)
     breaking_count = sum(w.breaking_change for item in results for w in item.warnings)
+    findings = decorate_findings(
+        _load_project_findings(db, project_id),
+        {item.relative_path for item in results if item.changed},
+    )
     result = ProjectRefactorResult(
         project_id=project_id,
         generated_at=datetime.now(timezone.utc).isoformat(),
@@ -196,6 +213,8 @@ def run_refactor_for_project(db: Session, project_id: str, force: bool = False) 
         summary=(f"Prepared {total_changes} modernization rule group(s) across {changed_files} file(s). "
                  "Review every diff and run the generated tests before merging." if changed_files else
                  "No deterministic legacy patterns were found. The engine left all source files unchanged."),
+        findings=findings,
+        finding_funnel=summarize_findings(findings),
     )
 
     if cached:

@@ -18,14 +18,17 @@ from app.analysis.dependency_resolver import resolve_project_dependencies
 from app.analysis.javascript_analyzer import analyze_javascript_source
 from app.analysis.models import (
     ANALYZER_VERSION,
+    DependencyEdge,
     ImportInfo,
+    ModuleAnalysis,
     ProjectAnalysis,
+    WarningInfo,
     generate_edge_id,
     generate_module_id,
     generate_symbol_id,
 )
 from app.analysis.python_analyzer import analyze_python_source, fallback_python_tokenize_analysis
-from app.analysis.service import run_analysis_for_project
+from app.analysis.service import build_analysis_findings, run_analysis_for_project
 from app.config import settings
 from app.database import Base, get_db
 from app.main import app
@@ -74,6 +77,52 @@ def setup_db():
 
 
 client = TestClient(app)
+
+
+def test_finding_contract_preserves_static_evidence_and_dependencies():
+    source_id = generate_module_id("proj_findings", "legacy.py")
+    target_id = generate_module_id("proj_findings", "shared.py")
+    modules = [
+        ModuleAnalysis(
+            module_id=source_id, relative_path="legacy.py", language="python", line_count=3,
+            parse_status="complete",
+            legacy_warnings=[WarningInfo(code="PY2_XRANGE", message="Use range.", line=2, severity="warning")],
+        ),
+        ModuleAnalysis(module_id=target_id, relative_path="shared.py", language="python", line_count=1, parse_status="complete"),
+    ]
+    findings = build_analysis_findings("proj_findings", modules, [
+        DependencyEdge(
+            edge_id="edge_findings", source_module_id=source_id, target_module_id=target_id,
+            type="import", resolved=True,
+        ),
+    ])
+    assert len(findings) == 1
+    finding = findings[0]
+    assert finding.rule_id == "PY2_XRANGE"
+    assert finding.file == "legacy.py"
+    assert finding.line == 2
+    assert finding.category == "modernization"
+    assert finding.confidence == "static"
+    assert finding.autofixable is True
+    assert finding.related_dependencies == ["shared.py"]
+    assert finding.suggested_tests == ["Generate characterization tests for legacy.py"]
+
+
+def test_finding_contract_includes_dependency_cycles():
+    first = generate_module_id("proj_cycle_findings", "first.py")
+    second = generate_module_id("proj_cycle_findings", "second.py")
+    modules = [
+        ModuleAnalysis(module_id=first, relative_path="first.py", language="python", line_count=1, parse_status="complete"),
+        ModuleAnalysis(module_id=second, relative_path="second.py", language="python", line_count=1, parse_status="complete"),
+    ]
+    findings = build_analysis_findings("proj_cycle_findings", modules, [
+        DependencyEdge(edge_id="first_second", source_module_id=first, target_module_id=second, type="import", resolved=True),
+        DependencyEdge(edge_id="second_first", source_module_id=second, target_module_id=first, type="import", resolved=True),
+    ])
+    cycle = next(finding for finding in findings if finding.rule_id == "DEPENDENCY_CYCLE")
+    assert cycle.category == "dependency"
+    assert cycle.confidence == "static"
+    assert cycle.related_dependencies == ["first.py", "second.py"]
 
 
 # --- 1. Python AST Analyzer Tests ---

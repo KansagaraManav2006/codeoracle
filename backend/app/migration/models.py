@@ -1,6 +1,7 @@
 from typing import List
 
 from pydantic import BaseModel, Field
+from app.analysis.models import Finding, FindingFunnel
 
 
 class ReadinessCategory(BaseModel):
@@ -41,4 +42,6 @@ class MigrationPlanResponse(BaseModel):
     top_priorities: List[ChangeImpact]
     impacts: List[ChangeImpact]
     phases: List[MigrationPhase]
+    findings: List[Finding] = Field(default_factory=list)
+    finding_funnel: FindingFunnel = Field(default_factory=FindingFunnel)
 

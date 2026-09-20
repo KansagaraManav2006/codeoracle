@@ -1,9 +1,10 @@
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
+from app.analysis.models import Finding, FindingFunnel
 
 
-REFACTOR_ENGINE_VERSION = "1.1.0"
+REFACTOR_ENGINE_VERSION = "1.2.0"
 
 
 class RefactorWarning(BaseModel):
@@ -39,6 +40,8 @@ class ProjectRefactorResult(BaseModel):
     breaking_warning_count: int = 0
     safe_to_apply_automatically: bool = False
     summary: str
+    findings: List[Finding] = Field(default_factory=list)
+    finding_funnel: FindingFunnel = Field(default_factory=FindingFunnel)
 
 
 class GenerateRefactorRequest(BaseModel):

@@ -16,6 +16,7 @@ import {
 import { ChangeImpact, MigrationPlanResponse } from '../types';
 import ReadinessGauge from './common/ReadinessGauge';
 import RiskBadge from './common/RiskBadge';
+import FindingFunnel from './common/FindingFunnel';
 
 interface Props {
   projectId?: string | null;
@@ -155,6 +156,8 @@ export const MigrationPlanTab: React.FC<Props> = ({
           </div>
         </div>
       </section>
+
+      <FindingFunnel funnel={plan.finding_funnel} />
 
       {/* Readiness Breakdown Section */}
       <section className="space-y-3">
