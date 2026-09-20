@@ -13,6 +13,8 @@ import {
   Code2,
   AlertTriangle,
   CheckSquare,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import {
   ProjectRefactorResult,
@@ -61,6 +63,7 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [showResolvedFindings, setShowResolvedFindings] = useState(false);
 
   const { showToast } = useToast();
 
@@ -270,7 +273,8 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
       return {
         level: 'low',
         label: 'LOW RISK',
-        reason: 'Deterministic syntactic modernization with clean static AST validation and minimal regression surface.',
+        reason:
+          'Deterministic syntactic modernization with clean static AST validation and minimal regression surface.',
       };
     }
     return {
@@ -315,6 +319,13 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
   const breakingRisks = result?.breaking_warning_count || 0;
   const verification = result?.verification;
 
+  // Compute verification workflow state
+  const isLockedState = !trustedDemo || verification?.status === 'safety_locked';
+  const isNoChangeState = verification?.status === 'no_changes' || (result && changedFiles.length === 0);
+  const isFailedState = verification?.status === 'failed';
+  const isVerifiedState = verification?.status === 'verified' || verification?.verified === true;
+  const isReadyState = !verification && trustedDemo && !verifying && changedFiles.length > 0;
+
   return (
     <div
       className="space-y-5 animate-[fade-up_250ms_ease-out_both]"
@@ -336,7 +347,7 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
               Modernization Proposal &amp; Verification
             </h2>
             <p className="font-sans text-xs text-ink-3 mt-0.5">
-              Suggested updates shown as reviewable diffs, linked to safety protection tests and verified in sandbox before merging.
+              Suggested updates shown as reviewable diffs, linked to safety protection tests and verified in disposable sandbox before merging.
             </p>
           </div>
         </div>
@@ -390,61 +401,79 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
         />
       </div>
 
-      {/* 3. Verified Modernization Sandbox Panel */}
+      {/* 3. Verified Modernization Sandbox Command Center */}
       <section className="bg-surface border border-line rounded-xl p-5 shadow-1 space-y-4">
+        {/* Header & Status Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-line">
           <div className="flex items-center gap-3">
             <div
               className={`p-2.5 rounded-lg border shrink-0 ${
-                verification?.verified
+                isVerifiedState
                   ? 'bg-teal-surface text-teal-strong border-teal/20'
-                  : verification?.status === 'safety_locked'
+                  : isLockedState
                   ? 'bg-amber-surface text-amber-strong border-amber/20'
-                  : verification?.status === 'failed'
+                  : isFailedState
                   ? 'bg-red-surface text-red-text border-red-line'
                   : 'bg-indigo-surface text-indigo-text border-indigo/20'
               }`}
             >
-              {verification?.verified ? (
+              {verifying ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : isVerifiedState ? (
                 <ShieldCheck className="w-5 h-5" strokeWidth={2} />
-              ) : (
+              ) : isFailedState ? (
                 <ShieldAlert className="w-5 h-5" strokeWidth={2} />
+              ) : isLockedState ? (
+                <Lock className="w-5 h-5" strokeWidth={2} />
+              ) : (
+                <Wand2 className="w-5 h-5" strokeWidth={2} />
               )}
             </div>
 
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-display font-bold text-sm sm:text-base text-ink">
-                  Modernization Verification Loop
+                  Verified Modernization Loop (Disposable Sandbox)
                 </h3>
                 <span
                   className={`px-2 py-0.5 rounded-pill font-sans text-[10px] font-bold uppercase tracking-wider border ${
-                    verification?.verified
+                    verifying
+                      ? 'border-indigo/30 bg-indigo-surface text-indigo-text animate-pulse'
+                      : isVerifiedState
                       ? 'border-teal/30 bg-teal-surface text-teal-strong'
-                      : verification?.status === 'safety_locked'
+                      : isLockedState
                       ? 'border-amber/30 bg-amber-surface text-amber-strong'
-                      : verification?.status === 'failed'
+                      : isFailedState
                       ? 'border-red-line bg-red-surface text-red-text'
+                      : isNoChangeState
+                      ? 'border-line bg-tile text-teal-strong'
                       : 'border-line bg-tile text-ink-3'
                   }`}
                 >
-                  {verification?.verified
-                    ? 'Status: Verified'
-                    : verification?.status === 'safety_locked'
+                  {verifying
+                    ? 'Status: Verifying Loop in Sandbox…'
+                    : isVerifiedState
+                    ? 'Status: Verified (Pass)'
+                    : isLockedState
                     ? 'Status: Safety Locked'
-                    : verification?.status === 'failed'
-                    ? 'Status: Regression Detected'
-                    : 'Status: Unverified'}
+                    : isFailedState
+                    ? 'Status: Regression Detected (Failed)'
+                    : isNoChangeState
+                    ? 'Status: No Changes Required'
+                    : 'Status: Ready for Verification'}
                 </span>
                 <span className="px-2 py-0.5 rounded-pill font-sans text-[10px] font-bold uppercase tracking-wider bg-tile border border-line text-ink-3">
                   Verification: {trustedDemo ? 'Available' : 'Unavailable (Safety Locked)'}
                 </span>
+                <span className="px-2 py-0.5 rounded-pill font-sans text-[10px] font-bold uppercase tracking-wider bg-teal-surface/60 border border-teal/20 text-teal-text">
+                  Original Code: Untouched (Read-Only)
+                </span>
               </div>
-              <p className="font-sans text-xs text-ink-3 mt-0.5">
+              <p className="font-sans text-xs text-ink-3 mt-1">
                 {verification?.verification_summary ||
                   (!trustedDemo
                     ? 'Untrusted uploaded repositories are execution-locked to prevent arbitrary code execution on the server. Sandbox verification is enabled for trusted built-in demos.'
-                    : 'Execute characterization tests in an isolated disposable sandbox to verify behavior before and after modernization.')}
+                    : 'Executes the 7-step characterization loop in an isolated disposable sandbox to verify behavior before and after modernization.')}
               </p>
             </div>
           </div>
@@ -457,7 +486,7 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
               </span>
             ) : (
               <Button
-                variant={verification?.verified ? 'outline' : 'indigo'}
+                variant={isVerifiedState ? 'outline' : 'indigo'}
                 size="sm"
                 onClick={handleVerify}
                 disabled={verifying}
@@ -471,7 +500,7 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
               >
                 {verifying
                   ? 'Verifying in Sandbox…'
-                  : verification
+                  : isVerifiedState
                   ? 'Re-verify in Sandbox'
                   : 'Verify in Disposable Sandbox'}
               </Button>
@@ -479,66 +508,352 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
           </div>
         </div>
 
-        {/* Verification Metrics Grid */}
-        {verification && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
-            <div className="bg-tile border border-line rounded-lg p-3">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
-                Regression Tests
-              </span>
-              <p className="mt-1 font-mono text-base font-bold text-ink">
-                {verification.after_tests.passed_tests} / {verification.baseline_tests.passed_tests} passed
-              </p>
-              <p className="text-[11px] text-ink-3 mt-0.5">
-                Baseline: {verification.baseline_tests.passed_tests} · Modernized: {verification.after_tests.passed_tests}
-              </p>
+        {/* --- State 1: Loading State (Verifying in Sandbox) --- */}
+        {verifying && (
+          <div className="p-4 rounded-lg bg-indigo-surface/40 border border-indigo/20 space-y-3">
+            <div className="flex items-center gap-2 text-indigo-text font-bold text-xs">
+              <Loader2 className="w-4 h-4 animate-spin text-indigo" />
+              <span>Executing 7-Step Verified Modernization Loop in Ephemeral Disposable Sandbox…</span>
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-[11px] font-mono text-ink-2">
+              <div className="p-2 rounded bg-surface border border-line flex items-center gap-2">
+                <span className="w-4 h-4 rounded-full bg-indigo text-white text-[9px] flex items-center justify-center font-bold">1</span>
+                <span>Generate baseline tests</span>
+              </div>
+              <div className="p-2 rounded bg-surface border border-line flex items-center gap-2">
+                <span className="w-4 h-4 rounded-full bg-indigo text-white text-[9px] flex items-center justify-center font-bold">2</span>
+                <span>Run baseline tests</span>
+              </div>
+              <div className="p-2 rounded bg-surface border border-line flex items-center gap-2">
+                <span className="w-4 h-4 rounded-full bg-indigo text-white text-[9px] flex items-center justify-center font-bold">3</span>
+                <span>Create disposable copy</span>
+              </div>
+              <div className="p-2 rounded bg-surface border border-line flex items-center gap-2">
+                <span className="w-4 h-4 rounded-full bg-indigo text-white text-[9px] flex items-center justify-center font-bold">4</span>
+                <span>Apply modernization to copy</span>
+              </div>
+              <div className="p-2 rounded bg-surface border border-line flex items-center gap-2">
+                <span className="w-4 h-4 rounded-full bg-indigo text-white text-[9px] flex items-center justify-center font-bold">5</span>
+                <span>Run tests on modified copy</span>
+              </div>
+              <div className="p-2 rounded bg-surface border border-line flex items-center gap-2">
+                <span className="w-4 h-4 rounded-full bg-indigo text-white text-[9px] flex items-center justify-center font-bold">6</span>
+                <span>Reanalyze AST &amp; cycles</span>
+              </div>
+              <div className="p-2 rounded bg-surface border border-line flex items-center gap-2 sm:col-span-2">
+                <span className="w-4 h-4 rounded-full bg-indigo text-white text-[9px] flex items-center justify-center font-bold">7</span>
+                <span>Compare before vs after metrics</span>
+              </div>
+            </div>
+            <p className="text-[10px] text-ink-4">
+              Immutability Guarantee: Original project repository is never modified. Subprocess execution runs exclusively inside an ephemeral disposable directory.
+            </p>
+          </div>
+        )}
 
-            <div className="bg-tile border border-line rounded-lg p-3">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
-                Syntax Validation
+        {/* --- State 2: Locked State (Untrusted Codebase) --- */}
+        {!verifying && isLockedState && (
+          <div className="p-4 rounded-lg bg-amber-surface/60 border border-amber-line text-xs space-y-2.5">
+            <div className="flex items-center gap-2 text-amber-strong font-bold">
+              <Lock className="w-4 h-4 shrink-0" />
+              <span>Verification Unavailable: Untrusted Codebase (Remote Execution Safety Locked)</span>
+            </div>
+            <p className="text-ink-2 leading-relaxed text-[11px]">
+              To protect server infrastructure from arbitrary hostile code execution, remote subprocess execution is permanently disabled for uploaded repositories. Verification is exclusively permitted for trusted built-in demo benchmarks.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 font-mono text-[10px]">
+              <div className="bg-surface/80 p-2.5 rounded border border-amber-line/40">
+                <strong className="block text-ink font-sans">Original Project</strong>
+                <span className="text-teal-strong font-bold">Strictly Read-Only (Untouched)</span>
+              </div>
+              <div className="bg-surface/80 p-2.5 rounded border border-amber-line/40">
+                <strong className="block text-ink font-sans">Static Analysis</strong>
+                <span className="text-ink-2">AST Syntax Checked Statically</span>
+              </div>
+              <div className="bg-surface/80 p-2.5 rounded border border-amber-line/40">
+                <strong className="block text-ink font-sans">Runtime Verification</strong>
+                <span className="text-amber-strong font-bold">Run Locally via Downloaded Suite</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* --- State 3: Failed State (Regression or Syntax Issue Detected) --- */}
+        {!verifying && isFailedState && verification && (
+          <div className="p-4 rounded-lg bg-red-surface border border-red-line text-xs space-y-3 text-red-text">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 font-bold text-sm">
+                <ShieldAlert className="w-4 h-4 shrink-0" />
+                <span>Modernization Verification Failed: Regression or Syntax Error Detected</span>
+              </div>
+              <span className="px-2 py-0.5 rounded-pill text-[10px] font-bold bg-red-strong text-white uppercase">
+                FAILED
               </span>
-              <p
-                className={`mt-1 font-mono text-base font-bold ${
-                  verification.syntax_status === 'passed' ? 'text-teal-strong' : 'text-red'
-                }`}
+            </div>
+            <p className="text-[11px] leading-relaxed">
+              {verification.verification_summary ||
+                'The modernization proposal failed automated regression verification in the disposable sandbox. Do not merge without resolving detected regressions.'}
+            </p>
+            {verification.after_tests.failed_tests > 0 && (
+              <div className="p-2 rounded bg-white/70 border border-red-line/60 font-mono text-[11px]">
+                <strong>Failed Tests:</strong> {verification.after_tests.failed_tests} characterization test(s) failed after applying modernization diffs.
+              </div>
+            )}
+            {verification.syntax_errors.length > 0 && (
+              <div className="p-2 rounded bg-white/70 border border-red-line/60 font-mono text-[11px]">
+                <strong>Syntax Errors:</strong> {verification.syntax_errors.join(', ')}
+              </div>
+            )}
+            {verification.metrics.new_cycles > 0 && (
+              <div className="p-2 rounded bg-white/70 border border-red-line/60 font-mono text-[11px]">
+                <strong>New Dependency Cycles:</strong> {verification.metrics.new_cycles} new circular loop(s) introduced.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* --- State 4: No-Change State (Source Code Already Clean) --- */}
+        {!verifying && isNoChangeState && (
+          <div className="p-4 rounded-lg bg-tile border border-line text-xs space-y-2">
+            <div className="flex items-center gap-2 text-ink font-bold">
+              <CheckCircle2 className="w-4 h-4 text-teal-strong" />
+              <span>No Modernization Changes Required: Source Code Already Modernized</span>
+            </div>
+            <p className="text-ink-3 text-[11px] leading-relaxed">
+              No deterministic legacy patterns (Python 2 xrange/print/iteritems, or JS var) were detected in this codebase. The engine left all source files untouched and baseline tests are verified.
+            </p>
+          </div>
+        )}
+
+        {/* --- State 5: Ready / Unverified State (Trusted Demo Awaiting Verification) --- */}
+        {!verifying && isReadyState && (
+          <div className="p-4 rounded-lg bg-indigo-surface/40 border border-indigo/20 text-xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="font-bold text-ink text-sm flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-indigo" />
+                  Ready for Disposable Sandbox Verification (Trusted Demo)
+                </h4>
+                <p className="text-[11px] text-ink-3 mt-0.5">
+                  Execute characterization tests in an isolated disposable sandbox to verify behavior before and after modernization without touching original files.
+                </p>
+              </div>
+              <Button
+                variant="indigo"
+                size="sm"
+                onClick={handleVerify}
+                disabled={verifying}
+                icon={<CheckCircle2 className="w-3.5 h-3.5" />}
               >
-                {verification.syntax_status === 'passed' ? 'AST Validated' : 'Syntax Error'}
-              </p>
-              <p className="text-[11px] text-ink-3 mt-0.5">
-                {verification.changed_files.length} modified file(s) checked
-              </p>
+                Verify in Disposable Sandbox
+              </Button>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap text-[10px] font-mono text-ink-3 pt-1 border-t border-indigo/20">
+              <span className="font-bold text-indigo">7-Step Loop:</span>
+              <span>1. Baseline tests</span>
+              <span>→</span>
+              <span>2. Run baseline</span>
+              <span>→</span>
+              <span>3. Disposable copy</span>
+              <span>→</span>
+              <span>4. Apply diff</span>
+              <span>→</span>
+              <span>5. Re-run tests</span>
+              <span>→</span>
+              <span>6. Reanalyze AST</span>
+              <span>→</span>
+              <span>7. Compare metrics</span>
+            </div>
+          </div>
+        )}
+
+        {/* --- Comprehensive Comparison Metrics Grid (All 10 Items Displayed) --- */}
+        {!verifying && verification && (
+          <div className="space-y-3 pt-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-ink-2">
+                Before &amp; After Modernization Verification Metrics
+              </span>
+              <span className="text-[11px] font-mono text-ink-3">
+                Engine: {verification.verification_version} · Verified at {verification.verified_at.slice(0, 19).replace('T', ' ')} UTC
+              </span>
             </div>
 
-            <div className="bg-tile border border-line rounded-lg p-3">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
-                Dependency Loops
-              </span>
-              <p
-                className={`mt-1 font-mono text-base font-bold ${
-                  verification.metrics.new_cycles === 0 ? 'text-teal-strong' : 'text-red'
-                }`}
-              >
-                {verification.metrics.new_cycles} new cycles
-              </p>
-              <p className="text-[11px] text-ink-3 mt-0.5">
-                Total loops after: {verification.metrics.cycles_after}
-              </p>
+            {/* 10-Item Structured Comparison Grid */}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              {/* 1 & 2. Tests Before vs After */}
+              <div className="bg-tile border border-line rounded-lg p-3 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
+                  1. Tests Before vs After
+                </span>
+                <p className="font-mono text-sm font-bold text-ink">
+                  {verification.baseline_tests.passed_tests} → {verification.after_tests.passed_tests} passed
+                </p>
+                <div className="flex items-center justify-between text-[11px] text-ink-3">
+                  <span>Failed: {verification.after_tests.failed_tests}</span>
+                  <span
+                    className={`font-bold ${
+                      verification.after_tests.failed_tests === 0 ? 'text-teal-strong' : 'text-red'
+                    }`}
+                  >
+                    {verification.after_tests.failed_tests === 0 ? 'NO REGRESSIONS' : 'FAILED'}
+                  </span>
+                </div>
+              </div>
+
+              {/* 3. Syntax Status */}
+              <div className="bg-tile border border-line rounded-lg p-3 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
+                  2. Syntax AST Status
+                </span>
+                <p
+                  className={`font-mono text-sm font-bold ${
+                    verification.syntax_status === 'passed' ? 'text-teal-strong' : 'text-red'
+                  }`}
+                >
+                  {verification.syntax_status === 'passed' ? 'AST Validated' : 'Syntax Error'}
+                </p>
+                <p className="text-[11px] text-ink-3">
+                  {verification.changed_files.length} modified file(s) parsed
+                </p>
+              </div>
+
+              {/* 4. Coverage Before vs After */}
+              <div className="bg-tile border border-line rounded-lg p-3 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
+                  3. Line Coverage
+                </span>
+                <p className="font-mono text-sm font-bold text-ink">
+                  {verification.after_tests.line_coverage != null
+                    ? `${Math.round(verification.after_tests.line_coverage)}% line`
+                    : 'Instrumented'}
+                </p>
+                <p className="text-[11px] text-ink-3">
+                  Baseline: {verification.baseline_tests.line_coverage != null ? `${Math.round(verification.baseline_tests.line_coverage)}%` : 'Unmeasured'}
+                </p>
+              </div>
+
+              {/* 5. New Dependency Cycles */}
+              <div className="bg-tile border border-line rounded-lg p-3 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
+                  4. Dependency Cycles
+                </span>
+                <p
+                  className={`font-mono text-sm font-bold ${
+                    verification.metrics.new_cycles === 0 ? 'text-teal-strong' : 'text-red'
+                  }`}
+                >
+                  {verification.metrics.new_cycles} new cycles
+                </p>
+                <p className="text-[11px] text-ink-3">
+                  Total: {verification.metrics.cycles_after} (base: {verification.metrics.cycles_before})
+                </p>
+              </div>
+
+              {/* 6. Resolved Findings */}
+              <div className="bg-tile border border-line rounded-lg p-3 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
+                  5. Resolved Findings
+                </span>
+                <p className="font-mono text-sm font-bold text-teal-strong">
+                  {verification.metrics.resolved_warnings_count} resolved
+                </p>
+                {verification.metrics.resolved_warnings.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowResolvedFindings((v) => !v)}
+                    className="text-[11px] text-indigo hover:underline flex items-center gap-0.5"
+                  >
+                    <span>{showResolvedFindings ? 'Hide list' : 'View list'}</span>
+                    {showResolvedFindings ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  </button>
+                ) : (
+                  <p className="text-[11px] text-ink-3">Zero findings to resolve</p>
+                )}
+              </div>
+
+              {/* 7. Readiness Before */}
+              <div className="bg-tile border border-line rounded-lg p-3 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
+                  6. Readiness Before
+                </span>
+                <p className="font-mono text-sm font-bold text-ink">
+                  {verification.metrics.readiness_before} / 100
+                </p>
+                <p className="text-[11px] text-ink-3">Baseline readiness score</p>
+              </div>
+
+              {/* 8. Readiness After */}
+              <div className="bg-tile border border-line rounded-lg p-3 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
+                  7. Readiness After
+                </span>
+                <p className="font-mono text-sm font-bold text-ink">
+                  {verification.metrics.readiness_after} / 100
+                </p>
+                <p className="text-[11px] text-ink-3">Re-analyzed post-refactor</p>
+              </div>
+
+              {/* 9. Readiness Delta */}
+              <div className="bg-tile border border-line rounded-lg p-3 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
+                  8. Readiness Delta
+                </span>
+                <p
+                  className={`font-mono text-sm font-bold ${
+                    verification.metrics.readiness_delta >= 0 ? 'text-teal-strong' : 'text-red'
+                  }`}
+                >
+                  {verification.metrics.readiness_delta >= 0 ? '+' : ''}
+                  {verification.metrics.readiness_delta} pts
+                </p>
+                <p className="text-[11px] font-semibold text-teal-strong">
+                  {verification.metrics.readiness_delta >= 0 ? 'Score improved' : 'Decreased'}
+                </p>
+              </div>
+
+              {/* 10. Verified Status */}
+              <div className="bg-tile border border-line rounded-lg p-3 space-y-1 col-span-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
+                  9 &amp; 10. Verification Outcome
+                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${
+                      verification.verified
+                        ? 'bg-teal-surface text-teal-strong border border-teal/30'
+                        : 'bg-red-surface text-red-text border border-red-line'
+                    }`}
+                  >
+                    {verification.verified ? 'VERIFIED: PASS' : 'NOT VERIFIED'}
+                  </span>
+                  <span className="text-[11px] text-ink-2 font-semibold">
+                    {verification.verified
+                      ? 'Behavioral Equivalence Confirmed'
+                      : 'Regression / Syntax Issues'}
+                  </span>
+                </div>
+                <p className="text-[10px] text-ink-4">
+                  Original repository source files remained 100% untouched.
+                </p>
+              </div>
             </div>
 
-            <div className="bg-tile border border-line rounded-lg p-3">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
-                Readiness Score Delta
-              </span>
-              <p className="mt-1 font-mono text-base font-bold text-ink">
-                {verification.metrics.readiness_before}/100 → {verification.metrics.readiness_after}/100
-              </p>
-              <p className="text-[11px] font-semibold text-teal-strong mt-0.5">
-                {verification.metrics.readiness_delta >= 0
-                  ? `+${verification.metrics.readiness_delta} pts improvement`
-                  : `${verification.metrics.readiness_delta} pts`}
-              </p>
-            </div>
+            {/* Expandable Resolved Findings List */}
+            {showResolvedFindings && verification.metrics.resolved_warnings.length > 0 && (
+              <div className="p-3 bg-tile border border-line rounded-lg text-xs space-y-1.5 animate-[fade-down_150ms_ease-out]">
+                <span className="font-bold text-ink text-[11px] block">
+                  Resolved Findings &amp; Warnings:
+                </span>
+                <ul className="space-y-1 font-mono text-[11px] text-ink-2 list-disc list-inside">
+                  {verification.metrics.resolved_warnings.map((warn, i) => (
+                    <li key={i} className="truncate">
+                      {warn}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </section>
