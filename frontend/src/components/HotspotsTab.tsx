@@ -21,6 +21,7 @@ import { HotspotsResponse, TabType } from '../types';
 interface HotspotsTabProps {
   projectId: string;
   onNavigateTab?: (tab: TabType) => void;
+  onSelectFile?: (filePath: string) => void;
   onFocusInGraph?: (filePath: string) => void;
   onInspectImpact?: (filePath: string) => void;
 }
@@ -30,6 +31,7 @@ type SortField = 'score' | 'complexity' | 'blast_radius' | 'fan_in' | 'loc' | 'w
 export const HotspotsTab: React.FC<HotspotsTabProps> = ({
   projectId,
   onNavigateTab,
+  onSelectFile,
   onFocusInGraph,
   onInspectImpact,
 }) => {
@@ -231,7 +233,10 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
               </button>
 
               <button
-                onClick={() => onNavigateTab?.('tests')}
+                onClick={() => {
+                  onSelectFile?.(topHotspot.file);
+                  onNavigateTab?.('tests');
+                }}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-xs font-semibold text-white transition-colors"
                 title="Generate Characterization Tests"
               >
@@ -240,7 +245,10 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
               </button>
 
               <button
-                onClick={() => onNavigateTab?.('refactor')}
+                onClick={() => {
+                  onSelectFile?.(topHotspot.file);
+                  onNavigateTab?.('refactor');
+                }}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-xs font-semibold text-white transition-colors"
                 title="Preview Refactored Code"
               >
@@ -519,7 +527,10 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
                     </button>
 
                     <button
-                      onClick={() => onNavigateTab?.('tests')}
+                      onClick={() => {
+                        onSelectFile?.(item.file);
+                        onNavigateTab?.('tests');
+                      }}
                       className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-[#F7F4EE] hover:bg-[#ECE5DA] border border-[#D8CFC2] text-[#292622] flex items-center gap-1 transition-colors"
                       title="Generate or inspect characterization tests"
                     >
@@ -528,7 +539,10 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
                     </button>
 
                     <button
-                      onClick={() => onNavigateTab?.('refactor')}
+                      onClick={() => {
+                        onSelectFile?.(item.file);
+                        onNavigateTab?.('refactor');
+                      }}
                       className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-[#F7F4EE] hover:bg-[#ECE5DA] border border-[#D8CFC2] text-[#292622] flex items-center gap-1 transition-colors"
                       title="Preview refactor diff proposals"
                     >

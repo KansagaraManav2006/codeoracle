@@ -32,6 +32,7 @@ import FindingFunnel from './common/FindingFunnel';
 interface ExplanationTabProps {
   projectId?: string | null;
   onNavigateTab?: (tab: TabType) => void;
+  onSelectFile?: (filePath: string) => void;
 }
 
 interface LayerSummary {
@@ -46,7 +47,11 @@ interface LayerSummary {
   highComplexityCount: number;
 }
 
-export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onNavigateTab }) => {
+export const ExplanationTab: React.FC<ExplanationTabProps> = ({
+  projectId,
+  onNavigateTab,
+  onSelectFile,
+}) => {
   const [analysis, setAnalysis] = useState<ProjectAnalysis | null>(null);
   const [graph, setGraph] = useState<GraphResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -55,6 +60,11 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onNav
   const [languageFilter, setLanguageFilter] = useState<string>('all');
   const [selectedLayer, setSelectedLayer] = useState<string | null>(null);
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
+
+  const selectAndNavigate = (filePath: string, tab: TabType) => {
+    onSelectFile?.(filePath);
+    onNavigateTab?.(tab);
+  };
 
   const fetchData = async (force: boolean = false) => {
     if (!projectId) return;
@@ -262,6 +272,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onNav
         description: `This file has high cyclomatic complexity (${target.complexity.cyclomatic_complexity}) and ${target.legacy_warnings.length} modernization findings. Lock in existing behavior with characterization tests prior to refactoring.`,
         actionLabel: 'Generate Safety Tests',
         targetTab: 'tests' as TabType,
+        targetFile: target.relative_path,
         icon: ShieldAlert,
       };
     }
@@ -275,6 +286,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onNav
         description: 'Deterministic AST-safe code transformations have been generated and validated for Python 3 / Modern JS. Review and verify proposals.',
         actionLabel: 'Preview Proposed Refactors',
         targetTab: 'refactor' as TabType,
+        targetFile: topRiskModules[0]?.mod.relative_path,
         icon: Sparkles,
       };
     }
@@ -541,7 +553,16 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onNav
           </div>
 
           <button
-            onClick={() => onNavigateTab?.(recommendedAction.targetTab)}
+            onClick={() => {
+              const actionTargetFile =
+                'targetFile' in recommendedAction && typeof recommendedAction.targetFile === 'string'
+                  ? recommendedAction.targetFile
+                  : null;
+              if (actionTargetFile) {
+                onSelectFile?.(actionTargetFile);
+              }
+              onNavigateTab?.(recommendedAction.targetTab);
+            }}
             className="btn-brand-pill py-3 px-5 text-xs flex items-center justify-center gap-2 shrink-0 shadow-md hover:scale-105 transition-all"
           >
             <span>{recommendedAction.actionLabel}</span>
@@ -689,7 +710,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onNav
                 {/* Cross-tab deep links */}
                 <div className="flex flex-wrap items-center gap-2 pl-7 pt-1">
                   <button
-                    onClick={() => onNavigateTab?.('graph')}
+                    onClick={() => selectAndNavigate(mod.relative_path, 'graph')}
                     className="px-2.5 py-1 rounded-xl text-[10px] font-bold bg-[#EAE9FB] text-[#4340A0] border border-[#C7C4F7] hover:bg-[#D9D7F9] transition-colors flex items-center gap-1"
                     title="Trace upstream and downstream callers in dependency graph"
                   >
@@ -697,7 +718,15 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onNav
                     <span>Inspect Graph</span>
                   </button>
                   <button
-                    onClick={() => onNavigateTab?.('tests')}
+                    onClick={() => selectAndNavigate(mod.relative_path, 'migration')}
+                    className="px-2.5 py-1 rounded-xl text-[10px] font-bold bg-[#F6E5E2] text-[#8F3F3A] border border-[#ECC7C3] hover:bg-[#F2D8D4] transition-colors flex items-center gap-1"
+                    title="Calculate what breaks if this file changes"
+                  >
+                    <Target className="w-3 h-3" />
+                    <span>What Breaks?</span>
+                  </button>
+                  <button
+                    onClick={() => selectAndNavigate(mod.relative_path, 'tests')}
                     className="px-2.5 py-1 rounded-xl text-[10px] font-bold bg-[#E0EFEB] text-[#245F59] border border-[#BEE0D6] hover:bg-[#CEEAE2] transition-colors flex items-center gap-1"
                     title="Generate characterization tests for this file"
                   >
@@ -705,7 +734,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onNav
                     <span>Generate Tests</span>
                   </button>
                   <button
-                    onClick={() => onNavigateTab?.('refactor')}
+                    onClick={() => selectAndNavigate(mod.relative_path, 'refactor')}
                     className="px-2.5 py-1 rounded-xl text-[10px] font-bold bg-[#F5E8CC] text-[#76561B] border border-[#E6D3A9] hover:bg-[#F0DEB4] transition-colors flex items-center gap-1"
                     title="Preview modernization diff proposals"
                   >
@@ -713,7 +742,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onNav
                     <span>Preview Refactor</span>
                   </button>
                   <button
-                    onClick={() => onNavigateTab?.('hotspots')}
+                    onClick={() => selectAndNavigate(mod.relative_path, 'hotspots')}
                     className="px-2.5 py-1 rounded-xl text-[10px] font-bold bg-[#FEF9EE] text-[#C7953D] border border-[#F5DCB7] hover:bg-[#FDF1D8] transition-colors flex items-center gap-1"
                     title="View file hotspot ranking & ripple metrics"
                   >
@@ -925,21 +954,28 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId, onNav
                         <span className="text-xs font-bold text-[#292622]">Take Action on this Module:</span>
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => onNavigateTab?.('graph')}
+                            onClick={() => selectAndNavigate(mod.relative_path, 'graph')}
                             className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#EAE9FB] text-[#4340A0] border border-[#C7C4F7] hover:bg-[#D9D7F9] transition-colors flex items-center gap-1.5"
                           >
                             <Network className="w-3.5 h-3.5" />
                             <span>View in Graph</span>
                           </button>
                           <button
-                            onClick={() => onNavigateTab?.('tests')}
+                            onClick={() => selectAndNavigate(mod.relative_path, 'migration')}
+                            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#F6E5E2] text-[#8F3F3A] border border-[#ECC7C3] hover:bg-[#F2D8D4] transition-colors flex items-center gap-1.5"
+                          >
+                            <Target className="w-3.5 h-3.5" />
+                            <span>What Breaks?</span>
+                          </button>
+                          <button
+                            onClick={() => selectAndNavigate(mod.relative_path, 'tests')}
                             className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#E0EFEB] text-[#245F59] border border-[#BEE0D6] hover:bg-[#CEEAE2] transition-colors flex items-center gap-1.5"
                           >
                             <Play className="w-3.5 h-3.5" />
                             <span>Run/Generate Tests</span>
                           </button>
                           <button
-                            onClick={() => onNavigateTab?.('refactor')}
+                            onClick={() => selectAndNavigate(mod.relative_path, 'refactor')}
                             className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#F5E8CC] text-[#76561B] border border-[#E6D3A9] hover:bg-[#F0DEB4] transition-colors flex items-center gap-1.5"
                           >
                             <Wrench className="w-3.5 h-3.5" />

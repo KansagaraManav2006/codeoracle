@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Header from './components/Header';
 import InputSection from './components/InputSection';
 import JobProgressView from './components/JobProgressView';
@@ -23,6 +23,12 @@ export const App: React.FC = () => {
 
   const { job, project, files, loading, error, errorCode, submitZip, submitGithub, loadDemo, openProject, reset } =
     useJobPoller();
+
+  // A selected risk target belongs to the currently opened project only. Clear it
+  // when switching repositories so impact panels never show stale context.
+  useEffect(() => {
+    setTargetFile(null);
+  }, [project?.project_id]);
 
   const handleTestsUpdated = () => {
     setTestRevision((prev) => prev + 1);
@@ -71,19 +77,21 @@ export const App: React.FC = () => {
 
         {project && (
           <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[20px] p-3 shadow-warm sm:p-4 lg:p-6 transition-all duration-150">
-            <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+            <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} targetFile={targetFile} />
 
             <div className="mt-4">
               {activeTab === 'explanation' && (
                 <ExplanationTab
                   projectId={project.project_id}
                   onNavigateTab={setActiveTab}
+                  onSelectFile={setTargetFile}
                 />
               )}
               {activeTab === 'hotspots' && (
                 <HotspotsTab
                   projectId={project.project_id}
                   onNavigateTab={setActiveTab}
+                  onSelectFile={setTargetFile}
                   onFocusInGraph={handleFocusInGraph}
                   onInspectImpact={handleInspectImpact}
                 />
