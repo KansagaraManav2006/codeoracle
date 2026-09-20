@@ -811,6 +811,8 @@ Overall Line Coverage: {test_result.overall_line_coverage if test_result.overall
 
 from app.refactor.models import GenerateRefactorRequest, ProjectRefactorResult
 from app.refactor.service import run_refactor_for_project
+from app.refactor.verification_models import RefactorVerificationResult, VerifyRefactorRequest
+from app.refactor.verification_service import run_refactor_verification
 
 
 @router.post("/projects/{project_id}/refactor", response_model=ProjectRefactorResult)
@@ -824,8 +826,8 @@ def generate_project_refactor(
         return run_refactor_for_project(db, project_id, force=payload.force)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
-    except Exception:
-        logger.exception("Refactor generation failed for project %s", project_id)
+    except Exception as exc:
+        logger.exception("Failed to generate refactor proposal for %s: %s", project_id, exc)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unable to generate refactor proposal.")
 
 
@@ -838,6 +840,46 @@ def get_project_refactor(project_id: str, db: Session = Depends(get_db)) -> Proj
     if not record:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Refactor proposal unavailable. Generate it first.")
     return ProjectRefactorResult.model_validate(record.refactor_data)
+
+
+@router.post("/projects/{project_id}/refactor/verify", response_model=RefactorVerificationResult)
+def verify_project_refactor(
+    project_id: str,
+    payload: VerifyRefactorRequest = VerifyRefactorRequest(),
+    db: Session = Depends(get_db),
+) -> RefactorVerificationResult:
+    """Executes verified modernization loop in ephemeral disposable workspace (trusted demo only)."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    try:
+        return run_refactor_verification(db, project_id, force=payload.force)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except Exception as exc:
+        logger.exception("Refactor verification failed for project %s: %s", project_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Refactor verification failed unexpectedly.",
+        )
+
+
+@router.get("/projects/{project_id}/refactor/verify", response_model=RefactorVerificationResult)
+def get_refactor_verification(
+    project_id: str,
+    db: Session = Depends(get_db),
+) -> RefactorVerificationResult:
+    """Retrieves refactor verification result or executes baseline verification."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    record = db.query(ProjectRefactorRecord).filter(ProjectRefactorRecord.project_id == project_id).first()
+    if record and "verification" in record.refactor_data:
+        try:
+            return RefactorVerificationResult.model_validate(record.refactor_data["verification"])
+        except Exception:
+            pass
+    return run_refactor_verification(db, project_id, force=False)
 
 
 @router.get("/projects/{project_id}/refactor/download")

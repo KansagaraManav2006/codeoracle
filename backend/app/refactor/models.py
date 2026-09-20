@@ -2,6 +2,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 from app.analysis.models import Finding, FindingFunnel
+from app.refactor.verification_models import RefactorVerificationResult
 
 
 REFACTOR_ENGINE_VERSION = "1.2.0"
@@ -42,6 +43,7 @@ class ProjectRefactorResult(BaseModel):
     summary: str
     findings: List[Finding] = Field(default_factory=list)
     finding_funnel: FindingFunnel = Field(default_factory=FindingFunnel)
+    verification: Optional[RefactorVerificationResult] = None
 
 
 class GenerateRefactorRequest(BaseModel):

@@ -414,4 +414,43 @@ export interface ProjectRefactorResult {
   summary: string;
   findings: Finding[];
   finding_funnel: FindingFunnel;
+  verification?: RefactorVerificationResult | null;
+}
+
+export interface TestExecutionComparison {
+  total_tests: number;
+  passed_tests: number;
+  failed_tests: number;
+  line_coverage?: number | null;
+  execution_status: string;
+}
+
+export interface VerificationMetricsComparison {
+  readiness_before: number;
+  readiness_after: number;
+  readiness_delta: number;
+  cycles_before: number;
+  cycles_after: number;
+  new_cycles: number;
+  warnings_before: number;
+  warnings_after: number;
+  resolved_warnings_count: number;
+  resolved_warnings: string[];
+}
+
+export interface RefactorVerificationResult {
+  project_id: string;
+  verification_version: string;
+  verified_at: string;
+  status: 'verified' | 'failed' | 'safety_locked' | 'no_changes' | string;
+  verified: boolean;
+  can_execute: boolean;
+  execution_warning?: string | null;
+  syntax_status: 'passed' | 'failed' | string;
+  syntax_errors: string[];
+  changed_files: string[];
+  baseline_tests: TestExecutionComparison;
+  after_tests: TestExecutionComparison;
+  metrics: VerificationMetricsComparison;
+  verification_summary: string;
 }

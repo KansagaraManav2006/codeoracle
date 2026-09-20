@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Clipboard, Download, FileDiff, Info, Loader2, ShieldAlert, Wand2, XCircle } from 'lucide-react';
-import { ProjectRefactorResult } from '../types';
+import { AlertTriangle, CheckCircle2, Clipboard, Download, FileDiff, Info, Loader2, ShieldAlert, ShieldCheck, Wand2, XCircle } from 'lucide-react';
+import { ProjectRefactorResult, RefactorVerificationResult } from '../types';
 import { cleanText, warningTitle } from '../utils/presentation';
 import EmptyState from './common/EmptyState';
 import StatCard from './common/StatCard';
@@ -8,6 +8,7 @@ import FindingFunnel from './common/FindingFunnel';
 
 interface Props {
   projectId?: string | null;
+  trustedDemo?: boolean;
 }
 
 type ViewMode = 'diff' | 'original' | 'modernized';
@@ -21,11 +22,12 @@ const errorMessage = async (response: Response) => {
   }
 };
 
-export const RefactoredCodeTab: React.FC<Props> = ({ projectId }) => {
+export const RefactoredCodeTab: React.FC<Props> = ({ projectId, trustedDemo = false }) => {
   const [result, setResult] = useState<ProjectRefactorResult | null>(null);
   const [selectedPath, setSelectedPath] = useState('');
   const [mode, setMode] = useState<ViewMode>('diff');
   const [loading, setLoading] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -34,6 +36,19 @@ export const RefactoredCodeTab: React.FC<Props> = ({ projectId }) => {
     if (response.status === 409) return;
     if (!response.ok) throw new Error(await errorMessage(response));
     const data: ProjectRefactorResult = await response.json();
+
+    // Check if cached verification exists
+    if (!data.verification) {
+      try {
+        const vRes = await fetch(`/api/projects/${projectId}/refactor/verify`);
+        if (vRes.ok) {
+          data.verification = await vRes.json();
+        }
+      } catch {
+        // Ignore optional verification load error
+      }
+    }
+
     setResult(data);
     setSelectedPath(
       (current) =>
@@ -76,6 +91,26 @@ export const RefactoredCodeTab: React.FC<Props> = ({ projectId }) => {
     }
   };
 
+  const verifyRefactor = async () => {
+    if (!projectId || verifying) return;
+    setVerifying(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/refactor/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: true }),
+      });
+      if (!response.ok) throw new Error(await errorMessage(response));
+      const verifData: RefactorVerificationResult = await response.json();
+      setResult((prev) => (prev ? { ...prev, verification: verifData } : prev));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Verification failed.');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   const files = useMemo(() => result?.files.filter((file) => file.changed) || [], [result]);
   const selected = files.find((file) => file.relative_path === selectedPath) || files[0];
   const displayedCode = selected
@@ -85,6 +120,8 @@ export const RefactoredCodeTab: React.FC<Props> = ({ projectId }) => {
       ? selected.original_code
       : selected.refactored_code
     : '';
+
+  const verification = result?.verification;
 
   if (!projectId)
     return (
@@ -102,9 +139,9 @@ export const RefactoredCodeTab: React.FC<Props> = ({ projectId }) => {
             <Wand2 className="h-6 w-6" />
           </div>
           <div>
-            <h2 className="text-base font-extrabold text-[#292622]">Modernization Proposal</h2>
+            <h2 className="text-base font-extrabold text-[#292622]">Modernization Proposal & Verification</h2>
             <p className="mt-0.5 text-xs text-[#6B645A]">
-              Suggested updates shown as reviewable before-and-after changes.
+              Suggested updates validated in an isolated disposable sandbox before-and-after change review.
             </p>
           </div>
         </div>
@@ -120,7 +157,7 @@ export const RefactoredCodeTab: React.FC<Props> = ({ projectId }) => {
           )}
           <button
             onClick={generate}
-            disabled={loading}
+            disabled={loading || verifying}
             className="btn-brand-pill px-5 py-2.5 text-xs inline-flex items-center gap-1.5 shadow-sm"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
@@ -143,6 +180,13 @@ export const RefactoredCodeTab: React.FC<Props> = ({ projectId }) => {
         </div>
       )}
 
+      {verifying && (
+        <div className="flex items-center gap-3 rounded-2xl border border-[#BEE0D6] bg-[#E0EFEB] p-4 text-xs font-bold text-[#245F59]">
+          <Loader2 className="h-4 w-4 animate-spin text-[#368A80]" />
+          <span>Executing verified modernization loop in disposable sandbox...</span>
+        </div>
+      )}
+
       {/* Shared Empty State */}
       {!result && !loading && (
         <EmptyState
@@ -159,6 +203,154 @@ export const RefactoredCodeTab: React.FC<Props> = ({ projectId }) => {
       {/* Result Metrics & Proposal Viewer */}
       {result && (
         <>
+          {/* Verified Modernization Sandbox Panel */}
+          <section className="rounded-[24px] border border-[#D8CFC2] bg-[#FFFDFC] p-5 shadow-xs">
+            {/* Panel Header & Status */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[#F0EBE2] pb-4">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`p-3 rounded-2xl border ${
+                    verification?.verified
+                      ? 'bg-[#E0EFEB] text-[#245F59] border-[#BEE0D6]'
+                      : verification?.status === 'safety_locked'
+                      ? 'bg-[#FDF6E2] text-[#8C6218] border-[#E6D3A9]'
+                      : verification?.status === 'failed'
+                      ? 'bg-[#F6E5E2] text-[#8F3F3A] border-[#ECC7C3]'
+                      : 'bg-[#EAE9FB] text-[#4340A0] border-[#C7C4F7]'
+                  }`}
+                >
+                  {verification?.verified ? (
+                    <ShieldCheck className="h-6 w-6" />
+                  ) : (
+                    <ShieldAlert className="h-6 w-6" />
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-extrabold text-[#292622]">
+                      Modernization Verification Loop
+                    </h3>
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide border ${
+                        verification?.verified
+                          ? 'border-[#BEE0D6] bg-[#E0EFEB] text-[#245F59]'
+                          : verification?.status === 'safety_locked'
+                          ? 'border-[#E6D3A9] bg-[#FDF6E2] text-[#8C6218]'
+                          : verification?.status === 'failed'
+                          ? 'border-[#ECC7C3] bg-[#F6E5E2] text-[#8F3F3A]'
+                          : 'border-[#D8CFC2] bg-[#F2EDE4] text-[#6B645A]'
+                      }`}
+                    >
+                      {verification?.verified
+                        ? 'Status: Verified'
+                        : verification?.status === 'safety_locked'
+                        ? 'Status: Safety Locked'
+                        : verification?.status === 'failed'
+                        ? 'Status: Regression Detected'
+                        : 'Status: Unverified'}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-[#6B645A]">
+                    {verification?.verification_summary ||
+                      (!trustedDemo
+                        ? 'Untrusted uploaded repositories are execution-locked to prevent arbitrary code execution. Sandbox verification is enabled for trusted built-in demos.'
+                        : 'Never claim safety without verification evidence. Run the verification loop to test proposals in a disposable sandbox.')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                {!trustedDemo && (
+                  <span className="text-[10px] font-bold text-[#8C6218] bg-[#FDF6E2] border border-[#E6D3A9] px-2.5 py-1 rounded-full">
+                    Untrusted Upload • Locked
+                  </span>
+                )}
+                <button
+                  onClick={verifyRefactor}
+                  disabled={verifying || loading || !trustedDemo}
+                  title={!trustedDemo ? 'Execution is locked for untrusted repositories.' : 'Verify refactor in disposable copy'}
+                  className={`px-4 py-2 text-xs inline-flex items-center gap-1.5 shadow-sm rounded-full font-bold transition-all ${
+                    !trustedDemo
+                      ? 'bg-[#E5DFD5] text-[#8C8479] cursor-not-allowed border border-[#D8CFC2]'
+                      : 'btn-brand-pill'
+                  }`}
+                >
+                  {verifying ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4" />
+                  )}
+                  <span>
+                    {!trustedDemo
+                      ? 'Execution Locked'
+                      : verification
+                      ? 'Re-verify in Sandbox'
+                      : 'Verify in Disposable Sandbox'}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Comparison Metrics Grid */}
+            {verification && (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {/* 1. Characterization Tests Before & After */}
+                <div className="rounded-2xl border border-[#D8CFC2] bg-[#FFFDFC] p-3.5 shadow-xs">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#6B645A]">
+                    Regression Tests
+                  </p>
+                  <p className="mt-1 text-lg font-extrabold text-[#292622]">
+                    {verification.after_tests.passed_tests} / {verification.baseline_tests.passed_tests} passed
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-[#6B645A]">
+                    Before: {verification.baseline_tests.passed_tests} passed • After: {verification.after_tests.passed_tests} passed
+                  </p>
+                </div>
+
+                {/* 2. Syntax Validation */}
+                <div className="rounded-2xl border border-[#D8CFC2] bg-[#FFFDFC] p-3.5 shadow-xs">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#6B645A]">
+                    Syntax Validation
+                  </p>
+                  <p className={`mt-1 text-lg font-extrabold ${verification.syntax_status === 'passed' ? 'text-[#245F59]' : 'text-[#8F3F3A]'}`}>
+                    {verification.syntax_status === 'passed' ? 'AST Validated' : 'Syntax Error'}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-[#6B645A]">
+                    {verification.changed_files.length} modified file(s) checked
+                  </p>
+                </div>
+
+                {/* 3. Dependency Cycles */}
+                <div className="rounded-2xl border border-[#D8CFC2] bg-[#FFFDFC] p-3.5 shadow-xs">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#6B645A]">
+                    Dependency Loops
+                  </p>
+                  <p className={`mt-1 text-lg font-extrabold ${verification.metrics.new_cycles === 0 ? 'text-[#245F59]' : 'text-[#8F3F3A]'}`}>
+                    {verification.metrics.new_cycles} new cycles
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-[#6B645A]">
+                    Total loops: {verification.metrics.cycles_after}
+                  </p>
+                </div>
+
+                {/* 4. Re-analyzed Readiness Score */}
+                <div className="rounded-2xl border border-[#D8CFC2] bg-[#FFFDFC] p-3.5 shadow-xs">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#6B645A]">
+                    Reanalyzed Readiness
+                  </p>
+                  <p className="mt-1 text-lg font-extrabold text-[#292622]">
+                    {verification.metrics.readiness_before}/100 → {verification.metrics.readiness_after}/100
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-[#245F59] font-bold">
+                    {verification.metrics.readiness_delta >= 0
+                      ? `+${verification.metrics.readiness_delta} pts improvement`
+                      : `${verification.metrics.readiness_delta} pts`}
+                  </p>
+                </div>
+              </div>
+            )}
+          </section>
+
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard label="Files reviewed" value={String(result.analyzed_files)} />
             <StatCard label="Files with suggestions" value={String(result.changed_files)} />
@@ -188,20 +380,9 @@ export const RefactoredCodeTab: React.FC<Props> = ({ projectId }) => {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[#E6D3A9] bg-[#F5E8CC] p-4 text-xs leading-5 text-[#76561B]">
-            <div className="flex items-start gap-2.5">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#C7953D]" />
-              <div>
-                <p className="font-extrabold text-[#292622]">Human review required</p>
-                <p className="mt-0.5 font-medium">{result.summary}</p>
-              </div>
-            </div>
-          </div>
-
           {files.length === 0 ? (
-            <div className="rounded-[24px] border border-[#D8CFC2] bg-[#FFFDFC] p-10 text-center shadow-xs">
-              <CheckCircle2 className="mx-auto mb-3 h-8 w-8 text-[#368A80]" />
-              <h3 className="text-base font-bold text-[#292622]">No safe automatic updates found</h3>
+            <div className="rounded-2xl border border-[#E6D3A9] bg-[#F5E8CC] p-4 text-xs leading-5 text-[#76561B]">
+              <p className="font-bold">No refactor proposals generated</p>
               <p className="mt-1 text-xs text-[#6B645A]">
                 The original code was left unchanged because no reliable modernization rule applied.
               </p>

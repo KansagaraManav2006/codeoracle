@@ -97,7 +97,12 @@ export const App: React.FC = () => {
                   }}
                 />
               )}
-              {activeTab === 'refactor' && <RefactoredCodeTab projectId={project.project_id} />}
+              {activeTab === 'refactor' && (
+                <RefactoredCodeTab
+                  projectId={project.project_id}
+                  trustedDemo={project.source_type === 'demo_benchmark'}
+                />
+              )}
               {activeTab === 'migration' && (
                 <MigrationPlanTab
                   projectId={project.project_id}
