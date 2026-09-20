@@ -193,8 +193,8 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({ projectId }) => 
           />
           {/* Signal Amber Accent on Suggestions (the one actionable stat) */}
           <StatCard
-            label="Suggestions"
-            value={analysis.project_warnings.length}
+            label="Total Findings"
+            value={analysis.finding_funnel?.total_findings ?? analysis.project_warnings.length}
             icon={ShieldAlert}
             signalAmber={true}
           />

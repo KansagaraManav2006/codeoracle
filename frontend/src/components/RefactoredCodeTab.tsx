@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Clipboard, Download, FileDiff, Loader2, ShieldAlert, Wand2, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clipboard, Download, FileDiff, Info, Loader2, ShieldAlert, Wand2, XCircle } from 'lucide-react';
 import { ProjectRefactorResult } from '../types';
 import { cleanText, warningTitle } from '../utils/presentation';
 import EmptyState from './common/EmptyState';
@@ -171,6 +171,22 @@ export const RefactoredCodeTab: React.FC<Props> = ({ projectId }) => {
           </div>
 
           <FindingFunnel funnel={result.finding_funnel} />
+
+          {/* Why not every finding produces a refactor diff */}
+          <div className="rounded-2xl border border-[#D8CFC2] bg-[#FFFDFC] p-4 text-xs leading-5 text-[#4D4842]">
+            <div className="flex items-start gap-2.5">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#4C4FD6]" />
+              <div>
+                <p className="font-extrabold text-[#292622]">Why not every finding produces a refactor diff</p>
+                <p className="mt-0.5 text-[#6B645A]">
+                  Of the <span className="font-bold text-[#292622]">{result.finding_funnel.total_findings} total findings</span> detected statically,{' '}
+                  <span className="font-bold text-[#292622]">{result.finding_funnel.modernization_candidates}</span> are modernization candidates, and{' '}
+                  <span className="font-bold text-[#292622]">{result.finding_funnel.autofixable_findings}</span> have deterministic transformation rules.{' '}
+                  Structural issues (like dependency cycles, security warnings, and dynamic constructs) require architectural review rather than token substitution. Diffs are only generated where non-destructive rules produce syntax-validated results.
+                </p>
+              </div>
+            </div>
+          </div>
 
           <div className="rounded-2xl border border-[#E6D3A9] bg-[#F5E8CC] p-4 text-xs leading-5 text-[#76561B]">
             <div className="flex items-start gap-2.5">

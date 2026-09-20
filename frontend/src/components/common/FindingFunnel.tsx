@@ -7,29 +7,58 @@ interface Props {
 }
 
 const stages = (funnel: FindingFunnelData) => [
-  { label: 'Total findings', value: funnel.total_findings, icon: SearchCheck, tone: 'bg-[#ECE5DA] text-[#4D4842]' },
-  { label: 'Modernization candidates', value: funnel.modernization_candidates, icon: Wrench, tone: 'bg-[#EAE9FB] text-[#4340A0]' },
-  { label: 'Generated diffs', value: funnel.generated_diffs, icon: FileDiff, tone: 'bg-[#F5E8CC] text-[#76561B]' },
-  { label: 'Verified changes', value: funnel.verified_changes, icon: CheckCircle2, tone: 'bg-[#E0EFEB] text-[#245F59]' },
+  {
+    label: 'Total findings',
+    value: funnel.total_findings,
+    icon: SearchCheck,
+    tone: 'bg-[#ECE5DA] text-[#4D4842]',
+    hint: 'Static AST, cycle & risk detections',
+  },
+  {
+    label: 'Modernization candidates',
+    value: funnel.modernization_candidates,
+    icon: Wrench,
+    tone: 'bg-[#EAE9FB] text-[#4340A0]',
+    hint: 'Eligible modernization patterns',
+  },
+  {
+    label: 'Generated diffs',
+    value: funnel.generated_diffs,
+    icon: FileDiff,
+    tone: 'bg-[#F5E8CC] text-[#76561B]',
+    hint: 'Syntax-checked diff proposals',
+  },
+  {
+    label: 'Verified changes',
+    value: funnel.verified_changes,
+    icon: CheckCircle2,
+    tone: 'bg-[#E0EFEB] text-[#245F59]',
+    hint: 'Validated in sandbox test runs',
+  },
 ];
 
 export const FindingFunnel: React.FC<Props> = ({ funnel }) => (
   <section className="rounded-[20px] border border-[#D8CFC2] bg-[#FFFDFC] p-4 shadow-xs">
     <div className="mb-3">
-      <h3 className="text-sm font-extrabold text-[#292622]">Finding funnel</h3>
-      <p className="mt-0.5 text-xs text-[#6B645A]">Counts move from static evidence to reviewable and verified change.</p>
+      <h3 className="text-sm font-extrabold text-[#292622]">Finding Funnel</h3>
+      <p className="mt-0.5 text-xs text-[#6B645A]">
+        Trace findings from static detection through candidate filtering, diff generation, and verified execution.
+      </p>
     </div>
     <div className="grid gap-2 sm:grid-cols-4">
       {stages(funnel).map((stage, index) => {
         const Icon = stage.icon;
         return (
           <React.Fragment key={stage.label}>
-            <div className={`rounded-xl p-3 ${stage.tone}`}>
-              <div className="flex items-center justify-between gap-2">
-                <Icon className="h-4 w-4" />
-                <span className="text-xl font-extrabold">{stage.value}</span>
+            <div className={`rounded-xl p-3 flex flex-col justify-between ${stage.tone}`}>
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <Icon className="h-4 w-4" />
+                  <span className="text-xl font-extrabold">{stage.value}</span>
+                </div>
+                <p className="mt-2 text-[10px] font-extrabold uppercase tracking-wide">{stage.label}</p>
               </div>
-              <p className="mt-2 text-[10px] font-extrabold uppercase tracking-wide">{stage.label}</p>
+              <p className="mt-1 text-[10px] opacity-80 font-medium">{stage.hint}</p>
             </div>
             {index < 3 && <ArrowDown className="mx-auto h-4 w-4 text-[#A3998E] sm:hidden" />}
           </React.Fragment>
@@ -37,7 +66,7 @@ export const FindingFunnel: React.FC<Props> = ({ funnel }) => (
       })}
     </div>
     <p className="mt-3 text-[11px] font-medium text-[#6B645A]">
-      {funnel.autofixable_findings} autofixable finding(s) · {funnel.estimated_findings} estimated finding(s) · {funnel.verification_label}
+      {funnel.autofixable_findings} autofixable pattern(s) · {funnel.estimated_findings} estimated finding(s) · {funnel.verification_label}
     </p>
   </section>
 );

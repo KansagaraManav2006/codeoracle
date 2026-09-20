@@ -116,11 +116,11 @@ export interface Finding {
   rule_id: string;
   file: string;
   line?: number | null;
-  severity: 'info' | 'warning' | 'risk';
+  severity: 'info' | 'warning' | 'risk' | 'critical';
   category: string;
   message: string;
   evidence: string;
-  confidence: string;
+  confidence: 'static' | 'estimated' | 'verified';
   autofixable: boolean;
   has_diff: boolean;
   verified: boolean;

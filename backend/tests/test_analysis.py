@@ -125,6 +125,50 @@ def test_finding_contract_includes_dependency_cycles():
     assert cycle.related_dependencies == ["first.py", "second.py"]
 
 
+def test_finding_contract_funnel_and_project_warnings_are_synchronized():
+    from app.analysis.models import SymbolInfo, decorate_findings, summarize_findings
+    mod_id = generate_module_id("proj_sync", "sample.py")
+    module = ModuleAnalysis(
+        module_id=mod_id,
+        relative_path="sample.py",
+        language="python",
+        line_count=10,
+        parse_status="complete",
+        legacy_warnings=[
+            WarningInfo(code="DEPRECATED_MODULE", message="Deprecated module import", line=1, severity="warning")
+        ],
+        functions=[
+            SymbolInfo(
+                symbol_id="sym_1",
+                kind="function",
+                name="legacy_call",
+                qualified_name="legacy_call",
+                start_line=3,
+                end_line=5,
+                legacy_warnings=[
+                    WarningInfo(code="PY2_XRANGE", message="Use range instead of xrange", line=4, severity="warning")
+                ],
+            )
+        ],
+    )
+    findings = build_analysis_findings("proj_sync", [module], [])
+    assert len(findings) == 2
+    rule_ids = {f.rule_id for f in findings}
+    assert "DEPRECATED_MODULE" in rule_ids
+    assert "PY2_XRANGE" in rule_ids
+
+    # Decorated with diff
+    decorated = decorate_findings(findings, {"sample.py"})
+    funnel = summarize_findings(decorated)
+
+    assert funnel.total_findings == 2
+    assert funnel.modernization_candidates == 2
+    assert funnel.autofixable_findings == 1  # PY2_XRANGE is autofixable, DEPRECATED_MODULE is not
+    assert funnel.generated_diffs == 1
+    assert funnel.verified_changes == 0
+    assert "Static-only" in funnel.verification_label
+
+
 # --- 1. Python AST Analyzer Tests ---
 def test_01_python_ast_extraction(tmp_path):
     py_code = '''"""Module docstring."""

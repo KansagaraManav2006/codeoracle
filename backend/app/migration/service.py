@@ -222,7 +222,7 @@ def build_migration_plan(db: Session, project_id: str) -> MigrationPlanResponse:
         ReadinessCategory(key="analysis", label="Code understanding", score=analysis_score, status=_status(analysis_score), reason=f"{analysis.parse_success_count} of {analysis.total_files} files were fully understood."),
         ReadinessCategory(key="complexity", label="Complexity", score=complexity_score, status=_status(complexity_score), reason=f"{high_complexity} file(s) contain high-complexity logic."),
         ReadinessCategory(key="coupling", label="Dependency safety", score=coupling_score, status=_status(coupling_score), reason=f"{graph.summary.internal_edges} internal connection(s) and {graph.summary.cycle_count} dependency loop(s) were detected."),
-        ReadinessCategory(key="maintainability", label="Maintainability", score=maintainability_score, status=_status(maintainability_score), reason=f"The analysis found {sum(len(module.legacy_warnings) for module in modules)} modernization suggestion(s)."),
+        ReadinessCategory(key="maintainability", label="Maintainability", score=maintainability_score, status=_status(maintainability_score), reason=f"The analysis found {sum(f.category == 'modernization' for f in analysis_findings)} modernization suggestion(s)."),
         ReadinessCategory(key="testability", label="Test protection", score=testability_score, status=testability_status, reason=test_reason),
     ]
     weights = {"analysis": .20, "complexity": .20, "coupling": .20, "maintainability": .20, "testability": .20}

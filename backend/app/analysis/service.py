@@ -36,15 +36,31 @@ logger = logging.getLogger(__name__)
 
 
 AUTO_DIFF_RULE_IDS = {
-    "PY2_XRANGE", "LEGACY_PYTHON2_CONSTRUCT", "LEGACY_PYTHON2_PRINT", "VAR_USAGE",
+    "PY2_XRANGE",
+    "PY2_PRINT",
+    "PY2_EXCEPT",
+    "PY2_RAW_INPUT",
+    "PY2_UNICODE",
+    "PY2_BASESTRING",
+    "PY2_ITERITEMS",
+    "PY2_ITERKEYS",
+    "PY2_ITERVALUES",
+    "LEGACY_PYTHON2_CONSTRUCT",
+    "LEGACY_PYTHON2_PRINT",
+    "VAR_USAGE",
+    "JS_VAR_DECLARATION",
 }
 
 
 def _finding_category(rule_id: str) -> str:
-    if rule_id == "PARSE_ERROR":
+    if rule_id in ("PARSE_ERROR", "SYNTAX_ERROR"):
         return "analysis"
     if any(token in rule_id for token in ("EVAL", "EXEC", "FUNCTION")):
         return "security"
+    if rule_id in ("DEPENDENCY_CYCLE", "CIRCULAR_DEPENDENCY"):
+        return "dependency"
+    if rule_id in ("HIGH_COMPLEXITY",):
+        return "complexity"
     return "modernization"
 
 
@@ -324,14 +340,11 @@ def run_analysis_for_project(
 
     entry_points = [m.relative_path for m in modules if m.is_entry_point]
 
-    project_warnings: List[WarningInfo] = []
-    for m in modules:
-        for w in m.legacy_warnings:
-            project_warnings.append(w)
-        for err in m.parse_errors:
-            project_warnings.append(WarningInfo(code="PARSE_ERROR", message=f"{m.relative_path}: {err}", severity="risk"))
-
     findings = build_analysis_findings(project_id, modules, dependency_edges)
+    project_warnings: List[WarningInfo] = [
+        WarningInfo(code=f.rule_id, message=f.message, line=f.line, severity=f.severity)
+        for f in findings
+    ]
 
     duration_ms = (time.perf_counter() - start_time) * 1000.0
 
