@@ -62,7 +62,12 @@ export const App: React.FC = () => {
             <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
             <div className="mt-4">
-              {activeTab === 'explanation' && <ExplanationTab projectId={project.project_id} />}
+              {activeTab === 'explanation' && (
+                <ExplanationTab
+                  projectId={project.project_id}
+                  onNavigateTab={setActiveTab}
+                />
+              )}
               {activeTab === 'graph' && <DependencyGraphTab projectId={project.project_id} />}
               {activeTab === 'tests' && (
                 <GeneratedTestsTab
