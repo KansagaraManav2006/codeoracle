@@ -250,6 +250,8 @@ const AppContent: React.FC = () => {
                     projectName={project.display_name}
                     onNavigateTab={handleTabChange}
                     onSelectFile={handleSelectFile}
+                    onFocusInGraph={handleFocusInGraph}
+                    onInspectImpact={handleInspectImpact}
                   />
                 )}
                 {activeTab === 'hotspots' && (

@@ -11,8 +11,12 @@ import {
   FolderGit2,
   AlertTriangle,
   Flame,
+  ShieldCheck,
+  CheckCircle2,
+  Activity,
+  Compass,
 } from 'lucide-react';
-import { ProjectAnalysis, GraphResponse, TabType, WarningInfo } from '../types';
+import { ProjectAnalysis, GraphResponse, TabType, WarningInfo, HotspotsResponse } from '../types';
 import { truncateMiddle, formatNumber, getDownloadFileName } from '../utils/formatters';
 import Button from './common/Button';
 import KpiCard from './common/KpiCard';
@@ -26,6 +30,8 @@ interface ExplanationTabProps {
   projectName?: string;
   onNavigateTab?: (tab: TabType) => void;
   onSelectFile?: (filePath: string) => void;
+  onFocusInGraph?: (filePath: string) => void;
+  onInspectImpact?: (filePath: string) => void;
 }
 
 export const ExplanationTab: React.FC<ExplanationTabProps> = ({
@@ -33,9 +39,12 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
   projectName = 'project',
   onNavigateTab,
   onSelectFile,
+  onFocusInGraph,
+  onInspectImpact,
 }) => {
   const [analysis, setAnalysis] = useState<ProjectAnalysis | null>(null);
   const [graph, setGraph] = useState<GraphResponse | null>(null);
+  const [hotspots, setHotspots] = useState<HotspotsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +88,17 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
         // graph is supplementary
       }
 
-      if (force) showToast('Explanation refreshed successfully', 'success');
+      try {
+        const hRes = await fetch(`/api/projects/${projectId}/hotspots`);
+        if (hRes.ok) {
+          const hData: HotspotsResponse = await hRes.json();
+          setHotspots(hData);
+        }
+      } catch {
+        // hotspots is supplementary
+      }
+
+      if (force) showToast('Architecture overview refreshed successfully', 'success');
     } catch (err: any) {
       setError(err.message || 'Failed to load codebase explanation.');
     } finally {
@@ -115,7 +134,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
     if (!analysis || analysis.modules.length === 0) return [];
     const layersMap = new Map<
       string,
-      { fileCount: number; lines: number; hasCycle: boolean; role: string }
+      { fileCount: number; lines: number; hasCycle: boolean; role: string; languages: Set<string>; entryPoints: number }
     >();
 
     const getRole = (folder: string) => {
@@ -140,10 +159,14 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
         lines: 0,
         hasCycle: false,
         role: getRole(layerName),
+        languages: new Set<string>(),
+        entryPoints: 0,
       };
 
       existing.fileCount += 1;
       existing.lines += mod.line_count;
+      if (mod.language) existing.languages.add(mod.language);
+      if (mod.is_entry_point) existing.entryPoints += 1;
       if (cycleNodeIds.has(mod.module_id)) existing.hasCycle = true;
       layersMap.set(layerName, existing);
     });
@@ -152,6 +175,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
     return Array.from(layersMap.entries()).map(([name, data]) => ({
       name,
       ...data,
+      languages: Array.from(data.languages),
       percentage: Math.round((data.fileCount / total) * 100),
     }));
   }, [analysis, cycleNodeIds]);
@@ -186,6 +210,87 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
       .sort((a, b) => b.score - a.score)
       .slice(0, 3);
   }, [analysis, cycleNodeIds]);
+
+  // Determine Recommended Starting Point (What to inspect first)
+  const recommendedTarget = useMemo(() => {
+    if (hotspots?.recommended_start_file) {
+      const match = hotspots.hotspots?.find((h) => h.file === hotspots.recommended_start_file);
+      return {
+        file: hotspots.recommended_start_file,
+        reason:
+          hotspots.recommended_start_reason ||
+          'Carries the highest concentration of complexity, incoming callers, and downstream ripple risk.',
+        hotspot: match,
+        source: 'hotspots' as const,
+      };
+    }
+    if (topRiskModules.length > 0) {
+      return {
+        file: topRiskModules[0].mod.relative_path,
+        reason: `Highest priority risk target with ${topRiskModules[0].primaryRisk} and architectural coupling.`,
+        hotspot: undefined,
+        source: 'analysis' as const,
+      };
+    }
+    if (analysis && analysis.entry_points.length > 0) {
+      return {
+        file: analysis.entry_points[0],
+        reason: 'Primary application entry point module.',
+        hotspot: undefined,
+        source: 'entry_point' as const,
+      };
+    }
+    if (analysis && analysis.modules.length > 0) {
+      return {
+        file: analysis.modules[0].relative_path,
+        reason: 'Root codebase entry file.',
+        hotspot: undefined,
+        source: 'fallback' as const,
+      };
+    }
+    return null;
+  }, [hotspots, topRiskModules, analysis]);
+
+  const recommendedFile = recommendedTarget?.file || '';
+
+  // 1-Click Action Handlers
+  const handleInspectInGraph = (file?: string) => {
+    const target = file || recommendedFile;
+    if (!target) return;
+    if (onFocusInGraph) onFocusInGraph(target);
+    else {
+      onSelectFile?.(target);
+      onNavigateTab?.('graph');
+    }
+  };
+
+  const handleAnalyzeImpact = (file?: string) => {
+    const target = file || recommendedFile;
+    if (!target) return;
+    if (onInspectImpact) onInspectImpact(target);
+    else {
+      onSelectFile?.(target);
+      onNavigateTab?.('migration');
+    }
+  };
+
+  const handleGenerateTests = (file?: string) => {
+    const target = file || recommendedFile;
+    if (target) onSelectFile?.(target);
+    onNavigateTab?.('tests');
+  };
+
+  const handleReviewModernization = (file?: string) => {
+    const target = file || recommendedFile;
+    if (target) onSelectFile?.(target);
+    onNavigateTab?.('refactor');
+  };
+
+  const handleOpenHotspots = (file?: string) => {
+    const target = file || recommendedFile;
+    if (target) onSelectFile?.(target);
+    onNavigateTab?.('hotspots');
+  };
 
   // Filtered modules
   const filteredModules = useMemo(() => {
@@ -248,6 +353,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -289,13 +395,24 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
     );
   }
 
-  const filesUnderstood = `${analysis.parse_success_count || analysis.modules.length} / ${analysis.total_files}`;
+  const filesUnderstoodCount = analysis.parse_success_count || analysis.modules.length;
+  const parseCoveragePercent = Math.round((filesUnderstoodCount / Math.max(analysis.total_files, 1)) * 100);
   const totalEdges = graph?.summary?.total_edges || analysis.dependency_edges?.length || 0;
-  const suggestionsCount = analysis.findings?.length || 0;
+  const cycleCount = graph?.cycles?.length || 0;
+  const findingFunnel = analysis.finding_funnel || {
+    total_findings: analysis.findings?.length || 0,
+    modernization_candidates: analysis.findings?.filter((f) => f.category === 'modernization').length || 0,
+    autofixable_findings: analysis.findings?.filter((f) => f.autofixable).length || 0,
+    generated_diffs: analysis.findings?.filter((f) => f.has_diff).length || 0,
+    verified_changes: analysis.findings?.filter((f) => f.verified).length || 0,
+    verification_label: 'Static-only: diffs require test verification',
+  };
 
   return (
     <div className="space-y-6 animate-[fade-up_250ms_ease-out_both]" role="tabpanel" id="tabpanel-explanation" aria-labelledby="tab-explanation">
-      {/* 1. Section Header Card */}
+      {/* ========================================================================= */}
+      {/* 1. SECTION 1: WHAT IS THIS PROJECT? (5-SECOND EXECUTIVE OVERVIEW)         */}
+      {/* ========================================================================= */}
       <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-line">
           <div className="flex items-center gap-3.5 min-w-0">
@@ -306,12 +423,17 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
               <BookOpen className="w-5 h-5" strokeWidth={1.75} />
             </div>
             <div className="min-w-0">
-              <h2 className="font-display font-bold text-lg sm:text-[20px] text-ink leading-tight">
-                Codebase Explanation &amp; Architecture Command Center
+              <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-pill bg-indigo-surface text-indigo border border-indigo/20 uppercase tracking-wide">
+                  Question 1 · Executive Overview
+                </span>
+                <span className="font-mono text-[10px] font-semibold px-2 py-0.5 rounded-pill bg-surface text-ink-3 border border-line">
+                  Deterministic AST Evidence
+                </span>
+              </div>
+              <h2 className="font-display font-bold text-lg sm:text-[20px] text-ink leading-tight truncate">
+                {projectName} — Codebase Architecture &amp; Risk Command Center
               </h2>
-              <p className="font-sans text-xs text-ink-3 mt-0.5">
-                Deterministic overview of project modules, structural layers, and priority risk targets.
-              </p>
             </div>
           </div>
 
@@ -337,101 +459,211 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
           </div>
         </div>
 
-        {/* 4 KPI Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-5">
+        {/* 5-Second Core Facts Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-5">
           <KpiCard
-            label="FILES UNDERSTOOD"
-            value={filesUnderstood}
-            subtext="Parsed into AST models"
+            label="LANGUAGES &amp; SCOPE"
+            value={`${analysis.languages.join(', ').toUpperCase() || 'PYTHON'}`}
+            subtext={`${analysis.total_files} files · ${formatNumber(analysis.total_lines)} LOC`}
           />
           <KpiCard
-            label="TOTAL LINES"
-            value={formatNumber(analysis.total_lines)}
-            subtext="Code lines analyzed"
+            label="PARSE COVERAGE"
+            value={`${parseCoveragePercent}%`}
+            variant="default"
+            subtext={`${filesUnderstoodCount} / ${analysis.total_files} files complete`}
           />
           <KpiCard
-            label="SUGGESTIONS"
-            value={suggestionsCount}
-            variant="highlight"
-            subtext="Actionable improvements"
+            label="COUPLING &amp; EDGES"
+            value={`${formatNumber(totalEdges)} EDGES`}
+            subtext={`${analysis.modules.length} internal modules`}
           />
           <KpiCard
-            label="CONNECTIONS"
-            value={`${formatNumber(totalEdges)} edges`}
-            subtext="Module dependencies"
+            label="DEPENDENCY LOOPS"
+            value={cycleCount === 0 ? '0 CYCLES' : `${cycleCount} LOOPS`}
+            variant={cycleCount > 0 ? 'risk' : 'default'}
+            subtext={cycleCount === 0 ? 'Clean hierarchical DAG' : 'Requires circular decoupling'}
           />
         </div>
 
-        {/* "In simple words" panel */}
-        <div className="bg-panel rounded-xl p-5 sm:p-6 mt-6">
-          <h3 className="font-display font-bold text-base text-ink mb-1">In simple words</h3>
-          <p className="font-sans text-[13px] text-ink-2 leading-[1.6] max-w-3xl mb-5">
+        {/* Plain Language Summary Panel */}
+        <div className="bg-panel rounded-xl p-5 sm:p-6 mt-5 border border-line/50">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="font-sans text-[11px] font-bold text-indigo uppercase tracking-wider">
+              1. What is this project?
+            </span>
+            <span className="text-[11px] text-ink-3">· Natural language architecture summary</span>
+          </div>
+          <p className="font-sans text-[13px] text-ink leading-[1.6] max-w-3xl mb-4">
             {analysis.explanation?.languages_summary ||
-              `This project contains ${analysis.total_files} files across ${analysis.languages.join(', ')}. CodeOracle parsed its imports, exported symbols, and runtime contracts.`}
+              `This codebase contains ${analysis.total_files} files across ${analysis.languages.join(', ')} with ${formatNumber(analysis.total_lines)} total lines. CodeOracle parsed AST structures, class and function contracts, and resolved ${totalEdges} module dependencies.`}
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
-            <div className="bg-surface border border-line rounded-md p-4 sm:p-5">
-              <span className="font-sans text-[12px] font-bold text-indigo-text uppercase tracking-wider block mb-1.5">
-                How it starts
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="bg-surface border border-line rounded-md p-3.5">
+              <span className="font-sans text-[11px] font-bold text-indigo-text uppercase tracking-wider block mb-1">
+                How It Starts (Entry Points)
               </span>
-              <p className="font-sans text-[13px] text-ink-2 leading-[1.6]">
+              <p className="font-sans text-xs text-ink-2 leading-[1.5]">
                 {analysis.explanation?.entry_points_summary ||
                   (analysis.entry_points.length > 0
-                    ? `Begins execution via entry modules: ${analysis.entry_points.slice(0, 2).join(', ')}.`
-                    : 'Static modular library without a single top-level runner file.')}
+                    ? `Initializes from entry modules: ${analysis.entry_points.join(', ')}.`
+                    : 'Modular library without a single top-level runner file.')}
               </p>
             </div>
 
-            <div className="bg-surface border border-line rounded-md p-4 sm:p-5">
-              <span className="font-sans text-[12px] font-bold text-indigo-text uppercase tracking-wider block mb-1.5">
-                Important files
+            <div className="bg-surface border border-line rounded-md p-3.5">
+              <span className="font-sans text-[11px] font-bold text-indigo-text uppercase tracking-wider block mb-1">
+                Core Domain Modules
               </span>
-              <p className="font-sans text-[13px] text-ink-2 leading-[1.6]">
+              <p className="font-sans text-xs text-ink-2 leading-[1.5]">
                 {analysis.explanation?.major_modules_summary ||
-                  `${analysis.modules.filter((m) => m.classes.length > 0 || m.functions.length > 4).length} modules orchestrate core operations and business domain models.`}
+                  `${analysis.modules.filter((m) => m.classes.length > 0 || m.functions.length > 3).length} primary modules coordinate core business computations and domain operations.`}
               </p>
             </div>
 
-            <div className="bg-surface border border-line rounded-md p-4 sm:p-5">
-              <span className="font-sans text-[12px] font-bold text-indigo-text uppercase tracking-wider block mb-1.5">
-                How files connect
+            <div className="bg-surface border border-line rounded-md p-3.5">
+              <span className="font-sans text-[11px] font-bold text-indigo-text uppercase tracking-wider block mb-1">
+                Structural Topology
               </span>
-              <p className="font-sans text-[13px] text-ink-2 leading-[1.6]">
+              <p className="font-sans text-xs text-ink-2 leading-[1.5]">
                 {analysis.explanation?.dependencies_summary ||
-                  `Internal imports link ${analysis.modules.length} modules together across ${totalEdges} dependency relationship paths.`}
+                  `Internal imports connect ${analysis.modules.length} modules across ${totalEdges} dependency relationship paths.`}
               </p>
             </div>
           </div>
-
-          {analysis.explanation?.architectural_observations &&
-            analysis.explanation.architectural_observations.length > 0 && (
-              <div className="mt-5 pt-4 border-t border-ink/10">
-                <span className="font-sans text-[12px] font-bold uppercase tracking-wider text-ink-2 block mb-2">
-                  What CodeOracle noticed
-                </span>
-                <ul className="space-y-1.5 font-sans text-xs text-ink-2">
-                  {analysis.explanation.architectural_observations.slice(0, 4).map((obs, idx) => (
-                    <li key={idx} className="flex items-start gap-2">
-                      <span className="text-indigo font-bold">•</span>
-                      <span>{obs}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
         </div>
       </section>
 
-      {/* 2. Architecture Layers Breakdown Card (Phase 4) */}
+      {/* ========================================================================= */}
+      {/* 2. SECTION 4: WHAT SHOULD I INSPECT FIRST? (RECOMMENDED FIRST ACTION)     */}
+      {/* ========================================================================= */}
+      {recommendedTarget && (
+        <section className="bg-surface border-2 border-indigo/40 rounded-xl p-5 sm:p-6 shadow-2 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo/5 rounded-full blur-2xl pointer-events-none" />
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-line">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-md bg-indigo text-white flex items-center justify-center shrink-0 shadow-sm">
+                <Compass className="w-5 h-5" strokeWidth={2} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-pill bg-indigo-surface text-indigo border border-indigo/30 uppercase tracking-wide">
+                    Question 4 · Recommended Starting Point
+                  </span>
+                  <StatusTag status="verified" label="DETERMINISTIC RANKING" />
+                </div>
+                <h3 className="font-display font-bold text-base sm:text-lg text-ink mt-0.5">
+                  What Should I Inspect First?
+                </h3>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs font-bold text-indigo bg-indigo-surface px-3 py-1 rounded-md border border-indigo/20">
+                Target: {recommendedTarget.file}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4 items-center">
+            <div className="lg:col-span-2 space-y-2">
+              <p className="font-sans text-sm text-ink-2 leading-relaxed">
+                <strong className="text-ink font-semibold">Recommended Target:</strong>{' '}
+                <span className="font-mono text-indigo font-bold">{recommendedTarget.file}</span>.{' '}
+                {recommendedTarget.reason}
+              </p>
+              {recommendedTarget.hotspot && (
+                <div className="flex items-center gap-3 text-xs text-ink-3 pt-1">
+                  <span>
+                    Hotspot Score:{' '}
+                    <strong className="text-red font-mono">{recommendedTarget.hotspot.hotspot_score}/100</strong>
+                  </span>
+                  <span>·</span>
+                  <span>
+                    Complexity:{' '}
+                    <strong className="font-mono text-ink-2">{recommendedTarget.hotspot.complexity}</strong>
+                  </span>
+                  <span>·</span>
+                  <span>
+                    Direct Blast Radius:{' '}
+                    <strong className="font-mono text-ink-2">
+                      {recommendedTarget.hotspot.direct_dependents?.length || recommendedTarget.hotspot.blast_radius} file(s)
+                    </strong>
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Direct 5-Action Command Grid */}
+            <div className="flex flex-wrap gap-2 lg:justify-end">
+              <Button
+                variant="indigo"
+                size="sm"
+                onClick={() => handleInspectInGraph()}
+                icon={<Network className="w-3.5 h-3.5" strokeWidth={1.75} />}
+                title="Open this file in the interactive dependency graph"
+              >
+                Inspect in Dependency Map
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleAnalyzeImpact()}
+                icon={<Target className="w-3.5 h-3.5" strokeWidth={1.75} />}
+                title="View downstream callers and blast radius simulation"
+              >
+                Analyze Impact
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleGenerateTests()}
+                icon={<Play className="w-3.5 h-3.5" strokeWidth={1.75} />}
+                title="Generate pinning characterization tests"
+              >
+                Generate Tests
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleReviewModernization()}
+                icon={<Wand2 className="w-3.5 h-3.5" strokeWidth={1.75} />}
+                title="Preview automated modernization proposals"
+              >
+                Review Modernization
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleOpenHotspots()}
+                icon={<Flame className="w-3.5 h-3.5 text-red" strokeWidth={1.75} />}
+                title="View deterministic hotspot prioritization table"
+              >
+                Open Hotspots
+              </Button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 3. SECTION 2: WHAT ARE ITS MAJOR LAYERS? (ARCHITECTURE STRUCTURAL LAYERS) */}
+      {/* ========================================================================= */}
       {architectureLayers.length > 0 && (
         <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-line">
-            <div className="flex items-center gap-2">
-              <FolderGit2 className="w-4 h-4 text-indigo" />
-              <h3 className="font-display font-bold text-base text-ink">
-                Architecture Structural Layers
-              </h3>
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded bg-teal-surface text-teal-strong flex items-center justify-center border border-teal/20">
+                <FolderGit2 className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="font-mono text-[10px] font-bold text-teal-strong uppercase tracking-wide block">
+                  Question 2 · Structural Decomposition
+                </span>
+                <h3 className="font-display font-bold text-base text-ink">
+                  What Are Its Major Layers?
+                </h3>
+              </div>
             </div>
             {selectedLayer && (
               <Button
@@ -457,6 +689,15 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                       ? 'border-indigo bg-indigo-surface ring-2 ring-indigo ring-offset-1'
                       : 'border-line bg-tile hover:bg-track'
                   }`}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedLayer(isSelected ? null : layer.name);
+                    }
+                  }}
+                  title={`Click to filter modules to ${layer.name}`}
                 >
                   <div className="flex items-center justify-between gap-1 mb-1.5">
                     <span className="font-mono text-xs font-bold text-ink truncate" title={layer.name}>
@@ -480,6 +721,13 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                     />
                   </div>
 
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-ink-3">
+                    <span className="font-mono">{layer.percentage}% of project</span>
+                    {layer.entryPoints > 0 && (
+                      <span className="text-teal-strong font-semibold">{layer.entryPoints} entry</span>
+                    )}
+                  </div>
+
                   {layer.hasCycle && (
                     <div className="mt-2 text-[10px] font-bold text-red flex items-center gap-1">
                       <span>• Cyclic dependency participant</span>
@@ -492,92 +740,266 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
         </section>
       )}
 
-      {/* 3. Top-Risk Modules Panel (Phase 4) */}
-      {topRiskModules.length > 0 && (
-        <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-line">
-            <div className="flex items-center gap-2">
-              <Flame className="w-4 h-4 text-red" />
-              <h3 className="font-display font-bold text-base text-ink">
-                Priority Modernization Targets
-              </h3>
+      {/* ========================================================================= */}
+      {/* 4. SECTION 3: WHAT IS RISKY? (RISK TARGETS & FINDING FUNNEL)              */}
+      {/* ========================================================================= */}
+      <section className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          {/* 3A. Top-Risk Modules Leaderboard (2 Columns) */}
+          <div className="lg:col-span-2 bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-line">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded bg-red-surface text-red flex items-center justify-center border border-red/20">
+                  <Flame className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="font-mono text-[10px] font-bold text-red uppercase tracking-wide block">
+                    Question 3 · Risk Hotspots
+                  </span>
+                  <h3 className="font-display font-bold text-base text-ink">
+                    What Is Risky? Top Modernization Targets
+                  </h3>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleOpenHotspots()}
+                icon={<Flame className="w-3.5 h-3.5 text-amber-strong" />}
+              >
+                View Hotspots Tab →
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+              {topRiskModules.map(({ mod, primaryRisk, inCycle }, index) => (
+                <div
+                  key={mod.module_id}
+                  className="bg-tile border border-line rounded-lg p-4 space-y-3 flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="font-mono text-xs font-bold text-ink truncate" title={mod.relative_path}>
+                        #{index + 1} {truncateMiddle(mod.relative_path, 22)}
+                      </span>
+                      <StatusTag
+                        status={inCycle ? 'critical' : 'complex'}
+                        label={inCycle ? 'CYCLE' : mod.complexity.rating.toUpperCase()}
+                      />
+                    </div>
+                    <div className="text-xs text-ink-3">
+                      <span className="font-bold text-ink-2">{primaryRisk}</span> · {formatNumber(mod.line_count)} lines
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-line">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleAnalyzeImpact(mod.relative_path)}
+                      icon={<Target className="w-3 h-3" />}
+                      className="text-xs !py-1"
+                    >
+                      Impact
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleInspectInGraph(mod.relative_path)}
+                      icon={<Network className="w-3 h-3" />}
+                      className="text-xs !py-1"
+                    >
+                      Graph
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleReviewModernization(mod.relative_path)}
+                      icon={<Wand2 className="w-3 h-3" />}
+                      className="text-xs !py-1"
+                    >
+                      Modernize
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 3B. Finding Funnel & Confidence Labels (1 Column) */}
+          <div className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 flex flex-col justify-between space-y-4">
+            <div>
+              <div className="flex items-center justify-between pb-3 border-b border-line">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-indigo" />
+                  <h4 className="font-display font-bold text-sm text-ink">
+                    Modernization Funnel &amp; Evidence
+                  </h4>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-pill bg-indigo-surface text-indigo font-bold border border-indigo/20">
+                  STATIC AST
+                </span>
+              </div>
+
+              {/* Finding Funnel Pipeline */}
+              <div className="mt-3 space-y-2 text-xs">
+                <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
+                  <span className="text-ink-2">Total Findings Discovered</span>
+                  <span className="font-mono font-bold text-ink">{findingFunnel.total_findings}</span>
+                </div>
+                <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
+                  <span className="text-ink-2">Modernization Candidates</span>
+                  <span className="font-mono font-bold text-indigo">{findingFunnel.modernization_candidates}</span>
+                </div>
+                <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
+                  <span className="text-ink-2">Autofixable Patterns</span>
+                  <span className="font-mono font-bold text-teal-strong">{findingFunnel.autofixable_findings}</span>
+                </div>
+                <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
+                  <span className="text-ink-2">Generated Modernization Diffs</span>
+                  <span className="font-mono font-bold text-amber-strong">{findingFunnel.generated_diffs}</span>
+                </div>
+                <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
+                  <span className="text-ink-2">Verified in Ephemeral Sandbox</span>
+                  <span className="font-mono font-bold text-indigo-text">
+                    {findingFunnel.verified_changes}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-line/80 text-[11px] text-ink-3 space-y-1">
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-teal-strong shrink-0" />
+                <span className="text-ink-2 font-medium">Confidence: Deterministic AST &amp; Callgraph</span>
+              </div>
+              <p className="text-[11px] leading-tight text-ink-3 pl-5">
+                {findingFunnel.verification_label || 'Static analysis only: proposals require characterization tests.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 5. SECTION 5: WHAT SHOULD I DO NEXT? (STEP-BY-STEP WORKFLOW GUIDE)        */}
+      {/* ========================================================================= */}
+      <section className="bg-panel border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
+        <div className="flex items-center gap-2.5 pb-2 border-b border-line/60">
+          <div className="w-8 h-8 rounded bg-indigo text-white flex items-center justify-center">
+            <Activity className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="font-mono text-[10px] font-bold text-indigo uppercase tracking-wide block">
+              Question 5 · Execution Roadmap
+            </span>
+            <h3 className="font-display font-bold text-base text-ink">
+              What Should I Do Next? Guided Modernization Playbook
+            </h3>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          {/* Step 1 */}
+          <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2">
+            <div>
+              <span className="text-[10px] font-mono font-bold text-indigo-text block mb-1">STEP 1 · PIN</span>
+              <h4 className="font-bold text-xs text-ink">Generate Tests</h4>
+              <p className="text-[11px] text-ink-3 leading-snug mt-1">
+                Pin behavior with deterministic characterization tests before modernizing code.
+              </p>
             </div>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onNavigateTab?.('hotspots')}
-              icon={<Flame className="w-3.5 h-3.5 text-amber-strong" />}
+              onClick={() => handleGenerateTests()}
+              className="w-full text-xs !py-1"
             >
-              View All Hotspots →
+              Generate Tests →
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-            {topRiskModules.map(({ mod, primaryRisk, inCycle }, index) => (
-              <div
-                key={mod.module_id}
-                className="bg-tile border border-line rounded-lg p-4 space-y-3 flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <span className="font-mono text-xs font-bold text-ink truncate" title={mod.relative_path}>
-                      #{index + 1} {truncateMiddle(mod.relative_path, 24)}
-                    </span>
-                    <StatusTag
-                      status={inCycle ? 'critical' : 'complex'}
-                      label={inCycle ? 'CYCLE' : mod.complexity.rating.toUpperCase()}
-                    />
-                  </div>
-                  <div className="text-xs text-ink-3">
-                    <span className="font-bold text-ink-2">{primaryRisk}</span> · {formatNumber(mod.line_count)} lines
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-line">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      onSelectFile?.(mod.relative_path);
-                      onNavigateTab?.('migration');
-                    }}
-                    icon={<Target className="w-3 h-3" />}
-                    className="text-xs !py-1"
-                  >
-                    What Breaks?
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      onSelectFile?.(mod.relative_path);
-                      onNavigateTab?.('graph');
-                    }}
-                    icon={<Network className="w-3 h-3" />}
-                    className="text-xs !py-1"
-                  >
-                    Graph
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      onSelectFile?.(mod.relative_path);
-                      onNavigateTab?.('refactor');
-                    }}
-                    icon={<Wand2 className="w-3 h-3" />}
-                    className="text-xs !py-1"
-                  >
-                    Modernize
-                  </Button>
-                </div>
-              </div>
-            ))}
+          {/* Step 2 */}
+          <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2">
+            <div>
+              <span className="text-[10px] font-mono font-bold text-teal-strong block mb-1">STEP 2 · MAP</span>
+              <h4 className="font-bold text-xs text-ink">Inspect Coupling</h4>
+              <p className="text-[11px] text-ink-3 leading-snug mt-1">
+                Review internal &amp; external imports, entry points, and isolate dependency cycles.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleInspectInGraph()}
+              className="w-full text-xs !py-1"
+            >
+              Dependency Map →
+            </Button>
           </div>
-        </section>
-      )}
 
-      {/* 4. Filter Bar: Search + Language filter chips */}
+          {/* Step 3 */}
+          <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2">
+            <div>
+              <span className="text-[10px] font-mono font-bold text-amber-strong block mb-1">STEP 3 · SIMULATE</span>
+              <h4 className="font-bold text-xs text-ink">Analyze Impact</h4>
+              <p className="text-[11px] text-ink-3 leading-snug mt-1">
+                Simulate what breaks if you edit high-risk modules and check downstream ripple.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleAnalyzeImpact()}
+              className="w-full text-xs !py-1"
+            >
+              Analyze Impact →
+            </Button>
+          </div>
+
+          {/* Step 4 */}
+          <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2">
+            <div>
+              <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 4 · PREVIEW</span>
+              <h4 className="font-bold text-xs text-ink">Modernize Code</h4>
+              <p className="text-[11px] text-ink-3 leading-snug mt-1">
+                Preview syntax-validated Python 2 and modern JS diffs in disposable sandbox.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleReviewModernization()}
+              className="w-full text-xs !py-1"
+            >
+              Review Diff →
+            </Button>
+          </div>
+
+          {/* Step 5 */}
+          <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2">
+            <div>
+              <span className="text-[10px] font-mono font-bold text-red block mb-1">STEP 5 · MIGRATE</span>
+              <h4 className="font-bold text-xs text-ink">Plan Waves</h4>
+              <p className="text-[11px] text-ink-3 leading-snug mt-1">
+                Execute phased migration waves and track readiness checklist completion.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onNavigateTab?.('migration')}
+              className="w-full text-xs !py-1"
+            >
+              Impact &amp; Plan →
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 6. MODULE EXPLORATION & LEGACY WARNINGS ACCORDION                         */}
+      {/* ========================================================================= */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface border border-line rounded-lg p-3 sm:px-4 shadow-1">
         <SearchField
           id="explanation-search"
@@ -621,7 +1043,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
         </div>
       </div>
 
-      {/* 5. Module Accordion Rows */}
+      {/* Module Accordion Rows */}
       <div className="space-y-2.5" role="region" aria-label="Analyzed Modules List">
         {filteredModules.length === 0 ? (
           <div className="bg-surface border border-line rounded-lg p-10 text-center text-sm text-ink-3">
@@ -701,32 +1123,23 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => {
-                          onSelectFile?.(mod.relative_path);
-                          onNavigateTab?.('graph');
-                        }}
+                        onClick={() => handleInspectInGraph(mod.relative_path)}
                         icon={<Network className="w-3.5 h-3.5" strokeWidth={1.75} />}
                       >
-                        Inspect in Graph
+                        Inspect in Dependency Map
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => {
-                          onSelectFile?.(mod.relative_path);
-                          onNavigateTab?.('migration');
-                        }}
+                        onClick={() => handleAnalyzeImpact(mod.relative_path)}
                         icon={<Target className="w-3.5 h-3.5" strokeWidth={1.75} />}
                       >
-                        What Breaks?
+                        Analyze Impact
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => {
-                          onSelectFile?.(mod.relative_path);
-                          onNavigateTab?.('tests');
-                        }}
+                        onClick={() => handleGenerateTests(mod.relative_path)}
                         icon={<Play className="w-3.5 h-3.5" strokeWidth={1.75} />}
                       >
                         Generate Tests
@@ -734,13 +1147,10 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => {
-                          onSelectFile?.(mod.relative_path);
-                          onNavigateTab?.('refactor');
-                        }}
+                        onClick={() => handleReviewModernization(mod.relative_path)}
                         icon={<Wand2 className="w-3.5 h-3.5" strokeWidth={1.75} />}
                       >
-                        Modernize Code
+                        Review Modernization
                       </Button>
                     </div>
 
