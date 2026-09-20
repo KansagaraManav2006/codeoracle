@@ -105,3 +105,55 @@ def test_invalid_python_is_never_marked_valid() -> None:
     valid, message = _syntax_check("python", "def broken(:\n    pass\n")
     assert valid is False
     assert message and "Line 1" in message
+
+
+# --- Regression: regex rules must not mutate string literals or comments ---
+
+def test_python_xrange_inside_string_literal_is_not_substituted() -> None:
+    """
+    Regression: xrange() inside a string literal must never be replaced.
+    Previously regex rules would match inside string content.
+    """
+    source = 'doc = "use xrange(n) in Python 2"\n'
+    modern, changes, _ = _modernize_python(source)
+    # The string content must be unchanged
+    assert '"use xrange(n) in Python 2"' in modern, (
+        "xrange inside a string literal was mutated — protected-ranges check failed"
+    )
+    # No changes should have been recorded since no real-code xrange exists
+    assert len(changes) == 0, f"Unexpected changes on string-only source: {changes}"
+
+
+def test_python_xrange_inside_comment_is_not_substituted() -> None:
+    """
+    Regression: xrange() inside a # comment must never be replaced.
+    """
+    source = "# This used xrange(n) in Python 2\nx = 1\n"
+    modern, changes, _ = _modernize_python(source)
+    assert "# This used xrange(n) in Python 2" in modern, (
+        "xrange inside a comment was mutated — protected-ranges check failed"
+    )
+    assert len(changes) == 0, f"Unexpected changes on comment-only source: {changes}"
+
+
+def test_python_xrange_in_real_code_is_still_substituted() -> None:
+    """
+    Confirm that real-code xrange() is still correctly replaced even when
+    the same file has strings or comments containing the word 'xrange'.
+    """
+    source = (
+        '# old: xrange(n)\n'
+        'doc = "use xrange(n) for iteration"\n'
+        'for i in xrange(10):\n'
+        '    pass\n'
+    )
+    modern, changes, warnings = _modernize_python(source)
+    # Real-code xrange must be substituted
+    assert "for i in range(10):" in modern, "Real-code xrange was not replaced"
+    # Comment xrange must be untouched
+    assert "# old: xrange(n)" in modern, "Comment xrange was mutated"
+    # String xrange must be untouched
+    assert '"use xrange(n) for iteration"' in modern, "String xrange was mutated"
+    # Exactly one change logged (the real-code occurrence)
+    assert len(changes) == 1, f"Expected 1 change, got {len(changes)}: {changes}"
+    assert any(w.code == "PY2_XRANGE" for w in warnings)

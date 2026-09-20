@@ -155,11 +155,14 @@ def submit_zip_upload(
             detail="Filename missing in upload request.",
         )
 
+    # Validate the upload stream BEFORE generating any server paths.
+    # validate_zip_stream never writes to disk; it checks size and ZIP magic bytes only.
     try:
-        validate_zip_stream(file.file, file.filename)
+        validate_zip_stream(file.file)
     except IngestionError as ie:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ie.message)
 
+    # Generate server-controlled IDs and paths — never derived from user input.
     workspace_id = f"ws_{uuid.uuid4().hex[:12]}"
     job_id = f"job_{uuid.uuid4().hex[:12]}"
     temp_zip_path = Path(settings.TEMP_DIR) / f"{job_id}.zip"
@@ -177,6 +180,7 @@ def submit_zip_upload(
             detail="Unable to store upload archive on server.",
         )
 
+    # Display name is derived from the original filename for UX only — never used as a path.
     display_name = Path(file.filename).stem
 
     job = Job(

@@ -190,6 +190,9 @@ def test_integration_full_workflow_persistence_across_sessions_and_engine_recrea
     engine2.dispose()
 
     testability = next(c for c in plan.categories if c.key == "testability")
-    assert testability.score > 35  # Recalculated from persisted record (expected 76)
-    assert testability.score == 76
-    assert "Syntax-based estimation" in testability.reason
+    # New formula: unmeasured suites are capped at 40 (syntax_ratio * 40, max 40).
+    # 1/1 syntax valid => syntax_ratio=1.0 => min(40, 1.0*40) = 40
+    assert testability.score > 35  # Recalculated from persisted record (expected 40)
+    assert testability.score == 40
+    assert testability.status == "Estimated (not executed)"
+    assert "Syntax-based estimation only" in testability.reason

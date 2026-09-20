@@ -145,6 +145,19 @@ def clone_github_repository(clean_url: str, target_dir: Path) -> None:
                 message=f"Cloned repository size exceeds limit of {settings.MAX_CLONE_SIZE_BYTES // (1024 * 1024)}MB.",
             )
 
+        # Reject repositories that contain symlinks.
+        # A crafted repo can use symlinks to read host-accessible files outside the workspace.
+        for dirpath, dirnames, filenames in os.walk(target_dir):
+            for name in dirnames + filenames:
+                candidate = Path(dirpath) / name
+                if candidate.is_symlink():
+                    if target_dir.exists():
+                        shutil.rmtree(target_dir, ignore_errors=True)
+                    raise IngestionError(
+                        code="SYMLINK_NOT_ALLOWED",
+                        message="Cloned repository contains symlinks, which are not allowed for security reasons.",
+                    )
+
     except subprocess.TimeoutExpired:
         if target_dir.exists():
             shutil.rmtree(target_dir, ignore_errors=True)

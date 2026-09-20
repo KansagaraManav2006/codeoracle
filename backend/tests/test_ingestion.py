@@ -103,9 +103,8 @@ def test_03_non_zip_upload():
 # --- 4. Oversized Compressed Upload ---
 def test_04_oversized_compressed_upload(tmp_path):
     large_stream = io.BytesIO(b"A" * (settings.MAX_ZIP_COMPRESSED_BYTES + 1024))
-    temp_zip = tmp_path / "oversized.zip"
     with pytest.raises(IngestionError) as exc:
-        validate_zip_stream(large_stream, temp_zip)
+        validate_zip_stream(large_stream)
     assert exc.value.code == "OVERSIZED_ZIP"
 
 
@@ -691,3 +690,82 @@ def test_39_full_legacy_retail_demo_is_bundled_and_reopenable(tmp_path, monkeypa
     assert any(project["project_id"] == payload["project_id"] for project in recent.json()["projects"])
     assert client.get(f"/api/projects/{payload['project_id']}/analysis/download").status_code == 200
     assert client.get(f"/api/projects/{payload['project_id']}/graph/download").status_code == 200
+
+
+# --- Security Regression: ZIP filename cannot overwrite server paths ---
+def test_40_zip_validate_never_writes_to_caller_path(tmp_path):
+    """
+    Regression test: validate_zip_stream must NOT accept a second (path) argument.
+    Previously the function accepted file.filename as temp_zip_path and opened it
+    for writing, creating an arbitrary file overwrite vector.
+
+    Confirm the function signature accepts only one argument (the stream) and that
+    no file is written to any caller-supplied sentinel path.
+    """
+    import inspect
+    sig = inspect.signature(validate_zip_stream)
+    param_names = list(sig.parameters.keys())
+    assert len(param_names) == 1, (
+        f"validate_zip_stream must accept exactly 1 argument (stream), got: {param_names}. "
+        "Ensure the temp_zip_path parameter has been removed to prevent filename-based overwrite."
+    )
+    assert param_names[0] == "input_stream"
+
+    # Confirm calling it with a crafted path raises TypeError, not writing anything.
+    sentinel = tmp_path / "should_not_exist.zip"
+    small_zip_buf = io.BytesIO()
+    with zipfile.ZipFile(small_zip_buf, "w") as zf:
+        zf.writestr("hello.py", "x = 1\n")
+    small_zip_buf.seek(0)
+
+    try:
+        validate_zip_stream(small_zip_buf, str(sentinel))  # type: ignore[call-arg]
+        assert False, "Expected TypeError when passing two arguments"
+    except TypeError:
+        pass  # Correct: new signature rejects extra arguments
+
+    assert not sentinel.exists(), (
+        "Sentinel file was written — validate_zip_stream still uses a caller-supplied path!"
+    )
+
+
+# --- Security Regression: Symlink files are rejected by discover_source_files ---
+@pytest.mark.skipif(os.name == "nt", reason="Symlinks on Windows require elevated privileges")
+def test_41_symlink_files_are_skipped_in_discovery(tmp_path):
+    """
+    Regression test: discover_source_files must skip symlink files and directories.
+    A git-cloned repository may contain symlinks pointing to host-accessible paths
+    outside the workspace. The discovery walk must not follow them.
+    """
+    # Create a legitimate Python file
+    real_file = tmp_path / "real.py"
+    real_file.write_text("x = 1\n", encoding="utf-8")
+
+    # Create a sensitive file OUTSIDE the workspace
+    outside_dir = tmp_path.parent / "outside_workspace"
+    outside_dir.mkdir(exist_ok=True)
+    outside_secret = outside_dir / "secret.py"
+    outside_secret.write_text("SECRET = 'leaked'\n", encoding="utf-8")
+
+    # Create a symlink inside the workspace pointing to the outside file
+    symlink_file = tmp_path / "symlink_to_secret.py"
+    symlink_file.symlink_to(outside_secret)
+
+    # Create a symlink directory pointing to the outside directory
+    symlink_dir = tmp_path / "symlink_dir"
+    symlink_dir.symlink_to(outside_dir)
+
+    result = discover_source_files(tmp_path)
+
+    discovered_paths = {f.relative_path for f in result.files}
+
+    # Only the real file should appear — symlinks must be absent
+    assert "real.py" in discovered_paths, "Real Python file was not discovered"
+    assert "symlink_to_secret.py" not in discovered_paths, (
+        "Symlinked file was followed — host-accessible paths may leak!"
+    )
+    # Symlink directory contents must not appear
+    for path in discovered_paths:
+        assert not path.startswith("symlink_dir/"), (
+            f"Symlink directory was traversed and '{path}' was discovered — host paths may leak!"
+        )

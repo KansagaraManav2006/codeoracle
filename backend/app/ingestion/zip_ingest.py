@@ -1,3 +1,4 @@
+import io
 import os
 import shutil
 import zipfile
@@ -8,32 +9,38 @@ from app.config import settings
 from app.ingestion.discovery import IngestionError
 
 
-def validate_zip_stream(input_stream: BinaryIO, temp_zip_path: Path) -> int:
+def validate_zip_stream(input_stream: BinaryIO) -> int:
     """
-    Streams file upload into temporary zip file, checking chunk by chunk to enforce
-    compressed size limit without loading full archive into memory.
+    Reads the upload stream entirely into memory (up to the compressed-size limit)
+    and validates it is a non-empty, valid ZIP archive.
+
+    Does NOT write to any path — the caller is responsible for persisting the
+    validated bytes to a server-generated temp path.
+
+    Returns the total compressed byte count.
     """
     total_compressed = 0
-    chunk_size = 64 * 1024  # 64KB
+    chunk_size = 64 * 1024  # 64 KB
+    buffer = io.BytesIO()
 
-    with open(temp_zip_path, "wb") as f_out:
-        while True:
-            chunk = input_stream.read(chunk_size)
-            if not chunk:
-                break
-            total_compressed += len(chunk)
+    while True:
+        chunk = input_stream.read(chunk_size)
+        if not chunk:
+            break
+        total_compressed += len(chunk)
 
-            if total_compressed > settings.MAX_ZIP_COMPRESSED_BYTES:
-                raise IngestionError(
-                    code="OVERSIZED_ZIP",
-                    message=f"Uploaded ZIP compressed size exceeds maximum allowed limit of {settings.MAX_ZIP_COMPRESSED_BYTES // (1024 * 1024)}MB.",
-                )
-            f_out.write(chunk)
+        if total_compressed > settings.MAX_ZIP_COMPRESSED_BYTES:
+            raise IngestionError(
+                code="OVERSIZED_ZIP",
+                message=f"Uploaded ZIP compressed size exceeds maximum allowed limit of {settings.MAX_ZIP_COMPRESSED_BYTES // (1024 * 1024)}MB.",
+            )
+        buffer.write(chunk)
 
     if total_compressed == 0:
         raise IngestionError(code="EMPTY_FILE", message="Uploaded file is empty.")
 
-    if not zipfile.is_zipfile(temp_zip_path):
+    buffer.seek(0)
+    if not zipfile.is_zipfile(buffer):
         raise IngestionError(code="INVALID_ZIP", message="Uploaded file is not a valid ZIP archive.")
 
     return total_compressed

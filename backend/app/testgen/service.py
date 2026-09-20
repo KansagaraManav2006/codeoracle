@@ -184,11 +184,12 @@ def run_test_generation_for_project(
 
     gen_duration_ms = int((time.time() - gen_start) * 1000)
 
-    # If executed coverage was obtained, update protection_type
+    # Upgrade protection_type only for Python files whose coverage was actually measured.
+    # JavaScript execution is not available, so JS files must never be labeled "measured".
     is_measured = overall_coverage is not None
     if is_measured:
         for tf in test_files:
-            if not tf.is_import_only and tf.syntax_valid:
+            if not tf.is_import_only and tf.syntax_valid and tf.language == "python":
                 tf.protection_type = "measured"
 
     # Compute aggregate metrics

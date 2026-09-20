@@ -1,11 +1,13 @@
 import ast
 import difflib
+import io
 import re
 import time
+import tokenize
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, List, Tuple
+from typing import Callable, List, Set, Tuple
 
 from sqlalchemy.orm import Session
 import tree_sitter
@@ -43,6 +45,60 @@ def _line_for(text: str, offset: int) -> int:
     return text.count("\n", 0, offset) + 1
 
 
+def _python_protected_ranges(source: str) -> List[Tuple[int, int]]:
+    """
+    Returns a list of (start, end) byte-offset ranges covering all string literals
+    (including docstrings and multi-line strings) and inline comments in the source.
+    Matches within these ranges are skipped by _apply_rules to avoid mutating
+    content inside string values or comments.
+    """
+    ranges: List[Tuple[int, int]] = []
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+    except tokenize.TokenError:
+        # Tokenization failed (e.g., broken source); return empty — rules still run
+        return ranges
+
+    for tok_type, tok_string, tok_start, tok_end, _ in tokens:
+        if tok_type in (tokenize.STRING, tokenize.COMMENT):
+            # Convert (line, col) positions to flat byte offsets
+            lines = source.splitlines(keepends=True)
+            start_offset = sum(len(lines[i]) for i in range(tok_start[0] - 1)) + tok_start[1]
+            end_offset = sum(len(lines[i]) for i in range(tok_end[0] - 1)) + tok_end[1]
+            ranges.append((start_offset, end_offset))
+    return ranges
+
+
+def _js_protected_ranges(source: str) -> List[Tuple[int, int]]:
+    """
+    Returns approximate protected ranges for JS/TS string literals (single-quoted,
+    double-quoted, and template literals) and line/block comments.
+    This is a best-effort regex scanner — not a full parser.
+    """
+    ranges: List[Tuple[int, int]] = []
+    # Pattern matches: double-quoted strings, single-quoted strings, template literals,
+    # block comments, and line comments (in that priority order).
+    _JS_LITERAL_RE = re.compile(
+        r'"(?:[^"\\]|\\.)*"'     # double-quoted
+        r"|'(?:[^'\\]|\\.)*'"   # single-quoted
+        r"|`(?:[^`\\]|\\.)*`"   # template literal
+        r"|/\*.*?\*/"            # block comment
+        r"|//[^\n]*",            # line comment
+        re.DOTALL,
+    )
+    for m in _JS_LITERAL_RE.finditer(source):
+        ranges.append((m.start(), m.end()))
+    return ranges
+
+
+def _in_protected_range(offset: int, protected: List[Tuple[int, int]]) -> bool:
+    """Returns True if the given offset falls inside any protected range."""
+    for start, end in protected:
+        if start <= offset < end:
+            return True
+    return False
+
+
 def _first_loose_js_equality_line(source: str) -> int | None:
     """Find an equality expression, ignoring comments and literal text."""
     parser = tree_sitter.Parser(tree_sitter.Language(tree_sitter_javascript.language()))
@@ -58,25 +114,70 @@ def _first_loose_js_equality_line(source: str) -> int | None:
     return None
 
 
-def _apply_rules(source: str, rules: List[Rule]) -> Tuple[str, List[str], List[RefactorWarning]]:
+def _apply_rules(
+    source: str,
+    rules: List[Rule],
+    is_python: bool = False,
+) -> Tuple[str, List[str], List[RefactorWarning]]:
+    """
+    Applies modernization rules to source, skipping matches that fall inside
+    string literals or comments (token-aware for Python, regex-approximate for JS).
+    """
+    # Build protected ranges from the ORIGINAL source before any substitutions.
+    # We use original offsets as a conservative guard; after substitutions offsets
+    # shift, but the guard only needs to protect regions that start protected.
+    if is_python:
+        protected = _python_protected_ranges(source)
+    else:
+        protected = _js_protected_ranges(source)
+
     updated = source
+    # Track cumulative offset shift so we can map original offsets after substitutions.
+    # Since we process rules sequentially and use pattern.subn on the evolving string,
+    # we recompute protected ranges from the current state for each rule to stay accurate.
     changes: List[str] = []
     warnings: List[RefactorWarning] = []
+
     for pattern, replacement, code, message, breaking in rules:
+        # Recompute protected ranges on the current version of the text for accuracy.
+        current_protected = _python_protected_ranges(updated) if is_python else _js_protected_ranges(updated)
+
+        # Find all matches; only count/warn on matches outside protected ranges.
         matches = list(pattern.finditer(updated))
-        if not matches:
+        unprotected_matches = [m for m in matches if not _in_protected_range(m.start(), current_protected)]
+
+        if not unprotected_matches:
             continue
+
         warnings.append(
             RefactorWarning(
                 code=code,
                 severity="risk" if breaking else "info",
                 message=(message + (" Review behavior before merging." if breaking else "")),
-                line=_line_for(updated, matches[0].start()),
+                line=_line_for(updated, unprotected_matches[0].start()),
                 breaking_change=breaking,
             )
         )
-        updated, count = pattern.subn(replacement, updated)
-        changes.append(f"{message} ({count} occurrence{'s' if count != 1 else ''})")
+
+        # Apply substitution only to unprotected matches, rebuilding the string
+        # by replacing from right to left (to preserve offsets for earlier matches).
+        count = 0
+        result_parts = []
+        prev_end = 0
+        for m in matches:
+            if _in_protected_range(m.start(), current_protected):
+                # Inside a string literal or comment — keep as-is.
+                result_parts.append(updated[prev_end:m.end()])
+            else:
+                result_parts.append(updated[prev_end:m.start()])
+                result_parts.append(m.expand(replacement))
+                count += 1
+            prev_end = m.end()
+        result_parts.append(updated[prev_end:])
+        updated = "".join(result_parts)
+
+        changes.append(f"{message} ({count} occurrence{'s' if count != 1 else ''})") 
+
     if rules is JS_RULES:
         equality_line = _first_loose_js_equality_line(source)
         if equality_line is not None:
@@ -91,9 +192,10 @@ def _apply_rules(source: str, rules: List[Rule]) -> Tuple[str, List[str], List[R
 
 
 def _modernize_python(source: str) -> Tuple[str, List[str], List[RefactorWarning]]:
-    updated, changes, warnings = _apply_rules(source, PYTHON_RULES)
+    updated, changes, warnings = _apply_rules(source, PYTHON_RULES, is_python=True)
 
     # Handle only the unambiguous one-line Python 2 print statement form.
+    # The pattern requires a line-start anchor, so it cannot match inside strings.
     print_pattern = re.compile(r"(?m)^(\s*)print\s+([^>\n][^\n]*)$")
     matches = list(print_pattern.finditer(updated))
     if matches:

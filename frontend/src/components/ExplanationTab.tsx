@@ -283,7 +283,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
         type: 'refactor',
         badge: 'Priority 1 — Modernization Candidate',
         title: `Preview ${analysis.finding_funnel.generated_diffs} Automated Refactor Diffs`,
-        description: 'Deterministic AST-safe code transformations have been generated and validated for Python 3 / Modern JS. Review and verify proposals.',
+        description: 'Deterministic rule-based code transformations have been generated and validated for Python 3 / Modern JS. Review and verify proposals.',
         actionLabel: 'Preview Proposed Refactors',
         targetTab: 'refactor' as TabType,
         targetFile: topRiskModules[0]?.mod.relative_path,

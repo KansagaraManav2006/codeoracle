@@ -65,8 +65,13 @@ def compute_readiness_score(
         gen_count = len(test_files)
         valid_cnt = sum(1 for tf in test_files if tf.syntax_valid)
         syntax_ratio = valid_cnt / gen_count if gen_count > 0 else 0.0
-        cov = overall_coverage if overall_coverage is not None else 60.0
-        testability_score = max(0, min(100, int(cov * 0.6 + syntax_ratio * 40)))
+        if overall_coverage is not None:
+            # Actual measured coverage: full scoring (max ~100).
+            testability_score = max(0, min(100, int(overall_coverage * 0.6 + syntax_ratio * 40)))
+        else:
+            # Syntax-valid but not executed: capped at 40 to distinguish from measured suites.
+            # "No tests" baseline is 35; this signals generation exists but is unverified.
+            testability_score = max(0, min(40, int(syntax_ratio * 40)))
     else:
         testability_score = 35
 
@@ -302,7 +307,12 @@ def run_refactor_verification(
         )
 
         disposable_edges = resolve_project_dependencies(reanalyzed_modules)
-        disposable_graph = build_project_dependency_graph(disposable_analysis, disposable_edges)
+        # Assign resolved edges into the analysis object so the graph builder reads them.
+        # Previously disposable_edges was incorrectly passed as the positional `level` arg,
+        # which meant the analysis kept its default empty edge list and the graph always
+        # reported zero cycles and zero internal edges.
+        disposable_analysis.dependency_edges = disposable_edges
+        disposable_graph = build_project_dependency_graph(disposable_analysis)
         after_cycles = disposable_graph.summary.cycle_count
         new_cycles = max(0, after_cycles - baseline_cycles)
 

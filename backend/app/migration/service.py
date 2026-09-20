@@ -670,12 +670,21 @@ def build_migration_plan(db: Session, project_id: str) -> MigrationPlanResponse:
         gen_count = len(test_result.test_files)
         syntax_ratio = (test_result.syntax_valid_count / gen_count) if gen_count > 0 else 0.0
         coverage = test_result.overall_line_coverage
-        testability_score = _bounded((coverage if coverage is not None else 60) * 0.6 + syntax_ratio * 40)
-        testability_status = _status(testability_score)
         if coverage is not None:
+            # Actual measured coverage: full scoring path.
+            testability_score = _bounded(coverage * 0.6 + syntax_ratio * 40)
+            testability_status = _status(testability_score)
             test_reason = f"Generated tests cover {coverage:.1f}% of measured source lines."
         else:
-            test_reason = f"Syntax-based estimation ({test_result.syntax_valid_count} of {gen_count} generated test file(s) pass syntax validation; execution unmeasured)."
+            # Test files generated and syntax-validated but never executed.
+            # Cap at 40 to distinguish from measured results; 35 is the "no tests" floor.
+            testability_score = _bounded(min(40, syntax_ratio * 40))
+            testability_status = "Estimated (not executed)"
+            test_reason = (
+                f"Syntax-based estimation only ({test_result.syntax_valid_count} of {gen_count} "
+                "generated test file(s) pass syntax validation; execution not measured). "
+                "Run the test suite to obtain a measured coverage score."
+            )
     else:
         testability_score = 35
         testability_status = "Not calculated"

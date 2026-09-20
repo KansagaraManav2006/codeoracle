@@ -195,8 +195,12 @@ def test_regression_all_syntax_valid_no_coverage():
     db.close()
 
     testability = next(c for c in plan.categories if c.key == "testability")
-    assert testability.score == 76  # 60 * 0.6 + (2/2) * 40 = 76
-    assert "Syntax-based estimation" in testability.reason
+    # New formula: unmeasured suites are capped at 40 (syntax_ratio * 40, max 40).
+    # 2/2 syntax valid => syntax_ratio=1.0 => min(40, 1.0*40) = 40
+    assert testability.score == 40
+    assert testability.status == "Estimated (not executed)"
+    assert "Syntax-based estimation only" in testability.reason
+    assert "execution not measured" in testability.reason
 
 
 def test_regression_partial_syntax_validity():
@@ -237,7 +241,9 @@ def test_regression_partial_syntax_validity():
     db.close()
 
     testability = next(c for c in plan.categories if c.key == "testability")
-    assert testability.score == 56  # 60 * 0.6 + 0.5 * 40 = 56
+    # New formula: 0.5 syntax_ratio => min(40, 0.5*40) = 20
+    assert testability.score == 20
+    assert testability.status == "Estimated (not executed)"
 
 
 def test_regression_measured_coverage():
