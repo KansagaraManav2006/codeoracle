@@ -15,6 +15,7 @@ import { TabType } from './types';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('explanation');
+  const [targetFile, setTargetFile] = useState<string | null>(null);
   const [testRevision, setTestRevision] = useState(0);
   const [isGeneratingTests, setIsGeneratingTests] = useState(false);
   const [testGenError, setTestGenError] = useState<string | null>(null);
@@ -24,6 +25,16 @@ export const App: React.FC = () => {
 
   const handleTestsUpdated = () => {
     setTestRevision((prev) => prev + 1);
+  };
+
+  const handleInspectImpact = (filePath: string) => {
+    setTargetFile(filePath);
+    setActiveTab('migration');
+  };
+
+  const handleFocusInGraph = (filePath: string) => {
+    setTargetFile(filePath);
+    setActiveTab('graph');
   };
 
   return (
@@ -68,7 +79,13 @@ export const App: React.FC = () => {
                   onNavigateTab={setActiveTab}
                 />
               )}
-              {activeTab === 'graph' && <DependencyGraphTab projectId={project.project_id} />}
+              {activeTab === 'graph' && (
+                <DependencyGraphTab
+                  projectId={project.project_id}
+                  targetFile={targetFile}
+                  onInspectImpact={handleInspectImpact}
+                />
+              )}
               {activeTab === 'tests' && (
                 <GeneratedTestsTab
                   projectId={project.project_id}
@@ -87,6 +104,9 @@ export const App: React.FC = () => {
                   refreshKey={testRevision}
                   isGeneratingTests={isGeneratingTests}
                   testGenError={testGenError}
+                  targetFile={targetFile}
+                  onNavigateTab={setActiveTab}
+                  onFocusInGraph={handleFocusInGraph}
                   onNavigateToTests={() => setActiveTab('tests')}
                 />
               )}

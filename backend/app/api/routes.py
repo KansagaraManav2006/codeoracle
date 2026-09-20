@@ -15,8 +15,8 @@ from app.analysis.service import analysis_languages_are_current, process_analysi
 from app.config import settings
 from app.database import get_db
 from app.models.db import Job, JobState, Project, ProjectAnalysisRecord, ProjectFile, ProjectRefactorRecord
-from app.migration.models import MigrationPlanResponse
-from app.migration.service import build_migration_plan, migration_plan_markdown
+from app.migration.models import ChangeImpact, MigrationPlanResponse
+from app.migration.service import build_migration_plan, get_module_change_impact, migration_plan_markdown
 from app.models.schema import (
     AnalyzeRequest,
     GitHubIngestRequest,
@@ -78,6 +78,27 @@ def download_migration_plan(project_id: str, db: Session = Depends(get_db)) -> P
         media_type="text/markdown; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{_download_name(project.display_name)}-migration-plan.md"'},
     )
+
+
+@router.get("/projects/{project_id}/impact", response_model=ChangeImpact)
+def get_project_change_impact(
+    project_id: str,
+    target: str = Query(..., description="Relative path or module ID of target file"),
+    db: Session = Depends(get_db),
+) -> ChangeImpact:
+    """Retrieve detailed 'What breaks if I change this?' change impact for a specific file or module."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    try:
+        return get_module_change_impact(db, project_id, target)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    except Exception:
+        logger.exception("Change impact calculation failed for project %s target %s", project_id, target)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unable to calculate change impact.")
 
 
 from app.database import get_db_diagnostics

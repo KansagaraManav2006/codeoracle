@@ -82,16 +82,30 @@ def _read_refactor_result(db: Session, project_id: str) -> Optional[ProjectRefac
         return None
 
 
-def _transitive_dependents(start: str, reverse_edges: Dict[str, Set[str]]) -> Set[str]:
-    seen: Set[str] = set()
-    queue = deque(reverse_edges.get(start, set()))
+def _transitive_depth_and_nodes(start: str, reverse_edges: Dict[str, Set[str]]) -> tuple[int, Set[str]]:
+    distances: Dict[str, int] = {}
+    queue = deque([(node, 1) for node in reverse_edges.get(start, set()) if node != start])
+    for node, d in queue:
+        distances[node] = d
+
+    max_depth = 0
     while queue:
-        current = queue.popleft()
-        if current in seen or current == start:
-            continue
-        seen.add(current)
-        queue.extend(reverse_edges.get(current, set()))
-    return seen
+        curr, depth = queue.popleft()
+        if depth > max_depth:
+            max_depth = depth
+        for nxt in reverse_edges.get(curr, set()):
+            if nxt == start:
+                continue
+            if nxt not in distances or depth + 1 > distances[nxt]:
+                if depth + 1 <= 50:
+                    distances[nxt] = depth + 1
+                    queue.append((nxt, depth + 1))
+    return max_depth, set(distances.keys())
+
+
+def _transitive_dependents(start: str, reverse_edges: Dict[str, Set[str]]) -> Set[str]:
+    _, nodes = _transitive_depth_and_nodes(start, reverse_edges)
+    return nodes
 
 
 def _phase_files(items: Iterable[ChangeImpact], limit: int = 8) -> List[str]:
@@ -139,9 +153,11 @@ def build_migration_plan(db: Session, project_id: str) -> MigrationPlanResponse:
         for test_file in test_result.test_files:
             tests_by_target[test_file.target_relative_path].append(test_file.safe_test_path)
 
+    graph = build_project_dependency_graph(analysis, include_external=False)
+
     impacts: List[ChangeImpact] = []
     for module in modules:
-        transitive = _transitive_dependents(module.module_id, dependents)
+        depth, transitive = _transitive_depth_and_nodes(module.module_id, dependents)
         direct_in = dependents.get(module.module_id, set())
         direct_out = dependencies.get(module.module_id, set())
         warning_weight = sum({"risk": 3, "warning": 2, "info": 1}.get(item.severity, 1) for item in module.legacy_warnings)
@@ -149,6 +165,18 @@ def build_migration_plan(db: Session, project_id: str) -> MigrationPlanResponse:
         raw_risk = warning_weight + complexity_weight + min(len(transitive), 10) + (5 if module.is_entry_point else 0)
         risk_level = "critical" if raw_risk >= 18 else "high" if raw_risk >= 10 else "medium" if raw_risk >= 4 else "low"
         affected_entries = sorted(path_by_id[item] for item in transitive | {module.module_id} if item in entry_ids)
+
+        direct_dependents = sorted(path_by_id[item] for item in direct_in)
+        transitive_dependents = sorted(path_by_id[item] for item in transitive)
+        direct_dependencies = sorted(path_by_id[item] for item in direct_out)
+
+        # Cycles involving this module
+        mod_cycles = [
+            [path_by_id.get(nid, nid) for nid in cycle]
+            for cycle in graph.cycles
+            if module.module_id in cycle
+        ]
+
         reasons: List[str] = []
         if transitive:
             reasons.append(f"Changes can affect {len(transitive)} downstream file(s).")
@@ -158,23 +186,56 @@ def build_migration_plan(db: Session, project_id: str) -> MigrationPlanResponse:
             reasons.append(f"Complexity is rated {module.complexity.rating}.")
         if module.is_entry_point:
             reasons.append("This is an application entry point.")
+        if mod_cycles:
+            reasons.append(f"Participates in {len(mod_cycles)} dependency loop(s).")
         if not reasons:
             reasons.append("No major static-analysis risk indicators were found.")
+
+        # Structured risk evidence
+        risk_evidence: List[str] = [
+            f"Complexity: score {module.complexity.cyclomatic_complexity} ({module.complexity.rating} rating)",
+            f"Callers: {len(direct_dependents)} direct, {len(transitive_dependents)} transitive blast radius (depth: {depth})",
+            f"Dependencies: {len(direct_dependencies)} direct imports",
+        ]
+        if affected_entries:
+            risk_evidence.append(f"Affects entry points: {', '.join(affected_entries[:3])}")
+        if mod_cycles:
+            risk_evidence.append(f"In dependency cycle with: {', '.join([c[0] for c in mod_cycles if c and c[0] != module.relative_path][:2]) or 'circular import'}")
+        if module.legacy_warnings:
+            risk_evidence.append(f"Legacy code flags: {len(module.legacy_warnings)} detected")
+
+        # Contextual recommended action
+        if mod_cycles:
+            recommended_action = "Untangle cyclic dependency before refactoring to prevent regressions."
+        elif risk_level in {"critical", "high"}:
+            if tests_by_target.get(module.relative_path):
+                recommended_action = f"Run {len(tests_by_target[module.relative_path])} existing characterization test(s) before modifying."
+            else:
+                recommended_action = "Generate safety characterization tests to lock in current behavior before editing."
+        elif module.relative_path in diff_paths:
+            recommended_action = "Preview and validate automated modernization diff in the Refactored Code tab."
+        else:
+            recommended_action = "Safe for targeted refactoring: minimal downstream blast radius."
+
         suggested_tests = sorted(tests_by_target.get(module.relative_path, []))
         if not suggested_tests:
             suggested_tests = [f"Generate tests for {module.relative_path}"]
-        direct_dependents = sorted(path_by_id[item] for item in direct_in)
-        direct_dependencies = sorted(path_by_id[item] for item in direct_out)
+
         impacts.append(ChangeImpact(
             module_id=module.module_id,
             relative_path=module.relative_path,
             risk_level=risk_level,
             blast_radius=len(transitive),
+            dependency_depth=depth,
             direct_dependents=direct_dependents,
+            transitive_dependents=transitive_dependents,
             direct_dependencies=direct_dependencies,
             affected_entry_points=affected_entries,
+            cycles=mod_cycles,
             suggested_tests=suggested_tests,
             reasons=reasons,
+            risk_evidence=risk_evidence,
+            recommended_action=recommended_action,
         ))
 
     impacts.sort(key=lambda item: (-_risk_rank(item.risk_level), -item.blast_radius, item.relative_path))
@@ -185,7 +246,6 @@ def build_migration_plan(db: Session, project_id: str) -> MigrationPlanResponse:
     complexity_score = _bounded(100 - (high_complexity / total * 100))
     warning_weight = sum(sum({"risk": 3, "warning": 2, "info": 1}.get(item.severity, 1) for item in module.legacy_warnings) for module in modules)
     maintainability_score = _bounded(100 - min(85, warning_weight * 3 / total))
-    graph = build_project_dependency_graph(analysis, include_external=False)
     edge_density = graph.summary.internal_edges / total
     coupling_score = _bounded(100 - min(85, edge_density * 18 + graph.summary.cycle_count * 12))
     test_job = (
@@ -291,3 +351,20 @@ def migration_plan_markdown(plan: MigrationPlanResponse, project_name: str) -> s
         lines.extend(f"- {action}" for action in phase.actions)
     lines.extend(["", "---", "Generated by CodeOracle. Review this plan with the engineering team before applying changes.", ""])
     return "\n".join(lines)
+
+
+def get_module_change_impact(db: Session, project_id: str, target: str) -> ChangeImpact:
+    """Retrieve detailed change-impact assessment for a specific module or file path."""
+    plan = build_migration_plan(db, project_id)
+    norm_target = target.replace("\\", "/").strip().lower()
+
+    for item in plan.impacts:
+        if (
+            item.module_id == target
+            or item.relative_path.replace("\\", "/").lower() == norm_target
+            or item.relative_path.replace("\\", "/").lower().endswith(norm_target)
+        ):
+            return item
+
+    raise ValueError(f"Module '{target}' not found in project '{project_id}'.")
+

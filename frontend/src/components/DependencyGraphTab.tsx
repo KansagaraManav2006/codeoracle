@@ -27,6 +27,7 @@ import {
   Info,
   RefreshCw,
   Search,
+  Target,
   X,
 } from 'lucide-react';
 import { GraphEdgeData, GraphNodeData, GraphResponse } from '../types';
@@ -34,6 +35,8 @@ import { complexityLabel, titleCase } from '../utils/presentation';
 
 interface DependencyGraphTabProps {
   projectId?: string | null;
+  targetFile?: string | null;
+  onInspectImpact?: (filePath: string) => void;
 }
 
 export type FilterMode = 'all' | 'upstream' | 'downstream' | 'cycles' | 'entry_points' | 'high_complexity';
@@ -428,7 +431,11 @@ const GraphCanvasContent: React.FC<{
   );
 };
 
-export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectId }) => {
+export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
+  projectId,
+  targetFile,
+  onInspectImpact,
+}) => {
   const [graph, setGraph] = useState<GraphResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [pending, setPending] = useState<boolean>(false);
@@ -493,6 +500,17 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
       setGraph(null);
     }
   }, [projectId, fetchGraph]);
+
+  useEffect(() => {
+    if (targetFile && graph) {
+      const match = graph.nodes.find(
+        (n) => n.label.toLowerCase() === targetFile.toLowerCase() || n.id === targetFile
+      );
+      if (match) {
+        setSelectedNode(match);
+      }
+    }
+  }, [targetFile, graph]);
 
   const handleDrillDown = (moduleId: string) => {
     fetchGraph('symbol', moduleId);
@@ -1021,6 +1039,14 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
                     <span>View Functions and Classes</span>
                   </button>
                 )}
+
+                <button
+                  onClick={() => onInspectImpact?.(selectedNode.label)}
+                  className="btn-brand-outline-pill w-full mt-2 py-2 px-3 text-xs flex items-center justify-center gap-1.5"
+                >
+                  <Target className="w-3.5 h-3.5 text-[#C45F58]" />
+                  <span>What Breaks If I Change This?</span>
+                </button>
               </div>
             ) : (
               <div className="text-center py-14 text-[#948C81] text-xs space-y-2">

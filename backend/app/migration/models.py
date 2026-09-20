@@ -17,11 +17,16 @@ class ChangeImpact(BaseModel):
     relative_path: str
     risk_level: str
     blast_radius: int
+    dependency_depth: int = 0
     direct_dependents: List[str] = Field(default_factory=list)
+    transitive_dependents: List[str] = Field(default_factory=list)
     direct_dependencies: List[str] = Field(default_factory=list)
     affected_entry_points: List[str] = Field(default_factory=list)
+    cycles: List[List[str]] = Field(default_factory=list)
     suggested_tests: List[str] = Field(default_factory=list)
     reasons: List[str] = Field(default_factory=list)
+    risk_evidence: List[str] = Field(default_factory=list)
+    recommended_action: str = ""
 
 
 class MigrationPhase(BaseModel):
@@ -44,4 +49,3 @@ class MigrationPlanResponse(BaseModel):
     phases: List[MigrationPhase]
     findings: List[Finding] = Field(default_factory=list)
     finding_funnel: FindingFunnel = Field(default_factory=FindingFunnel)
-

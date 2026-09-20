@@ -322,3 +322,42 @@ def test_regression_e2e_backend_test_generation_and_migration_plan():
 
     testability = next(c for c in plan.categories if c.key == "testability")
     assert testability.score > 35
+
+
+def test_change_impact_depth_transitive_and_evidence():
+    db = TestingSessionLocal()
+    plan = build_migration_plan(db, "proj_migration")
+    db.close()
+
+    core_impact = next(i for i in plan.impacts if i.relative_path == "core.py")
+    assert core_impact.blast_radius == 2
+    assert core_impact.dependency_depth == 1
+    assert "app.py" in core_impact.direct_dependents
+    assert "helper.py" in core_impact.direct_dependents
+    assert "app.py" in core_impact.transitive_dependents
+    assert "helper.py" in core_impact.transitive_dependents
+    assert "app.py" in core_impact.affected_entry_points
+    assert len(core_impact.risk_evidence) >= 3
+    assert any("Complexity:" in ev for ev in core_impact.risk_evidence)
+    assert any("Callers:" in ev for ev in core_impact.risk_evidence)
+    assert core_impact.recommended_action != ""
+
+
+def test_get_module_change_impact_and_endpoint():
+    from app.migration.service import get_module_change_impact
+
+    db = TestingSessionLocal()
+    impact = get_module_change_impact(db, "proj_migration", "core.py")
+    assert impact.relative_path == "core.py"
+    assert impact.blast_radius == 2
+    db.close()
+
+    client = TestClient(app)
+    response = client.get("/api/projects/proj_migration/impact?target=core.py")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["relative_path"] == "core.py"
+    assert data["dependency_depth"] == 1
+    assert "app.py" in data["transitive_dependents"]
+    assert len(data["risk_evidence"]) >= 3
+

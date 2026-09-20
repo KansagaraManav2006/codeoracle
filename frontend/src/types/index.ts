@@ -67,11 +67,16 @@ export interface ChangeImpact {
   relative_path: string;
   risk_level: 'low' | 'medium' | 'high' | 'critical';
   blast_radius: number;
+  dependency_depth: number;
   direct_dependents: string[];
+  transitive_dependents: string[];
   direct_dependencies: string[];
   affected_entry_points: string[];
+  cycles?: string[][];
   suggested_tests: string[];
   reasons: string[];
+  risk_evidence?: string[];
+  recommended_action?: string;
 }
 
 export interface MigrationPhase {
