@@ -16,12 +16,13 @@ import {
   Workflow,
   Download,
   Info,
-  ExternalLink,
   Target,
   List,
   Filter,
   ArrowUpRight,
   ArrowDownLeft,
+  TestTube,
+  Wand2,
 } from 'lucide-react';
 import { GraphResponse, TabType } from '../types';
 import { truncateMiddle, formatNumber, getDownloadFileName } from '../utils/formatters';
@@ -556,7 +557,11 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                 nodes={rfNodes}
                 edges={rfEdges}
                 nodeTypes={nodeTypes}
-                onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+                onNodeClick={(_, node) => {
+                  setSelectedNodeId(node.id);
+                  const nodeLabel = (node.data as any)?.node?.label || node.id;
+                  onSelectFile?.(nodeLabel);
+                }}
                 onPaneClick={() => {
                   setSelectedNodeId(null);
                   if (filterMode === 'upstream' || filterMode === 'downstream') {
@@ -710,28 +715,45 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                   </div>
 
                   {/* Cross-tab action links */}
-                  <div className="space-y-2 pt-1 border-t border-line">
+                  <div className="space-y-2 pt-2 border-t border-line">
                     <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onInspectImpact?.(selectedNodeData.label)}
-                      icon={<Target className="w-3.5 h-3.5 text-red" strokeWidth={1.75} />}
-                      className="w-full justify-start text-xs"
-                    >
-                      Downstream Blast Radius
-                    </Button>
-                    <Button
-                      variant="ghost"
+                      variant="indigo"
                       size="sm"
                       onClick={() => {
                         onSelectFile?.(selectedNodeData.label);
-                        onNavigateTab?.('explanation');
+                        onInspectImpact?.(selectedNodeData.label);
                       }}
-                      icon={<ExternalLink className="w-3.5 h-3.5" strokeWidth={1.75} />}
-                      className="w-full justify-start text-xs"
+                      icon={<Target className="w-3.5 h-3.5" strokeWidth={2} />}
+                      className="w-full justify-center text-xs font-bold shadow-xs"
                     >
-                      Open in Explanation
+                      What breaks if I change this?
                     </Button>
+                    <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          onSelectFile?.(selectedNodeData.label);
+                          onNavigateTab?.('tests');
+                        }}
+                        icon={<TestTube className="w-3.5 h-3.5" />}
+                        className="text-xs justify-center"
+                      >
+                        Tests
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          onSelectFile?.(selectedNodeData.label);
+                          onNavigateTab?.('refactor');
+                        }}
+                        icon={<Wand2 className="w-3.5 h-3.5" />}
+                        className="text-xs justify-center"
+                      >
+                        Modernize
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -772,6 +794,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                     className="hover:bg-tile/70 cursor-pointer transition-colors"
                     onClick={() => {
                       setSelectedNodeId(n.id);
+                      onSelectFile?.(n.label);
                       setViewMode('graph');
                     }}
                   >
@@ -805,6 +828,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
+                          onSelectFile?.(n.label);
                           onInspectImpact?.(n.label);
                         }}
                       >

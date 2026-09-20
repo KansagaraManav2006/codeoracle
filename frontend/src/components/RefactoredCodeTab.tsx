@@ -8,6 +8,7 @@ import {
   Loader2,
   CheckCircle2,
   Lock,
+  Target,
 } from 'lucide-react';
 import { ProjectRefactorResult, RefactoredFile, RefactorVerificationResult } from '../types';
 import { truncateMiddle, formatNumber } from '../utils/formatters';
@@ -22,12 +23,18 @@ interface RefactoredCodeTabProps {
   projectId?: string | null;
   projectName?: string;
   trustedDemo?: boolean;
+  targetFile?: string | null;
+  onSelectFile?: (filePath: string) => void;
+  onInspectImpact?: (filePath: string) => void;
 }
 
 export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
   projectId,
   projectName: _projectName = 'project',
   trustedDemo = false,
+  targetFile = null,
+  onSelectFile,
+  onInspectImpact,
 }) => {
   const [result, setResult] = useState<ProjectRefactorResult | null>(null);
   const [selectedPath, setSelectedPath] = useState('');
@@ -74,6 +81,20 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
   useEffect(() => {
     loadProposal();
   }, [loadProposal]);
+
+  // Sync selectedPath when targetFile prop changes
+  useEffect(() => {
+    if (targetFile && result?.files?.length) {
+      const norm = targetFile.replace(/\\/g, '/').toLowerCase();
+      const match = result.files.find((f) => {
+        const fNorm = f.relative_path.replace(/\\/g, '/').toLowerCase();
+        return fNorm === norm || fNorm.endsWith(norm) || norm.endsWith(fNorm);
+      });
+      if (match) {
+        setSelectedPath(match.relative_path);
+      }
+    }
+  }, [targetFile, result]);
 
   const handleRegenerate = async () => {
     if (!projectId || regenerating) return;
@@ -450,7 +471,10 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
                     type="button"
                     role="option"
                     aria-selected={isSelected}
-                    onClick={() => setSelectedPath(f.relative_path)}
+                    onClick={() => {
+                      setSelectedPath(f.relative_path);
+                      onSelectFile?.(f.relative_path);
+                    }}
                     className={`w-full text-left p-2.5 rounded-md transition-colors my-0.5 flex items-start gap-2.5 select-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo ${
                       isSelected
                         ? 'bg-indigo-surface text-indigo-text font-bold shadow-xs'
@@ -478,8 +502,40 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
           </div>
         </div>
 
-        {/* Right: Dark Diff Viewer per DESIGN.md §7.9 */}
-        <div>
+        {/* Right: Dark Diff Viewer with What breaks if I change this? Action Bar */}
+        <div className="space-y-3">
+          {selectedFile && onInspectImpact && (
+            <div className="bg-surface border border-line rounded-lg p-3 flex flex-wrap items-center justify-between gap-3 text-xs shadow-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono font-bold text-ink">
+                  {truncateMiddle(selectedFile.relative_path, 36)}
+                </span>
+                {selectedFile.changed ? (
+                  <span className="px-2 py-0.5 rounded-pill bg-amber-surface text-amber-strong text-[11px] font-bold border border-amber/30">
+                    MODERNIZATION PROPOSED
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-pill bg-tile text-ink-3 text-[11px] font-medium border border-line">
+                    CLEAN / UNCHANGED
+                  </span>
+                )}
+              </div>
+              <Button
+                variant="indigo"
+                size="sm"
+                onClick={() => {
+                  onSelectFile?.(selectedFile.relative_path);
+                  onInspectImpact(selectedFile.relative_path);
+                }}
+                icon={<Target className="w-3.5 h-3.5" />}
+                className="font-bold text-xs shadow-xs"
+                title="Verify downstream blast radius before applying modernization"
+              >
+                What breaks if I change this?
+              </Button>
+            </div>
+          )}
+
           <DiffViewer
             filePath={selectedFile?.relative_path || 'No file selected'}
             diffCode={selectedFile?.unified_diff || ''}

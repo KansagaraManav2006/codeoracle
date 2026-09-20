@@ -12,8 +12,11 @@ import DependencyGraphTab from './components/DependencyGraphTab';
 import GeneratedTestsTab from './components/GeneratedTestsTab';
 import RefactoredCodeTab from './components/RefactoredCodeTab';
 import MigrationPlanTab from './components/MigrationPlanTab';
+import { Target } from 'lucide-react';
 import { ToastProvider } from './components/common/Toast';
 import ShortcutsModal from './components/common/ShortcutsModal';
+import ChangeImpactModal from './components/common/ChangeImpactModal';
+import Button from './components/common/Button';
 import { useJobPoller } from './hooks/useJobPoller';
 import { TabType } from './types';
 
@@ -47,6 +50,13 @@ const AppContent: React.FC = () => {
   const [testGenError, setTestGenError] = useState<string | null>(null);
   const [hasDependencyLoops, setHasDependencyLoops] = useState(false);
   const [hasHumanReviewRequired, setHasHumanReviewRequired] = useState(false);
+  const [impactModalOpen, setImpactModalOpen] = useState(false);
+  const [impactModalTarget, setImpactModalTarget] = useState<string | null>(null);
+
+  const handleOpenImpactModal = (filePath: string) => {
+    setImpactModalTarget(filePath);
+    setImpactModalOpen(true);
+  };
 
   const { job, project, files, loading, error, errorCode, submitZip, submitGithub, loadDemo, openProject, reset } =
     useJobPoller();
@@ -243,6 +253,39 @@ const AppContent: React.FC = () => {
                 hasHumanReviewRequired={hasHumanReviewRequired}
               />
 
+              {/* Active Target File Context Bar with Primary Action */}
+              {targetFile && (
+                <div className="mt-3 px-4 py-2.5 bg-surface border border-line rounded-lg flex flex-wrap items-center justify-between gap-3 shadow-xs animate-[fade-down_120ms_ease-out]">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3">
+                      Selected File:
+                    </span>
+                    <span className="font-mono text-xs font-bold text-ink bg-tile px-2 py-0.5 rounded border border-line">
+                      {targetFile}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="indigo"
+                      size="sm"
+                      onClick={() => handleOpenImpactModal(targetFile)}
+                      icon={<Target className="w-3.5 h-3.5" />}
+                      className="text-xs font-bold shadow-xs"
+                    >
+                      What breaks if I change this?
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectFile('')}
+                      className="text-xs text-ink-3 hover:text-ink font-semibold ml-1 cursor-pointer"
+                      title="Clear selected file"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="mt-4">
                 {activeTab === 'explanation' && (
                   <ExplanationTab
@@ -257,6 +300,7 @@ const AppContent: React.FC = () => {
                 {activeTab === 'hotspots' && (
                   <HotspotsTab
                     projectId={project.project_id}
+                    targetFile={targetFile}
                     onNavigateTab={handleTabChange}
                     onSelectFile={handleSelectFile}
                     onFocusInGraph={handleFocusInGraph}
@@ -278,6 +322,9 @@ const AppContent: React.FC = () => {
                     projectId={project.project_id}
                     projectName={project.display_name}
                     trustedDemo={project.source_type === 'demo_benchmark'}
+                    targetFile={targetFile}
+                    onSelectFile={handleSelectFile}
+                    onInspectImpact={handleInspectImpact}
                     onTestsUpdated={handleTestsUpdated}
                     onStatusChange={(generating, err) => {
                       setIsGeneratingTests(generating);
@@ -290,6 +337,9 @@ const AppContent: React.FC = () => {
                     projectId={project.project_id}
                     projectName={project.display_name}
                     trustedDemo={project.source_type === 'demo_benchmark'}
+                    targetFile={targetFile}
+                    onSelectFile={handleSelectFile}
+                    onInspectImpact={handleInspectImpact}
                   />
                 )}
                 {activeTab === 'migration' && (
@@ -301,6 +351,7 @@ const AppContent: React.FC = () => {
                     testGenError={testGenError}
                     targetFile={targetFile}
                     onNavigateTab={handleTabChange}
+                    onSelectFile={handleSelectFile}
                     onFocusInGraph={handleFocusInGraph}
                     onNavigateToTests={() => handleTabChange('tests')}
                   />
@@ -313,6 +364,17 @@ const AppContent: React.FC = () => {
 
       {/* Shortcuts Modal */}
       <ShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+
+      {/* Change Impact Modal */}
+      <ChangeImpactModal
+        isOpen={impactModalOpen}
+        onClose={() => setImpactModalOpen(false)}
+        projectId={project?.project_id}
+        targetFile={impactModalTarget || targetFile}
+        onSelectFile={handleSelectFile}
+        onFocusInGraph={handleFocusInGraph}
+        onNavigateTab={handleTabChange}
+      />
 
       {/* Footer */}
       <footer className="border-t border-line px-4 py-4 text-center text-xs text-ink-3 bg-surface/60">

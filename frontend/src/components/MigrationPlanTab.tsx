@@ -4,9 +4,6 @@ import {
   Download,
   Gauge,
   Network,
-  ArrowRight,
-  FileWarning,
-  ShieldCheck,
   Layers,
   CheckSquare,
   Square,
@@ -24,6 +21,8 @@ import { FilterChip } from './common/Chips';
 import { StatusTag } from './common/Tags';
 import { useToast } from './common/Toast';
 
+import ChangeImpactView from './common/ChangeImpactView';
+
 interface MigrationPlanTabProps {
   projectId?: string | null;
   projectName?: string;
@@ -34,6 +33,7 @@ interface MigrationPlanTabProps {
   onNavigateTab?: (tab: TabType) => void;
   onFocusInGraph?: (filePath: string) => void;
   onNavigateToTests?: () => void;
+  onSelectFile?: (filePath: string) => void;
 }
 
 export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
@@ -45,7 +45,8 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
   targetFile = null,
   onNavigateTab,
   onFocusInGraph,
-  onNavigateToTests,
+  onNavigateToTests: _onNavigateToTests,
+  onSelectFile,
 }) => {
   const [plan, setPlan] = useState<MigrationPlanResponse | null>(null);
   const [selectedId, setSelectedId] = useState<string>('');
@@ -166,8 +167,6 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
       </div>
     );
   }
-
-  const selectedRisk = getRiskLevelStyle(selectedItem?.risk_level || 'low');
 
   return (
     <div
@@ -317,7 +316,10 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
                       type="button"
                       role="option"
                       aria-selected={isSelected}
-                      onClick={() => setSelectedId(item.module_id)}
+                      onClick={() => {
+                        setSelectedId(item.module_id);
+                        onSelectFile?.(item.relative_path);
+                      }}
                       className={`w-full text-left p-2.5 rounded-md transition-colors my-0.5 select-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo ${
                         isSelected
                           ? 'bg-indigo-surface text-indigo-text font-bold shadow-xs'
@@ -347,145 +349,30 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
             </div>
           </div>
 
-          {/* Right: Blast-Radius Detail Area (2x2 grid of info panels) */}
-          {selectedItem ? (
-            <div className="bg-surface border border-line rounded-lg p-5 shadow-1 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-line">
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono font-bold text-sm sm:text-base text-ink break-all">
-                      {selectedItem.relative_path}
-                    </span>
-                    <span
-                      className={`text-[11px] px-2 py-0.5 rounded-pill uppercase tracking-wider ${selectedRisk.badgeClass}`}
-                    >
-                      {selectedRisk.label}
-                    </span>
-                    <span className="text-[11px] px-2 py-0.5 rounded-pill uppercase tracking-wider bg-panel text-ink-2 font-bold font-sans">
-                      Blast radius: {selectedItem.blast_radius}
-                    </span>
-                  </div>
-                  <p className="font-sans text-xs text-ink-3 mt-1">
-                    Change-impact and blast-radius propagation assessment.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      onFocusInGraph?.(selectedItem.relative_path);
-                      onNavigateTab?.('graph');
-                    }}
-                    icon={<Network className="w-3.5 h-3.5" strokeWidth={1.75} />}
-                  >
-                    Trace in Graph
-                  </Button>
-                </div>
-              </div>
-
-              {/* 2x2 Grid of Info Panels */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                {/* 1. Files that depend on this */}
-                <div className="bg-tile border border-line rounded-md p-4">
-                  <div className="flex items-center gap-2 mb-2.5">
-                    <Network className="w-4 h-4 text-red" strokeWidth={1.75} />
-                    <span className="font-sans text-[13px] font-bold text-ink">
-                      Files that depend on this ({selectedItem.direct_dependents?.length || 0})
-                    </span>
-                  </div>
-                  <div className="max-h-36 overflow-y-auto custom-scrollbar space-y-1.5 font-mono text-xs text-ink-2">
-                    {selectedItem.direct_dependents && selectedItem.direct_dependents.length > 0 ? (
-                      selectedItem.direct_dependents.map((dep, idx) => (
-                        <div key={idx} className="truncate" title={dep}>
-                          {truncateMiddle(dep, 32)}
-                        </div>
-                      ))
-                    ) : (
-                      <span className="text-ink-3 font-sans italic text-xs">None detected</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* 2. Files this depends on */}
-                <div className="bg-tile border border-line rounded-md p-4">
-                  <div className="flex items-center gap-2 mb-2.5">
-                    <ArrowRight className="w-4 h-4 text-indigo-text" strokeWidth={1.75} />
-                    <span className="font-sans text-[13px] font-bold text-ink">
-                      Files this depends on ({selectedItem.direct_dependencies?.length || 0})
-                    </span>
-                  </div>
-                  <div className="max-h-36 overflow-y-auto custom-scrollbar space-y-1.5 font-mono text-xs text-ink-2">
-                    {selectedItem.direct_dependencies && selectedItem.direct_dependencies.length > 0 ? (
-                      selectedItem.direct_dependencies.map((dep, idx) => (
-                        <div key={idx} className="truncate" title={dep}>
-                          {truncateMiddle(dep, 32)}
-                        </div>
-                      ))
-                    ) : (
-                      <span className="text-ink-3 font-sans italic text-xs">None detected</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* 3. Entry points affected */}
-                <div className="bg-tile border border-line rounded-md p-4">
-                  <div className="flex items-center gap-2 mb-2.5">
-                    <FileWarning className="w-4 h-4 text-amber-strong" strokeWidth={1.75} />
-                    <span className="font-sans text-[13px] font-bold text-ink">
-                      Entry points affected ({selectedItem.affected_entry_points?.length || 0})
-                    </span>
-                  </div>
-                  <div className="max-h-36 overflow-y-auto custom-scrollbar space-y-1.5 font-mono text-xs text-ink-2">
-                    {selectedItem.affected_entry_points && selectedItem.affected_entry_points.length > 0 ? (
-                      selectedItem.affected_entry_points.map((ep, idx) => (
-                        <div key={idx} className="truncate" title={ep}>
-                          {truncateMiddle(ep, 32)}
-                        </div>
-                      ))
-                    ) : (
-                      <span className="text-ink-3 font-sans italic text-xs">None detected</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* 4. Tests to run */}
-                <div className="bg-tile border border-line rounded-md p-4">
-                  <div className="flex items-center gap-2 mb-2.5">
-                    <ShieldCheck className="w-4 h-4 text-teal-strong" strokeWidth={1.75} />
-                    <span className="font-sans text-[13px] font-bold text-ink">
-                      Tests to run ({selectedItem.suggested_tests?.length || 0})
-                    </span>
-                  </div>
-                  <div className="max-h-36 overflow-y-auto custom-scrollbar space-y-1.5 font-mono text-xs text-ink-2">
-                    {selectedItem.suggested_tests && selectedItem.suggested_tests.length > 0 ? (
-                      selectedItem.suggested_tests.map((t, idx) => (
-                        <div key={idx} className="truncate" title={t}>
-                          {truncateMiddle(t, 32)}
-                        </div>
-                      ))
-                    ) : (
-                      <span className="text-ink-3 font-sans italic text-xs">None detected</span>
-                    )}
-                    {onNavigateToTests && selectedItem.suggested_tests && selectedItem.suggested_tests.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={onNavigateToTests}
-                        className="mt-2 text-xs font-semibold text-teal-strong hover:underline block cursor-pointer"
-                      >
-                        Open Generated Tests →
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-surface border border-line rounded-lg p-12 text-center text-ink-3 text-xs">
-              Select a file from the list to assess change impact.
-            </div>
-          )}
+          {/* Right: Blast-Radius Detail Area powered by ChangeImpactView */}
+          <div className="w-full">
+            <ChangeImpactView
+              projectId={projectId}
+              targetFile={selectedItem?.relative_path || targetFile}
+              impact={selectedItem}
+              onSelectFile={(f) => {
+                const found = plan?.impacts.find(
+                  (i) => i.relative_path === f || i.relative_path.endsWith(f)
+                );
+                if (found) setSelectedId(found.module_id);
+                onSelectFile?.(f);
+              }}
+              onFocusInGraph={onFocusInGraph}
+              onNavigateTab={onNavigateTab}
+              showHeroAction={true}
+              onPrimaryAction={() => {
+                if (selectedItem) {
+                  onFocusInGraph?.(selectedItem.relative_path);
+                  onNavigateTab?.('graph');
+                }
+              }}
+            />
+          </div>
         </div>
       </section>
 

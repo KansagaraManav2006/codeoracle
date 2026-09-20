@@ -25,6 +25,7 @@ import { StatusTag } from './common/Tags';
 
 interface HotspotsTabProps {
   projectId: string;
+  targetFile?: string | null;
   onNavigateTab?: (tab: TabType) => void;
   onSelectFile?: (filePath: string) => void;
   onFocusInGraph?: (filePath: string) => void;
@@ -35,6 +36,7 @@ type SortField = 'score' | 'complexity' | 'blast_radius' | 'fan_in' | 'loc' | 'w
 
 export const HotspotsTab: React.FC<HotspotsTabProps> = ({
   projectId,
+  targetFile = null,
   onNavigateTab,
   onSelectFile,
   onFocusInGraph,
@@ -47,7 +49,14 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
   const [riskFilter, setRiskFilter] = useState<'all' | 'critical' | 'high' | 'medium' | 'low'>('all');
   const [sortField, setSortField] = useState<SortField>('score');
   const [sortAsc, setSortAsc] = useState(false);
-  const [expandedFile, setExpandedFile] = useState<string | null>(null);
+  const [expandedFile, setExpandedFile] = useState<string | null>(targetFile);
+
+  // Sync expandedFile if targetFile prop changes
+  useEffect(() => {
+    if (targetFile) {
+      setExpandedFile(targetFile);
+    }
+  }, [targetFile]);
 
   const fetchHotspots = async () => {
     try {
@@ -333,12 +342,12 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
             <Button
               variant="outline"
               size="sm"
-              className="!text-white !border-white/20 hover:!bg-white/10"
+              className="!text-white !border-white/20 hover:!bg-white/10 font-bold"
               onClick={() => handleWhatBreaks(topHotspot.file)}
               icon={<Target className="w-3.5 h-3.5 text-amber-on-dark" />}
               title="Simulate downstream blast radius and affected entry points"
             >
-              What breaks if changed?
+              What breaks if I change this?
             </Button>
             <Button
               variant="outline"
@@ -505,12 +514,24 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
                   const isExpanded = expandedFile === item.file;
                   const factors = item.score_factors;
 
+                  const isTarget = Boolean(
+                    targetFile &&
+                    (item.file === targetFile || item.file.endsWith(targetFile) || targetFile.endsWith(item.file))
+                  );
+
                   return (
                     <React.Fragment key={item.file}>
                       <tr
-                        onClick={() => setExpandedFile(isExpanded ? null : item.file)}
+                        onClick={() => {
+                          setExpandedFile(isExpanded ? null : item.file);
+                          onSelectFile?.(item.file);
+                        }}
                         className={`cursor-pointer transition-colors hover:bg-track/50 ${
-                          isExpanded ? 'bg-tile' : ''
+                          isTarget
+                            ? 'bg-indigo-surface/60 border-l-4 border-indigo font-medium'
+                            : isExpanded
+                            ? 'bg-tile'
+                            : ''
                         }`}
                       >
                         {/* Rank */}
@@ -654,10 +675,10 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
                                   variant="outline"
                                   size="sm"
                                   onClick={() => handleWhatBreaks(item.file)}
-                                  icon={<Target className="w-3.5 h-3.5" />}
+                                  icon={<Target className="w-3.5 h-3.5 text-red-strong" />}
                                   title="Check downstream ripple and affected entry points"
                                 >
-                                  What breaks if changed?
+                                  What breaks if I change this?
                                 </Button>
                                 <Button
                                   variant="outline"

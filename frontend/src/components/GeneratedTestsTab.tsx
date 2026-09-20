@@ -6,6 +6,7 @@ import {
   FileText,
   FileQuestion,
   Code2,
+  Target,
 } from 'lucide-react';
 import { JobResponse, ProjectTestResult, GeneratedTestFile } from '../types';
 import { truncateMiddle, formatNumber } from '../utils/formatters';
@@ -22,6 +23,9 @@ interface GeneratedTestsTabProps {
   projectId?: string | null;
   projectName?: string;
   trustedDemo?: boolean;
+  targetFile?: string | null;
+  onSelectFile?: (filePath: string) => void;
+  onInspectImpact?: (filePath: string) => void;
   onTestsUpdated?: () => void;
   onStatusChange?: (generating: boolean, error?: string | null) => void;
 }
@@ -30,6 +34,9 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
   projectId,
   projectName: _projectName = 'project',
   trustedDemo = false,
+  targetFile = null,
+  onSelectFile,
+  onInspectImpact,
   onTestsUpdated,
   onStatusChange,
 }) => {
@@ -64,6 +71,21 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
   useEffect(() => {
     loadResult();
   }, [loadResult]);
+
+  // Sync selectedIdx when targetFile changes
+  useEffect(() => {
+    if (targetFile && result?.test_files?.length) {
+      const norm = targetFile.replace(/\\/g, '/').toLowerCase();
+      const idx = result.test_files.findIndex((t) => {
+        const tNorm = t.target_relative_path.replace(/\\/g, '/').toLowerCase();
+        return tNorm === norm || tNorm.endsWith(norm) || norm.endsWith(tNorm);
+      });
+      if (idx !== -1) {
+        setSelectedIdx(idx);
+        setSidebarTab('tests');
+      }
+    }
+  }, [targetFile, result]);
 
   const handleRegenerate = async () => {
     if (!projectId || regenerating) return;
@@ -337,7 +359,10 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
                       type="button"
                       role="option"
                       aria-selected={isSelected}
-                      onClick={() => setSelectedIdx(idx)}
+                      onClick={() => {
+                        setSelectedIdx(idx);
+                        onSelectFile?.(f.target_relative_path);
+                      }}
                       className={`w-full text-left p-2.5 rounded-md transition-colors my-0.5 flex items-start gap-2.5 select-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo ${
                         isSelected
                           ? 'bg-indigo-surface text-indigo-text font-bold shadow-xs'
@@ -369,14 +394,37 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
               </div>
             ) : (
                 unprotectedFiles.map((path) => (
-                  <div key={path} className="p-2.5 rounded-md my-0.5 bg-tile/40 text-xs">
-                    <div className="flex items-center gap-1.5 font-mono text-ink-2 truncate" title={path}>
-                      <FileQuestion className="w-3.5 h-3.5 text-amber-strong shrink-0" />
-                      <span>{truncateMiddle(path, 26)}</span>
+                  <div
+                    key={path}
+                    onClick={() => {
+                      onSelectFile?.(path);
+                    }}
+                    className="p-2.5 rounded-md my-0.5 bg-tile/40 hover:bg-tile text-xs cursor-pointer transition-colors flex items-center justify-between"
+                  >
+                    <div className="truncate pr-2">
+                      <div className="flex items-center gap-1.5 font-mono text-ink-2 truncate" title={path}>
+                        <FileQuestion className="w-3.5 h-3.5 text-amber-strong shrink-0" />
+                        <span>{truncateMiddle(path, 22)}</span>
+                      </div>
+                      <div className="text-[10px] text-ink-3 mt-1">
+                        Unprotected source module.
+                      </div>
                     </div>
-                    <div className="text-[10px] text-ink-3 mt-1">
-                      Empty, barrel export, or import smoke only.
-                    </div>
+                    {onInspectImpact && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectFile?.(path);
+                          onInspectImpact(path);
+                        }}
+                        icon={<Target className="w-3 h-3 text-red-strong" />}
+                        title="Check blast radius for unprotected file"
+                      >
+                        Impact
+                      </Button>
+                    )}
                   </div>
                 ))
               )}
@@ -396,6 +444,21 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
                   status="analyzed"
                   label={activeFile.test_category.toUpperCase()}
                 />
+                {activeFile.target_relative_path && onInspectImpact && (
+                  <Button
+                    variant="indigo"
+                    size="sm"
+                    onClick={() => {
+                      onSelectFile?.(activeFile.target_relative_path);
+                      onInspectImpact(activeFile.target_relative_path);
+                    }}
+                    icon={<Target className="w-3.5 h-3.5" />}
+                    className="font-bold text-xs shadow-xs"
+                    title="Inspect downstream blast radius if target is modified"
+                  >
+                    What breaks if I change this?
+                  </Button>
+                )}
               </div>
 
               <div className="flex items-center gap-2 flex-wrap text-[11px] text-ink-3">
