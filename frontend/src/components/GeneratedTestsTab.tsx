@@ -198,7 +198,7 @@ export const GeneratedTestsTab: React.FC<Props> = ({
           icon={ShieldCheck}
           iconVariant="signal"
           headline="Ready to generate unit tests"
-          description="CodeOracle constructs syntax-validated pytest or Vitest suites with contract, error-path, and edge-case classification."
+          description="CodeOracle constructs generated pytest or Vitest suites, checks their syntax, and labels execution separately when a trusted runner is available."
           actionText="Generate Unit Tests"
           onAction={generate}
           trustCopy="For safety, uploaded code is not run. Generated files are checked for valid syntax and can be downloaded for review."
@@ -426,9 +426,11 @@ export const GeneratedTestsTab: React.FC<Props> = ({
                     {/* Metadata & Status Pill Bar */}
                     <div className="mt-3 flex flex-wrap items-center gap-2 pt-2 border-t border-[#2D2A26] text-[10px]">
                       <span className="inline-flex items-center gap-1 rounded bg-[#272522] px-2 py-0.5 text-[#C4BDAF]">
-                        Syntax:
+                        Static check:
                         <strong className={file.syntax_valid ? 'text-[#5ECBA1]' : 'text-[#E87979]'}>
-                          {file.syntax_valid ? 'AST Valid' : 'Syntax Error'}
+                          {file.syntax_valid
+                            ? file.language === 'python' ? 'AST Valid' : 'Structural check passed'
+                            : file.language === 'python' ? 'Syntax Error' : 'Structural check failed'}
                         </strong>
                       </span>
                       <span className="inline-flex items-center gap-1 rounded bg-[#272522] px-2 py-0.5 text-[#C4BDAF]">

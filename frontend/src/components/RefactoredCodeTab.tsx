@@ -374,7 +374,7 @@ export const RefactoredCodeTab: React.FC<Props> = ({ projectId, trustedDemo = fa
                   Of the <span className="font-bold text-[#292622]">{result.finding_funnel.total_findings} total findings</span> detected statically,{' '}
                   <span className="font-bold text-[#292622]">{result.finding_funnel.modernization_candidates}</span> are modernization candidates, and{' '}
                   <span className="font-bold text-[#292622]">{result.finding_funnel.autofixable_findings}</span> have deterministic transformation rules.{' '}
-                  Structural issues (like dependency cycles, security warnings, and dynamic constructs) require architectural review rather than token substitution. Diffs are only generated where non-destructive rules produce syntax-validated results.
+                  Structural issues (like dependency cycles, security warnings, and dynamic constructs) require architectural review rather than token substitution. Python proposals are AST-parsed; JavaScript and TypeScript proposals receive a structural bracket check only and must be parsed and tested before applying.
                 </p>
               </div>
             </div>

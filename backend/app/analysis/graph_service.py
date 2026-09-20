@@ -51,33 +51,31 @@ def find_directed_cycles(nodes_set: Set[str], edges_list: List[Tuple[str, str]])
     for n in adj:
         adj[n].sort()
 
+    # A single graph-wide DFS only reports back edges.  It misses a valid cycle
+    # when that cycle shares a prefix with another one (for example A-B-A and
+    # A-C-B-A). Enumerate simple paths from each possible smallest node instead;
+    # the ordering constraint prevents duplicate rotations while retaining all
+    # elementary cycles. The graph is bounded by the caller's parsed module
+    # set, and the result is still deduplicated below.
     raw_cycles: List[List[str]] = []
-    visited: Set[str] = set()
-    stack: List[str] = []
-    in_stack: Set[str] = set()
+    for start in sorted(nodes_set):
+        path = [start]
+        in_path = {start}
 
-    def dfs(curr: str):
-        visited.add(curr)
-        stack.append(curr)
-        in_stack.add(curr)
+        def walk(current: str) -> None:
+            for neighbor in adj.get(current, []):
+                if neighbor == start and len(path) > 1:
+                    raw_cycles.append(path + [start])
+                elif neighbor not in in_path and neighbor >= start:
+                    in_path.add(neighbor)
+                    path.append(neighbor)
+                    walk(neighbor)
+                    path.pop()
+                    in_path.remove(neighbor)
 
-        for neighbor in adj.get(curr, []):
-            if neighbor in in_stack:
-                # Cycle detected from neighbor to curr
-                cycle_start_idx = stack.index(neighbor)
-                cycle_nodes = stack[cycle_start_idx:] + [neighbor]
-                raw_cycles.append(cycle_nodes)
-            elif neighbor not in visited:
-                dfs(neighbor)
+        walk(start)
 
-        stack.pop()
-        in_stack.remove(curr)
-
-    for node in sorted(list(nodes_set)):
-        if node not in visited:
-            dfs(node)
-
-    # Canonicalize cycles: rotate each cycle so smallest node ID comes first
+    # Canonicalize cycles: rotate each cycle so smallest node ID comes first.
     canonical_cycles: Set[Tuple[str, ...]] = set()
     for cycle in raw_cycles:
         node_body = cycle[:-1]

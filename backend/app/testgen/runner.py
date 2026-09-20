@@ -3,6 +3,7 @@ import re
 import shutil
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -104,6 +105,7 @@ def execute_generated_tests_safely(
                 "--cov=.",
                 f"--cov-report=json:{coverage_file}",
                 "-q",
+                f"--junitxml={exec_ws_dir / 'test-results.xml'}",
                 "tests",
             ]
 
@@ -117,10 +119,35 @@ def execute_generated_tests_safely(
                     timeout=timeout_sec,
                 )
                 output = _sanitize_output(result.stdout + "\n" + result.stderr, exec_ws_dir)
-                is_success = result.returncode == 0
+                # A single pytest return code describes the whole suite. Use
+                # junit XML to account for each generated file independently,
+                # so one failing file cannot make every file look failed (or
+                # make every file look passed when the suite is partitioned).
+                file_outcomes: Dict[str, bool] = {}
+                junit_path = exec_ws_dir / "test-results.xml"
+                try:
+                    root = ET.parse(junit_path).getroot()
+                    for case in root.iter("testcase"):
+                        case_file = (case.attrib.get("file") or "").replace("\\", "/")
+                        if not case_file:
+                            classname = case.attrib.get("classname", "").replace(".", "/")
+                            case_file = f"{classname}.py" if classname else ""
+                        case_file = case_file.split("/tests/", 1)[-1]
+                        if case_file and not case_file.startswith("tests/"):
+                            case_file = f"tests/{case_file}"
+                        failed = case.find("failure") is not None or case.find("error") is not None
+                        file_outcomes[case_file] = file_outcomes.get(case_file, False) or failed
+                except (OSError, ET.ParseError):
+                    file_outcomes = {}
 
                 for tf in python_test_files:
-                    tf.execution_status = "passed" if is_success else "failed"
+                    outcome = file_outcomes.get(tf.safe_test_path.replace("\\", "/"))
+                    if outcome is None:
+                        # Collection/runtime failures may not emit test cases;
+                        # retain the conservative whole-suite result.
+                        tf.execution_status = "passed" if result.returncode == 0 else "failed"
+                    else:
+                        tf.execution_status = "failed" if outcome else "passed"
                     tf.execution_output = output
 
             except subprocess.TimeoutExpired:

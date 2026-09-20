@@ -396,6 +396,15 @@ def test_cycle_detection_and_deduplication():
     assert cycles[0] == ["mod_a", "mod_b", "mod_c", "mod_a"]
 
 
+def test_cycle_detection_reports_overlapping_elementary_cycles():
+    """Back-edge DFS must not hide a second cycle sharing part of a path."""
+    cycles = find_directed_cycles(
+        {"A", "B", "C"},
+        [("A", "B"), ("B", "A"), ("A", "C"), ("C", "B")],
+    )
+    assert cycles == [["A", "B", "A"], ["A", "C", "B", "A"]]
+
+
 # 14. Orphan detection
 def test_orphan_module_detection(tmp_path):
     ws_dir = tmp_path / "ws_orphan"

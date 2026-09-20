@@ -673,12 +673,12 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
           </div>
 
           <div className="bg-[#F0EBE2]/60 p-3 rounded-2xl border border-[#D8CFC2]">
-            <span className="text-[11px] font-semibold text-[#6B645A] block mb-0.5">Connections</span>
+            <span className="text-[11px] font-semibold text-[#6B645A] block mb-0.5">Static dependency references</span>
             <span className="text-lg font-extrabold text-[#4C4FD6]">{graph.summary.total_edges}</span>
           </div>
 
           <div className="bg-[#F0EBE2]/60 p-3 rounded-2xl border border-[#D8CFC2]">
-            <span className="text-[11px] font-semibold text-[#6B645A] block mb-0.5">Runtime cycles</span>
+            <span className="text-[11px] font-semibold text-[#6B645A] block mb-0.5">Detected static cycles</span>
             <span
               className={`text-lg font-extrabold ${
                 graph.summary.cycle_count > 0 ? 'text-[#C45F58]' : 'text-[#368A80]'
