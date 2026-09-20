@@ -112,14 +112,28 @@ def build_analysis_findings(
                 suggested_tests=[f"Generate characterization tests for {module.relative_path}"],
             ))
     module_ids = set(paths_by_id)
-    cycles = find_directed_cycles(
-        module_ids,
-        [
-            (edge.source_module_id, edge.target_module_id)
-            for edge in dependency_edges
-            if edge.resolved and edge.source_module_id in module_ids and edge.target_module_id in module_ids
-        ],
-    )
+    runtime_edge_pairs = []
+    for edge in dependency_edges:
+        if (
+            edge.resolved
+            and edge.source_module_id in module_ids
+            and edge.target_module_id in module_ids
+            and not getattr(edge, "is_type_only", False)
+        ):
+            src_p = paths_by_id.get(edge.source_module_id, "")
+            tgt_p = paths_by_id.get(edge.target_module_id, "")
+            src_name = Path(src_p.replace("\\", "/")).name
+            tgt_name = Path(tgt_p.replace("\\", "/")).name
+            src_parent = Path(src_p.replace("\\", "/")).parent.as_posix()
+            tgt_parent = Path(tgt_p.replace("\\", "/")).parent.as_posix()
+            is_reexport = (
+                (src_name in ("__init__.py", "index.ts", "index.js", "index.tsx") and tgt_parent == src_parent)
+                or (tgt_name in ("__init__.py", "index.ts", "index.js", "index.tsx") and src_parent == tgt_parent)
+            )
+            if not is_reexport:
+                runtime_edge_pairs.append((edge.source_module_id, edge.target_module_id))
+
+    cycles = find_directed_cycles(module_ids, runtime_edge_pairs)
     for cycle in cycles:
         cycle_paths = [paths_by_id[module_id] for module_id in cycle if module_id in paths_by_id]
         if not cycle_paths:

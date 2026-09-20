@@ -61,58 +61,76 @@ def resolve_python_import(
     return None
 
 
+def _expand_candidates(target_base: str) -> List[str]:
+    clean = target_base.strip("/")
+    return [
+        clean,
+        f"{clean}.js",
+        f"{clean}.jsx",
+        f"{clean}.ts",
+        f"{clean}.tsx",
+        f"{clean}.mjs",
+        f"{clean}.cjs",
+        f"{clean}.mts",
+        f"{clean}.cts",
+        f"{clean}/index.js",
+        f"{clean}/index.jsx",
+        f"{clean}/index.ts",
+        f"{clean}/index.tsx",
+        f"{clean}/index.mjs",
+        f"{clean}/index.cjs",
+    ]
+
+
 def resolve_javascript_import(
     source_rel_path: str,
     import_specifier: str,
     known_paths: Dict[str, str],  # normalized_path -> module_id
 ) -> Optional[str]:
-    """Resolves JavaScript import/require specifier to local project module_id."""
-    if not import_specifier or not import_specifier.startswith("."):
+    """Resolves JavaScript/TypeScript import/require specifier to local project module_id."""
+    if not import_specifier:
         return None
 
-    source_dir = Path(source_rel_path).parent
-    resolved_path = (source_dir / import_specifier).resolve()
+    # 1. Alias Resolution (@/* or ~/*)
+    if import_specifier.startswith("@/") or import_specifier.startswith("~/"):
+        sub_path = import_specifier[2:]
+        for prefix in ("src/", "", "app/"):
+            for cand in _expand_candidates(f"{prefix}{sub_path}"):
+                norm_cand = cand.strip("/")
+                if norm_cand in known_paths:
+                    return known_paths[norm_cand]
+        return None
 
-    # Convert to relative path from root directory posix
-    try:
-        # Normalize relative path
-        norm_base = (source_dir / import_specifier).as_posix()
-        # Clean relative path components (./ and ../)
-        parts = []
-        for p in norm_base.split("/"):
-            if p == "." or not p:
-                continue
-            elif p == "..":
-                if parts:
-                    parts.pop()
-            else:
-                parts.append(p)
-        clean_target = "/".join(parts)
-    except Exception:
-        clean_target = import_specifier.lstrip("./")
+    # 2. Relative Import Resolution (./ or ../)
+    if import_specifier.startswith("."):
+        source_dir = Path(source_rel_path).parent
+        try:
+            norm_base = (source_dir / import_specifier).as_posix()
+            parts = []
+            for p in norm_base.split("/"):
+                if p == "." or not p:
+                    continue
+                elif p == "..":
+                    if parts:
+                        parts.pop()
+                else:
+                    parts.append(p)
+            clean_target = "/".join(parts)
+        except Exception:
+            clean_target = import_specifier.lstrip("./")
 
-    candidates = [
-        clean_target,
-        f"{clean_target}.js",
-        f"{clean_target}.jsx",
-        f"{clean_target}.ts",
-        f"{clean_target}.tsx",
-        f"{clean_target}.mjs",
-        f"{clean_target}.cjs",
-        f"{clean_target}.mts",
-        f"{clean_target}.cts",
-        f"{clean_target}/index.js",
-        f"{clean_target}/index.jsx",
-        f"{clean_target}/index.ts",
-        f"{clean_target}/index.tsx",
-        f"{clean_target}/index.mjs",
-        f"{clean_target}/index.cjs",
-    ]
+        for cand in _expand_candidates(clean_target):
+            norm_cand = cand.strip("/")
+            if norm_cand in known_paths:
+                return known_paths[norm_cand]
+        return None
 
-    for cand in candidates:
-        norm_cand = cand.strip("/")
-        if norm_cand in known_paths:
-            return known_paths[norm_cand]
+    # 3. BaseUrl / Prefix Resolution (e.g. baseUrl='src')
+    for prefix in ("src/", ""):
+        for cand in _expand_candidates(f"{prefix}{import_specifier}"):
+            norm_cand = cand.strip("/")
+            if norm_cand in known_paths:
+                return known_paths[norm_cand]
 
     return None
 
@@ -156,21 +174,20 @@ def resolve_project_dependencies(modules: List[ModuleAnalysis]) -> List[Dependen
                 if imp.module_name in JS_BUILTINS:
                     target_id = imp.module_name
                     is_resolved = False
-                elif imp.is_relative or imp.module_name.startswith("."):
+                else:
                     target_id = resolve_javascript_import(mod.relative_path, imp.module_name, known_paths)
                     if target_id:
                         is_resolved = True
                     else:
                         target_id = imp.module_name
                         is_resolved = False
-                else:
-                    target_id = imp.module_name
-                    is_resolved = False
 
             edge_type = getattr(imp, "import_kind", "import") or "import"
+            is_type_only = bool(getattr(imp, "is_type_only", False))
+            is_dynamic = bool(getattr(imp, "is_dynamic", False))
             edge_id = generate_edge_id(source_id, target_id, edge_type, imp.source_line)
 
-            edge_key = f"{source_id}->{target_id}:{edge_type}:{imp.source_line}"
+            edge_key = f"{source_id}->{target_id}:{edge_type}:{is_type_only}:{is_dynamic}:{imp.source_line}"
             if edge_key not in seen_edge_keys:
                 seen_edge_keys.add(edge_key)
                 edges.append(
@@ -181,6 +198,8 @@ def resolve_project_dependencies(modules: List[ModuleAnalysis]) -> List[Dependen
                         type=edge_type,
                         resolved=is_resolved,
                         source_line=imp.source_line,
+                        is_type_only=is_type_only,
+                        is_dynamic=is_dynamic,
                     )
                 )
 

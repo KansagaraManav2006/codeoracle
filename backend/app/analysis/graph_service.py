@@ -3,9 +3,37 @@ from typing import Dict, List, Optional, Set, Tuple
 from app.analysis.graph_models import GraphEdge, GraphNode, GraphResponse, GraphSummary
 from app.analysis.models import ModuleAnalysis, ProjectAnalysis
 
+from pathlib import Path
+
 logger = logging.getLogger(__name__)
 
 MAX_DRILLDOWN_CALL_EDGES = 50
+
+
+def _classify_standalone_reason(rel_path: str) -> str:
+    lower = rel_path.lower().replace("\\", "/")
+    fname = Path(lower).name
+    if any(tok in fname for tok in ("config", "setup.py", "webpack", "vite", "tsconfig", "tailwind")):
+        return "Configuration / build file"
+    if any(tok in lower for tok in ("test", "spec", "benchmark")):
+        return "Test suite / benchmark"
+    if fname in ("cli.py", "cli.ts", "cli.js", "run.py", "server.py", "main.py", "manage.py"):
+        return "Standalone script / CLI"
+    return "Isolated / unreferenced module"
+
+
+def _is_reexport_pair(src_path: str, tgt_path: str) -> bool:
+    src_p = Path(src_path.replace("\\", "/"))
+    tgt_p = Path(tgt_path.replace("\\", "/"))
+    src_parent = src_p.parent.as_posix()
+    tgt_parent = tgt_p.parent.as_posix()
+    src_name = src_p.name
+    tgt_name = tgt_p.name
+    if src_name in ("__init__.py", "index.ts", "index.js", "index.tsx") and tgt_parent == src_parent:
+        return True
+    if tgt_name in ("__init__.py", "index.ts", "index.js", "index.tsx") and src_parent == tgt_parent:
+        return True
+    return False
 
 
 def find_directed_cycles(nodes_set: Set[str], edges_list: List[Tuple[str, str]]) -> List[List[str]]:
@@ -140,6 +168,8 @@ def build_project_dependency_graph(
                 type=edge.type,
                 resolved=edge.resolved,
                 source_line=edge.source_line,
+                is_type_only=getattr(edge, "is_type_only", False),
+                is_dynamic=getattr(edge, "is_dynamic", False),
             )
         )
 
@@ -162,11 +192,36 @@ def build_project_dependency_graph(
         if not n.is_external and in_degree.get(n.id, 0) == 0 and out_degree.get(n.id, 0) == 0
     ]
 
+    for n in sorted_nodes:
+        if n.id in orphan_module_ids:
+            n.standalone_reason = _classify_standalone_reason(n.label)
+        elif not n.is_external and not n.is_entry_point:
+            if in_degree.get(n.id, 0) == 0 and out_degree.get(n.id, 0) > 0:
+                reason = _classify_standalone_reason(n.label)
+                if reason not in ("Configuration / build file", "Test suite / benchmark"):
+                    n.is_entry_point = True
+
     entry_point_ids = [n.id for n in sorted_nodes if n.is_entry_point]
 
-    # 4. Cycle Detection
-    cycle_edge_pairs = [(e.source, e.target) for e in sorted_edges if not nodes_map[e.source].is_external and e.target in internal_module_ids]
-    cycles = find_directed_cycles(internal_module_ids, cycle_edge_pairs)
+    # 4. Cycle Detection (Runtime Only, Filtering Re-exports)
+    paths_by_id = {n.id: n.label for n in sorted_nodes}
+
+    runtime_pairs = [
+        (e.source, e.target) for e in sorted_edges
+        if not nodes_map[e.source].is_external and e.target in internal_module_ids and not e.is_type_only
+    ]
+    filtered_runtime_pairs = [
+        (src, tgt) for src, tgt in runtime_pairs
+        if not _is_reexport_pair(paths_by_id.get(src, ""), paths_by_id.get(tgt, ""))
+    ]
+    cycles = find_directed_cycles(internal_module_ids, filtered_runtime_pairs)
+
+    all_pairs = [
+        (e.source, e.target) for e in sorted_edges
+        if not nodes_map[e.source].is_external and e.target in internal_module_ids
+    ]
+    all_cycles = find_directed_cycles(internal_module_ids, all_pairs)
+    type_cycle_count = max(0, len(all_cycles) - len(cycles))
 
     # 5. Most Connected Modules
     connected = []
@@ -193,6 +248,8 @@ def build_project_dependency_graph(
         internal_edges=internal_edges_count,
         external_edges=external_edges_count,
         cycle_count=len(cycles),
+        runtime_cycle_count=len(cycles),
+        type_cycle_count=type_cycle_count,
         orphan_count=len(orphan_module_ids),
         entry_point_count=len(entry_point_ids),
         high_complexity_module_count=high_comp_count,

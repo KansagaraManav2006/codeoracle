@@ -148,6 +148,8 @@ class ImportInfo(BaseModel):
     is_relative: bool = False
     source_line: int = 1
     import_kind: str = "import"  # "import" or "require"
+    is_type_only: bool = False
+    is_dynamic: bool = False
 
 
 class ExportInfo(BaseModel):
@@ -198,6 +200,8 @@ class DependencyEdge(BaseModel):
     type: str  # import, require, inheritance, call
     resolved: bool = False
     source_line: int = 1
+    is_type_only: bool = False
+    is_dynamic: bool = False
 
 
 class ProjectExplanation(BaseModel):

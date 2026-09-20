@@ -17,20 +17,26 @@ import {
 import '@xyflow/react/dist/style.css';
 import {
   AlertTriangle,
+  ArrowDownRight,
   ArrowLeft,
+  ArrowUpRight,
   Cpu,
   Download,
   Eye,
+  Filter,
   Info,
   RefreshCw,
   Search,
+  X,
 } from 'lucide-react';
-import { GraphNodeData, GraphResponse } from '../types';
+import { GraphEdgeData, GraphNodeData, GraphResponse } from '../types';
 import { complexityLabel, titleCase } from '../utils/presentation';
 
 interface DependencyGraphTabProps {
   projectId?: string | null;
 }
+
+export type FilterMode = 'all' | 'upstream' | 'downstream' | 'cycles' | 'entry_points' | 'high_complexity';
 
 const GraphNodeView = ({ data }: any) => (
   <>
@@ -43,19 +49,51 @@ const GraphNodeView = ({ data }: any) => (
 const GRAPH_NODE_TYPES = { default: GraphNodeView };
 
 // Helper component to trigger auto-fit zoom on load/updates
-const AutoFitController: React.FC<{ nodesLength: number }> = ({ nodesLength }) => {
+const AutoFitController: React.FC<{ nodesLength: number; filterMode: FilterMode }> = ({ nodesLength, filterMode }) => {
   const { fitView } = useReactFlow();
 
   useEffect(() => {
     if (nodesLength > 0) {
       const timer = setTimeout(() => {
         fitView({ padding: 0.2, duration: 400 });
-      }, 50);
+      }, 60);
       return () => clearTimeout(timer);
     }
-  }, [nodesLength, fitView]);
+  }, [nodesLength, filterMode, fitView]);
 
   return null;
+};
+
+// BFS to find all upstream caller nodes (ancestors)
+const getUpstreamNodeIds = (startId: string, edges: GraphEdgeData[]): Set<string> => {
+  const result = new Set<string>([startId]);
+  const queue = [startId];
+  while (queue.length > 0) {
+    const curr = queue.shift()!;
+    for (const e of edges) {
+      if (e.target === curr && !result.has(e.source)) {
+        result.add(e.source);
+        queue.push(e.source);
+      }
+    }
+  }
+  return result;
+};
+
+// BFS to find all downstream dependency nodes (descendants)
+const getDownstreamNodeIds = (startId: string, edges: GraphEdgeData[]): Set<string> => {
+  const result = new Set<string>([startId]);
+  const queue = [startId];
+  while (queue.length > 0) {
+    const curr = queue.shift()!;
+    for (const e of edges) {
+      if (e.source === curr && !result.has(e.target)) {
+        result.add(e.target);
+        queue.push(e.target);
+      }
+    }
+  }
+  return result;
 };
 
 const GraphCanvasContent: React.FC<{
@@ -64,6 +102,8 @@ const GraphCanvasContent: React.FC<{
   edgeTypeFilter: string;
   includeExternal: boolean;
   highlightCycles: boolean;
+  filterMode: FilterMode;
+  selectedNode: GraphNodeData | null;
   onSelectNode: (node: GraphNodeData | null) => void;
   onDrillDown: (moduleId: string) => void;
 }> = ({
@@ -72,6 +112,8 @@ const GraphCanvasContent: React.FC<{
   edgeTypeFilter,
   includeExternal,
   highlightCycles,
+  filterMode,
+  selectedNode,
   onSelectNode,
   onDrillDown,
 }) => {
@@ -82,28 +124,73 @@ const GraphCanvasContent: React.FC<{
     return set;
   }, [graph.cycles]);
 
+  // Connected sets for selected node focus
+  const upstreamNodeIds = useMemo(() => {
+    if (!selectedNode) return new Set<string>();
+    return getUpstreamNodeIds(selectedNode.id, graph.edges);
+  }, [selectedNode, graph.edges]);
+
+  const downstreamNodeIds = useMemo(() => {
+    if (!selectedNode) return new Set<string>();
+    return getDownstreamNodeIds(selectedNode.id, graph.edges);
+  }, [selectedNode, graph.edges]);
+
+  const immediateConnectedIds = useMemo(() => {
+    if (!selectedNode) return new Set<string>();
+    const set = new Set<string>([selectedNode.id]);
+    graph.edges.forEach((e) => {
+      if (e.source === selectedNode.id) set.add(e.target);
+      if (e.target === selectedNode.id) set.add(e.source);
+    });
+    return set;
+  }, [selectedNode, graph.edges]);
+
+  // Filter nodes based on active filter mode
+  const filteredRawNodes = useMemo(() => {
+    return graph.nodes.filter((n) => {
+      if (!includeExternal && n.is_external) return false;
+      if (searchQuery.trim() && !n.label.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return false;
+      }
+
+      switch (filterMode) {
+        case 'cycles':
+          return cycleNodeIds.has(n.id);
+        case 'entry_points':
+          return n.is_entry_point;
+        case 'high_complexity':
+          return n.complexity_rating === 'high' || n.complexity_rating === 'critical' || n.complexity_score >= 15;
+        case 'upstream':
+          return selectedNode ? upstreamNodeIds.has(n.id) : true;
+        case 'downstream':
+          return selectedNode ? downstreamNodeIds.has(n.id) : true;
+        case 'all':
+        default:
+          return true;
+      }
+    });
+  }, [graph.nodes, includeExternal, searchQuery, filterMode, cycleNodeIds, selectedNode, upstreamNodeIds, downstreamNodeIds]);
+
   // Layout Nodes Deterministically in a multi-row grid
   const initialNodes: Node[] = useMemo(() => {
-    const filtered = graph.nodes.filter((n) => {
-      if (!includeExternal && n.is_external) return false;
-      if (searchQuery.trim()) {
-        return n.label.toLowerCase().includes(searchQuery.toLowerCase());
-      }
-      return true;
-    });
+    const columns = Math.ceil(Math.sqrt(filteredRawNodes.length * 1.5)) || 1;
+    const xSpacing = 290;
+    const ySpacing = 170;
 
-    const columns = Math.ceil(Math.sqrt(filtered.length * 1.5)) || 1;
-    const xSpacing = 280;
-    const ySpacing = 160;
-
-    return filtered.map((n, idx) => {
+    return filteredRawNodes.map((n, idx) => {
       const col = idx % columns;
       const row = Math.floor(idx / columns);
       const isCycle = cycleNodeIds.has(n.id);
+      const isSelected = selectedNode?.id === n.id;
+      const isConnected = selectedNode ? immediateConnectedIds.has(n.id) : true;
+      const isUpstream = selectedNode && selectedNode.id !== n.id && upstreamNodeIds.has(n.id);
+      const isDownstream = selectedNode && selectedNode.id !== n.id && downstreamNodeIds.has(n.id);
 
-      // Color coding & borders for light theme
+      // Node styling classes
       let borderClass = 'border-[#D8CFC2] bg-[#FFFDFC] text-[#292622]';
-      if (isCycle && highlightCycles) {
+      if (isSelected) {
+        borderClass = 'border-[#4C4FD6] bg-[#FFFDFC] text-[#292622] ring-2 ring-[#4C4FD6] shadow-[0_4px_16px_rgba(76,79,214,0.2)]';
+      } else if (isCycle && highlightCycles) {
         borderClass = 'border-[#C45F58] bg-[#F6E5E2] text-[#8F3F3A] shadow-[0_4px_16px_rgba(196,95,88,0.15)]';
       } else if (n.is_external) {
         borderClass = 'border-[#5D8194]/60 border-dashed bg-[#E6EFF2]/60 text-[#3D657A]';
@@ -114,6 +201,9 @@ const GraphCanvasContent: React.FC<{
       } else if (n.language === 'typescript') {
         borderClass = 'border-[#C7C4F7] bg-[#FFFDFC] text-[#292622]';
       }
+
+      // Dimming when a specific node is selected and this node is unconnected
+      const opacityClass = selectedNode && !isConnected && filterMode === 'all' ? 'opacity-35 hover:opacity-100' : 'opacity-100';
 
       return {
         id: n.id,
@@ -128,7 +218,7 @@ const GraphCanvasContent: React.FC<{
           <div
             onClick={() => onSelectNode(n)}
             onDoubleClick={() => !n.is_external && n.kind === 'module' && onDrillDown(n.id)}
-            className={`p-3.5 rounded-2xl border ${borderClass} transition-all duration-200 hover:scale-105 hover:shadow-warm hover:z-20 cursor-pointer min-w-[210px] shadow-sm`}
+            className={`p-3.5 rounded-2xl border ${borderClass} ${opacityClass} transition-all duration-200 hover:scale-105 hover:shadow-warm hover:z-20 cursor-pointer min-w-[210px] shadow-sm`}
           >
             <div className="flex items-center justify-between gap-2 mb-1.5">
               <span className="font-mono text-xs font-bold truncate max-w-[140px]" title={n.label}>
@@ -159,6 +249,16 @@ const GraphCanvasContent: React.FC<{
                   Entry
                 </span>
               )}
+              {isUpstream && filterMode === 'all' && (
+                <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-[#EAE9FB] text-[#4340A0] border border-[#C7C4F7]">
+                  Upstream
+                </span>
+              )}
+              {isDownstream && filterMode === 'all' && (
+                <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-[#E6EFF2] text-[#3D657A] border border-[#C8DCE4]">
+                  Downstream
+                </span>
+              )}
               {n.warning_count > 0 && (
                 <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-[#F5E8CC] text-[#76561B] border border-[#E6D3A9]">
                   {n.warning_count} {n.warning_count === 1 ? 'note' : 'notes'}
@@ -169,12 +269,28 @@ const GraphCanvasContent: React.FC<{
                   {complexityLabel(n.complexity_rating, n.complexity_score)}
                 </span>
               )}
+              {n.standalone_reason && (
+                <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-[#F0EBE2] text-[#6B645A] border border-[#D8CFC2]">
+                  Standalone
+                </span>
+              )}
             </div>
           </div>
         ),
       };
     });
-  }, [graph.nodes, searchQuery, includeExternal, highlightCycles, cycleNodeIds, onSelectNode, onDrillDown]);
+  }, [
+    filteredRawNodes,
+    cycleNodeIds,
+    selectedNode,
+    immediateConnectedIds,
+    upstreamNodeIds,
+    downstreamNodeIds,
+    highlightCycles,
+    filterMode,
+    onSelectNode,
+    onDrillDown,
+  ]);
 
   // Transform React Flow Edges
   const initialEdges: Edge[] = useMemo(() => {
@@ -185,8 +301,35 @@ const GraphCanvasContent: React.FC<{
       .filter((e) => edgeTypeFilter === 'all' || e.type === edgeTypeFilter)
       .map((e) => {
         const isCycleEdge = cycleNodeIds.has(e.source) && cycleNodeIds.has(e.target);
-        const strokeColor =
-          isCycleEdge && highlightCycles ? '#C45F58' : e.type === 'require' ? '#C7953D' : '#4C4FD6';
+        const isConnectedToSelected = selectedNode ? e.source === selectedNode.id || e.target === selectedNode.id : true;
+
+        // Color coding
+        let strokeColor = '#4C4FD6';
+        let strokeDasharray: string | undefined = undefined;
+
+        if (isCycleEdge && highlightCycles) {
+          strokeColor = '#C45F58';
+        } else if (e.is_type_only) {
+          strokeColor = '#7B61D1';
+          strokeDasharray = '5,5';
+        } else if (e.is_dynamic) {
+          strokeColor = '#C7953D';
+          strokeDasharray = '2,3';
+        } else if (e.type === 'require') {
+          strokeColor = '#C7953D';
+          strokeDasharray = '4,4';
+        }
+
+        const edgeOpacity = selectedNode && !isConnectedToSelected && filterMode === 'all' ? 0.2 : 1;
+
+        let edgeLabel = undefined;
+        if (e.is_type_only) {
+          edgeLabel = 'type';
+        } else if (e.is_dynamic) {
+          edgeLabel = 'dynamic';
+        } else if (e.type !== 'import') {
+          edgeLabel = e.type;
+        }
 
         return {
           id: e.id,
@@ -196,15 +339,16 @@ const GraphCanvasContent: React.FC<{
           animated: isCycleEdge && highlightCycles,
           style: {
             stroke: strokeColor,
-            strokeWidth: isCycleEdge && highlightCycles ? 2.5 : 1.5,
-            strokeDasharray: e.type === 'require' ? '4,4' : undefined,
+            strokeWidth: isCycleEdge && highlightCycles ? 2.5 : isConnectedToSelected && selectedNode ? 2.2 : 1.5,
+            strokeDasharray,
+            opacity: edgeOpacity,
           },
-          label: e.type !== 'import' ? e.type : undefined,
-          labelStyle: { fill: '#4D4842', fontSize: 10, fontFamily: 'monospace' },
-          labelBgStyle: { fill: '#FFFDFC' },
+          label: edgeLabel,
+          labelStyle: { fill: strokeColor, fontSize: 9, fontFamily: 'monospace', fontWeight: 600 },
+          labelBgStyle: { fill: '#FFFDFC', fillOpacity: 0.9 },
         };
       });
-  }, [graph.edges, initialNodes, edgeTypeFilter, highlightCycles, cycleNodeIds]);
+  }, [graph.edges, initialNodes, edgeTypeFilter, highlightCycles, cycleNodeIds, selectedNode, filterMode]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -220,8 +364,8 @@ const GraphCanvasContent: React.FC<{
   );
 
   return (
-    <div className="relative h-[420px] w-full overflow-hidden rounded-[20px] border border-[#D8CFC2] bg-[#EFE9DD]/50 graph-dot-grid sm:h-[520px]">
-      <AutoFitController nodesLength={renderedNodes.length} />
+    <div className="relative h-[440px] w-full overflow-hidden rounded-[20px] border border-[#D8CFC2] bg-[#EFE9DD]/50 graph-dot-grid sm:h-[560px]">
+      <AutoFitController nodesLength={renderedNodes.length} filterMode={filterMode} />
       <ReactFlow
         nodes={renderedNodes}
         edges={edges}
@@ -246,30 +390,37 @@ const GraphCanvasContent: React.FC<{
           className="bg-[#FFFDFC] border-[#D8CFC2] rounded-xl shadow-sm"
         />
 
+        {/* Legend panel with edge types & languages */}
         <Panel
           position="bottom-left"
-          className="bg-[#FFFDFC]/95 border border-[#D8CFC2] p-2.5 rounded-xl text-[10px] text-[#4D4842] flex items-center space-x-3 backdrop-blur-md shadow-xs"
+          className="bg-[#FFFDFC]/95 border border-[#D8CFC2] p-2.5 rounded-xl text-[10px] text-[#4D4842] flex flex-wrap items-center gap-3 backdrop-blur-md shadow-xs max-w-full"
         >
           <span className="font-bold text-[#292622]">Legend:</span>
-          <span className="flex items-center space-x-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#4C4FD6]"></span>
-            <span>Python</span>
+          <span className="flex items-center space-x-1.5">
+            <span className="w-4 h-0.5 bg-[#4C4FD6]"></span>
+            <span>Runtime</span>
           </span>
-          <span className="flex items-center space-x-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#C7953D]"></span>
-            <span>JavaScript</span>
+          <span className="flex items-center space-x-1.5">
+            <span className="w-4 h-0.5 border-b border-dashed border-[#7B61D1]"></span>
+            <span className="text-[#7B61D1] font-semibold">Type-only</span>
           </span>
-          <span className="flex items-center space-x-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#7B61D1]"></span>
-            <span>TypeScript</span>
+          <span className="flex items-center space-x-1.5">
+            <span className="w-4 h-0.5 border-b border-dotted border-[#C7953D]"></span>
+            <span className="text-[#C7953D] font-semibold">Dynamic</span>
           </span>
-          <span className="flex items-center space-x-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#5D8194]"></span>
-            <span>External</span>
+          <span className="flex items-center space-x-1.5">
+            <span className="w-4 h-0.5 bg-[#C45F58]"></span>
+            <span className="text-[#8F3F3A] font-semibold">Cycle</span>
           </span>
-          <span className="flex items-center space-x-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#368A80]"></span>
-            <span>Entry Point</span>
+          <span className="border-l border-[#D8CFC2] pl-2 flex items-center space-x-2">
+            <span className="flex items-center space-x-1">
+              <span className="w-2 h-2 rounded-full bg-[#368A80]"></span>
+              <span>Entry Point</span>
+            </span>
+            <span className="flex items-center space-x-1">
+              <span className="w-2 h-2 rounded-full bg-[#5D8194]"></span>
+              <span>External</span>
+            </span>
           </span>
         </Panel>
       </ReactFlow>
@@ -289,6 +440,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
   const [includeExternal, setIncludeExternal] = useState<boolean>(false);
   const [highlightCycles, setHighlightCycles] = useState<boolean>(true);
   const [selectedNode, setSelectedNode] = useState<GraphNodeData | null>(null);
+  const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [currentLevel, setCurrentLevel] = useState<'module' | 'symbol'>('module');
 
   const fetchGraph = useCallback(
@@ -348,6 +500,47 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
 
   const handleBackToModules = () => {
     fetchGraph('module', null);
+  };
+
+  // Selected node degree and breakdown computations
+  const selectedNodeMetrics = useMemo(() => {
+    if (!selectedNode || !graph) return null;
+    const incoming = graph.edges.filter((e) => e.target === selectedNode.id);
+    const outgoing = graph.edges.filter((e) => e.source === selectedNode.id);
+
+    const inRuntime = incoming.filter((e) => !e.is_type_only).length;
+    const inTypeOnly = incoming.filter((e) => e.is_type_only).length;
+    const outRuntime = outgoing.filter((e) => !e.is_type_only).length;
+    const outTypeOnly = outgoing.filter((e) => e.is_type_only).length;
+
+    // Cycle membership check
+    const cyclesWithNode = graph.cycles.filter((c) => c.includes(selectedNode.id));
+
+    return {
+      incomingCount: incoming.length,
+      inRuntime,
+      inTypeOnly,
+      outgoingCount: outgoing.length,
+      outRuntime,
+      outTypeOnly,
+      cyclesWithNode,
+    };
+  }, [selectedNode, graph]);
+
+  // Standalone explanation helper
+  const getStandaloneExplanation = (reason?: string | null) => {
+    switch (reason) {
+      case 'config':
+        return 'Configuration or build setup file. Typically invoked directly by toolchains, not imported by code.';
+      case 'test':
+        return 'Standalone test suite file. Invoked directly by the test runner (pytest/Vitest).';
+      case 'script':
+        return 'CLI utility or executable runner script designed for direct command-line execution.';
+      case 'unreferenced':
+        return 'Unreferenced source module. Not imported anywhere in the project; potential dead code or dynamic entry.';
+      default:
+        return 'Isolated module with zero incoming or outgoing dependencies.';
+    }
   };
 
   if (!projectId) {
@@ -422,12 +615,12 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
                 </span>
                 {graph.cycles.length > 0 && (
                   <span className="text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full bg-[#F6E5E2] text-[#8F3F3A] border border-[#ECC7C3]">
-                    {graph.cycles.length} Dependency {graph.cycles.length === 1 ? 'Loop' : 'Loops'}
+                    {graph.cycles.length} Runtime {graph.cycles.length === 1 ? 'Cycle' : 'Cycles'}
                   </span>
                 )}
               </div>
               <p className="text-xs text-[#6B645A] mt-0.5">
-                See how files connect and identify areas that need attention.
+                Explore architectural structure, entry points, and verified runtime dependency cycles.
               </p>
             </div>
           </div>
@@ -467,7 +660,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
           </div>
 
           <div className="bg-[#F0EBE2]/60 p-3 rounded-2xl border border-[#D8CFC2]">
-            <span className="text-[11px] font-semibold text-[#6B645A] block mb-0.5">Dependency loops</span>
+            <span className="text-[11px] font-semibold text-[#6B645A] block mb-0.5">Runtime cycles</span>
             <span
               className={`text-lg font-extrabold ${
                 graph.summary.cycle_count > 0 ? 'text-[#C45F58]' : 'text-[#368A80]'
@@ -504,61 +697,159 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
       </div>
 
       {/* Graph Toolbar Controls */}
-      <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[20px] p-3.5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
-        {/* Search */}
-        <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 text-[#6B645A] absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search files and modules..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-[#EFE9DD]/50 border border-[#D8CFC2] rounded-full pl-9 pr-4 py-1.5 text-xs text-[#292622] placeholder-[#6B645A] focus:outline-none focus:border-[#4C4FD6] focus:bg-[#FFFDFC] transition-colors"
-          />
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2.5 text-xs">
-          {/* Edge Type Filter */}
-          <div className="flex items-center space-x-1 border border-[#D8CFC2] bg-[#F0EBE2] rounded-full p-1">
-            {['all', 'import', 'require'].map((type) => (
+      <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[20px] p-3.5 flex flex-col gap-3 shadow-xs">
+        {/* Top toolbar row: Search & Views */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+          {/* Search */}
+          <div className="relative w-full sm:w-72">
+            <Search className="w-4 h-4 text-[#6B645A] absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search files and modules..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-[#EFE9DD]/50 border border-[#D8CFC2] rounded-full pl-9 pr-4 py-1.5 text-xs text-[#292622] placeholder-[#6B645A] focus:outline-none focus:border-[#4C4FD6] focus:bg-[#FFFDFC] transition-colors"
+            />
+            {searchQuery && (
               <button
-                key={type}
-                onClick={() => setEdgeTypeFilter(type)}
-                className={`px-3 py-1 rounded-full uppercase text-[10px] font-bold transition-all ${
-                  edgeTypeFilter === type
-                    ? 'bg-[#EAE9FB] text-[#4340A0] shadow-xs'
-                    : 'text-[#4D4842] hover:text-[#292622]'
-                }`}
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B645A] hover:text-[#292622]"
               >
-                {type}
+                <X className="w-3.5 h-3.5" />
               </button>
-            ))}
+            )}
           </div>
 
-          {/* External Toggle */}
-          <button
-            onClick={() => setIncludeExternal(!includeExternal)}
-            className={`px-3.5 py-1.5 rounded-full uppercase text-[10px] font-bold border transition-colors ${
-              includeExternal
-                ? 'bg-[#E6EFF2] text-[#3D657A] border-[#C8DCE4]'
-                : 'bg-[#FFFDFC] text-[#6B645A] border-[#D8CFC2] hover:bg-[#F0EBE2]'
-            }`}
-          >
-            {includeExternal ? 'External: On' : 'External: Off'}
-          </button>
+          {/* Interactive Graph Filters */}
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="text-[11px] font-bold text-[#6B645A] flex items-center gap-1 mr-1">
+              <Filter className="w-3 h-3 text-[#4C4FD6]" /> View:
+            </span>
 
-          {/* Highlight Cycles Toggle */}
-          <button
-            onClick={() => setHighlightCycles(!highlightCycles)}
-            className={`px-3.5 py-1.5 rounded-full uppercase text-[10px] font-bold border transition-colors ${
-              highlightCycles
-                ? 'bg-[#F6E5E2] text-[#8F3F3A] border-[#ECC7C3]'
-                : 'bg-[#FFFDFC] text-[#6B645A] border-[#D8CFC2] hover:bg-[#F0EBE2]'
-            }`}
-          >
-            {highlightCycles ? 'Cycles: Highlighted' : 'Cycles: Normal'}
-          </button>
+            <button
+              onClick={() => setFilterMode('all')}
+              className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
+                filterMode === 'all'
+                  ? 'bg-[#EAE9FB] text-[#4340A0] border border-[#C7C4F7] shadow-xs'
+                  : 'bg-[#F0EBE2]/60 text-[#4D4842] border border-transparent hover:border-[#D8CFC2]'
+              }`}
+            >
+              All Files
+            </button>
+
+            <button
+              onClick={() => setFilterMode('entry_points')}
+              className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
+                filterMode === 'entry_points'
+                  ? 'bg-[#E0EFEB] text-[#245F59] border border-[#BEE0D6] shadow-xs'
+                  : 'bg-[#F0EBE2]/60 text-[#4D4842] border border-transparent hover:border-[#D8CFC2]'
+              }`}
+            >
+              Entry Points ({graph.summary.entry_point_count})
+            </button>
+
+            <button
+              onClick={() => setFilterMode('high_complexity')}
+              className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
+                filterMode === 'high_complexity'
+                  ? 'bg-[#F5E8CC] text-[#76561B] border border-[#E6D3A9] shadow-xs'
+                  : 'bg-[#F0EBE2]/60 text-[#4D4842] border border-transparent hover:border-[#D8CFC2]'
+              }`}
+            >
+              High Complexity ({graph.summary.high_complexity_module_count})
+            </button>
+
+            {graph.summary.cycle_count > 0 && (
+              <button
+                onClick={() => setFilterMode('cycles')}
+                className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
+                  filterMode === 'cycles'
+                    ? 'bg-[#F6E5E2] text-[#8F3F3A] border border-[#ECC7C3] shadow-xs'
+                    : 'bg-[#F0EBE2]/60 text-[#4D4842] border border-transparent hover:border-[#D8CFC2]'
+                }`}
+              >
+                Cycles ({graph.summary.cycle_count})
+              </button>
+            )}
+
+            {selectedNode && (
+              <>
+                <button
+                  onClick={() => setFilterMode('upstream')}
+                  className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all flex items-center gap-1 ${
+                    filterMode === 'upstream'
+                      ? 'bg-[#EAE9FB] text-[#4340A0] border border-[#C7C4F7] shadow-xs'
+                      : 'bg-[#F0EBE2]/60 text-[#4D4842] border border-transparent hover:border-[#D8CFC2]'
+                  }`}
+                  title="Show selected node and all files that depend on it"
+                >
+                  <ArrowUpRight className="w-3 h-3" />
+                  Upstream
+                </button>
+
+                <button
+                  onClick={() => setFilterMode('downstream')}
+                  className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all flex items-center gap-1 ${
+                    filterMode === 'downstream'
+                      ? 'bg-[#E6EFF2] text-[#3D657A] border border-[#C8DCE4] shadow-xs'
+                      : 'bg-[#F0EBE2]/60 text-[#4D4842] border border-transparent hover:border-[#D8CFC2]'
+                  }`}
+                  title="Show selected node and all files it depends on"
+                >
+                  <ArrowDownRight className="w-3 h-3" />
+                  Downstream
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Bottom toolbar row: Edge & Display switches */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#D8CFC2]/40 text-xs">
+          <div className="flex items-center space-x-2">
+            <span className="text-[10px] uppercase font-bold text-[#6B645A]">Import Type:</span>
+            <div className="flex items-center space-x-1 border border-[#D8CFC2] bg-[#F0EBE2] rounded-full p-0.5">
+              {['all', 'import', 'require'].map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setEdgeTypeFilter(type)}
+                  className={`px-2.5 py-0.5 rounded-full uppercase text-[9px] font-bold transition-all ${
+                    edgeTypeFilter === type
+                      ? 'bg-[#EAE9FB] text-[#4340A0] shadow-xs'
+                      : 'text-[#4D4842] hover:text-[#292622]'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            {/* External Toggle */}
+            <button
+              onClick={() => setIncludeExternal(!includeExternal)}
+              className={`px-3 py-1 rounded-full uppercase text-[10px] font-bold border transition-colors ${
+                includeExternal
+                  ? 'bg-[#E6EFF2] text-[#3D657A] border-[#C8DCE4]'
+                  : 'bg-[#FFFDFC] text-[#6B645A] border-[#D8CFC2] hover:bg-[#F0EBE2]'
+              }`}
+            >
+              {includeExternal ? 'External: On' : 'External: Off'}
+            </button>
+
+            {/* Highlight Cycles Toggle */}
+            <button
+              onClick={() => setHighlightCycles(!highlightCycles)}
+              className={`px-3 py-1 rounded-full uppercase text-[10px] font-bold border transition-colors ${
+                highlightCycles
+                  ? 'bg-[#F6E5E2] text-[#8F3F3A] border-[#ECC7C3]'
+                  : 'bg-[#FFFDFC] text-[#6B645A] border-[#D8CFC2] hover:bg-[#F0EBE2]'
+              }`}
+            >
+              {highlightCycles ? 'Cycles: Highlighted' : 'Cycles: Normal'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -572,6 +863,8 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
               edgeTypeFilter={edgeTypeFilter}
               includeExternal={includeExternal}
               highlightCycles={highlightCycles}
+              filterMode={filterMode}
+              selectedNode={selectedNode}
               onSelectNode={setSelectedNode}
               onDrillDown={handleDrillDown}
             />
@@ -579,11 +872,26 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
         </div>
 
         {/* Selected Node Detail Drawer */}
-        <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[20px] p-5 shadow-xs flex flex-col justify-between min-h-[400px]">
+        <div className="bg-[#FFFDFC] border border-[#D8CFC2] rounded-[20px] p-5 shadow-xs flex flex-col justify-between min-h-[420px]">
           <div>
-            <h3 className="text-xs uppercase font-extrabold text-[#6B645A] tracking-wider mb-4 border-b border-[#D8CFC2] pb-2">
-              Selected Item
-            </h3>
+            <div className="flex items-center justify-between mb-4 border-b border-[#D8CFC2] pb-2">
+              <h3 className="text-xs uppercase font-extrabold text-[#6B645A] tracking-wider">
+                Selected Item
+              </h3>
+              {selectedNode && (
+                <button
+                  onClick={() => {
+                    setSelectedNode(null);
+                    if (filterMode === 'upstream' || filterMode === 'downstream') {
+                      setFilterMode('all');
+                    }
+                  }}
+                  className="text-[10px] text-[#6B645A] hover:text-[#292622] flex items-center gap-0.5 font-semibold"
+                >
+                  <X className="w-3 h-3" /> Clear
+                </button>
+              )}
+            </div>
 
             {selectedNode ? (
               <div className="space-y-4">
@@ -594,7 +902,60 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
                   <p className="font-mono text-sm font-bold text-[#292622] break-all">{selectedNode.label}</p>
                 </div>
 
-                <div className="space-y-2.5 text-xs text-[#4D4842]">
+                {/* Upstream & Downstream Degree Card */}
+                {selectedNodeMetrics && (
+                  <div className="grid grid-cols-2 gap-2 bg-[#F0EBE2]/60 p-3 rounded-xl border border-[#D8CFC2]">
+                    <div>
+                      <span className="text-[10px] font-bold text-[#6B645A] uppercase block">Callers (In)</span>
+                      <span className="text-base font-extrabold text-[#292622]">
+                        {selectedNodeMetrics.incomingCount}
+                      </span>
+                      <div className="text-[9px] text-[#6B645A] mt-0.5">
+                        {selectedNodeMetrics.inRuntime} runtime
+                        {selectedNodeMetrics.inTypeOnly > 0 && `, ${selectedNodeMetrics.inTypeOnly} type`}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-[#6B645A] uppercase block">Dependencies (Out)</span>
+                      <span className="text-base font-extrabold text-[#4C4FD6]">
+                        {selectedNodeMetrics.outgoingCount}
+                      </span>
+                      <div className="text-[9px] text-[#6B645A] mt-0.5">
+                        {selectedNodeMetrics.outRuntime} runtime
+                        {selectedNodeMetrics.outTypeOnly > 0 && `, ${selectedNodeMetrics.outTypeOnly} type`}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Standalone explanation banner */}
+                {selectedNode.standalone_reason && (
+                  <div className="p-2.5 rounded-xl bg-[#F5E8CC]/70 border border-[#E6D3A9] text-xs space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-[#76561B]">
+                      <Info className="w-3.5 h-3.5 shrink-0" />
+                      <span>Standalone Module: {selectedNode.standalone_reason.toUpperCase()}</span>
+                    </div>
+                    <p className="text-[11px] text-[#76561B]">
+                      {getStandaloneExplanation(selectedNode.standalone_reason)}
+                    </p>
+                  </div>
+                )}
+
+                {/* Cycle indicator */}
+                {selectedNodeMetrics && selectedNodeMetrics.cyclesWithNode.length > 0 && (
+                  <div className="p-2.5 rounded-xl bg-[#F6E5E2] border border-[#ECC7C3] text-xs space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-[#8F3F3A]">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      <span>Part of {selectedNodeMetrics.cyclesWithNode.length} Runtime Loop(s)</span>
+                    </div>
+                    <p className="text-[11px] text-[#8F3F3A]">
+                      Participates in cyclic runtime imports. Refactor using dependency inversion or separate interface modules.
+                    </p>
+                  </div>
+                )}
+
+                {/* Metadata list */}
+                <div className="space-y-2 text-xs text-[#4D4842]">
                   <div className="flex justify-between border-b border-[#D8CFC2]/60 pb-1.5">
                     <span className="text-[#6B645A]">Language:</span>
                     <span className="font-bold">{titleCase(selectedNode.language)}</span>
@@ -625,10 +986,36 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
                   </div>
                 </div>
 
+                {/* Quick focus toggles */}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    onClick={() => setFilterMode(filterMode === 'upstream' ? 'all' : 'upstream')}
+                    className={`py-1.5 px-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1 ${
+                      filterMode === 'upstream'
+                        ? 'bg-[#EAE9FB] text-[#4340A0] border-[#C7C4F7]'
+                        : 'bg-[#F0EBE2]/60 text-[#4D4842] border-[#D8CFC2] hover:bg-[#EFE9DD]'
+                    }`}
+                  >
+                    <ArrowUpRight className="w-3 h-3" />
+                    <span>Focus Callers</span>
+                  </button>
+                  <button
+                    onClick={() => setFilterMode(filterMode === 'downstream' ? 'all' : 'downstream')}
+                    className={`py-1.5 px-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1 ${
+                      filterMode === 'downstream'
+                        ? 'bg-[#E6EFF2] text-[#3D657A] border-[#C8DCE4]'
+                        : 'bg-[#F0EBE2]/60 text-[#4D4842] border-[#D8CFC2] hover:bg-[#EFE9DD]'
+                    }`}
+                  >
+                    <ArrowDownRight className="w-3 h-3" />
+                    <span>Focus Dependencies</span>
+                  </button>
+                </div>
+
                 {!selectedNode.is_external && selectedNode.kind === 'module' && (
                   <button
                     onClick={() => handleDrillDown(selectedNode.id)}
-                    className="btn-brand-pill w-full mt-4 py-2 px-3 text-xs flex items-center justify-center gap-1.5"
+                    className="btn-brand-pill w-full mt-2 py-2 px-3 text-xs flex items-center justify-center gap-1.5"
                   >
                     <Eye className="w-3.5 h-3.5" />
                     <span>View Functions and Classes</span>
@@ -638,7 +1025,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({ projectI
             ) : (
               <div className="text-center py-14 text-[#948C81] text-xs space-y-2">
                 <Info className="w-6 h-6 mx-auto text-[#948C81] opacity-60" />
-                <p>Select an item to view details. Double-click a file to see its functions and classes.</p>
+                <p>Select an item to view incoming/outgoing connections, standalone reasons, and focus upstream or downstream trees.</p>
               </div>
             )}
           </div>

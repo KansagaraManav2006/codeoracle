@@ -36,6 +36,8 @@ backend/data/
 backend/.pytest-tmp-antigravity
 .pytest-tmp-*
 backend/.pytest-tmp-*
+.pytest-run/
+backend/.pytest-run/
 
 # Node / Frontend
 node_modules/

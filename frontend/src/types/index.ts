@@ -270,6 +270,7 @@ export interface GraphNodeData {
   is_external: boolean;
   symbol_count: number;
   module_id?: string | null;
+  standalone_reason?: string | null;
 }
 
 export interface GraphEdgeData {
@@ -279,6 +280,8 @@ export interface GraphEdgeData {
   type: string;
   resolved: boolean;
   source_line: number;
+  is_type_only?: boolean;
+  is_dynamic?: boolean;
 }
 
 export interface MostConnectedModule {
@@ -297,6 +300,8 @@ export interface GraphSummary {
   internal_edges: number;
   external_edges: number;
   cycle_count: number;
+  runtime_cycle_count?: number;
+  type_cycle_count?: number;
   orphan_count: number;
   entry_point_count: number;
   high_complexity_module_count: number;

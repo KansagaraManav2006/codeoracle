@@ -14,6 +14,7 @@ class GraphNode(BaseModel):
     warning_count: int = 0
     is_entry_point: bool = False
     is_external: bool = False
+    standalone_reason: Optional[str] = None  # Explanation if standalone (config, test, script, unreferenced)
     symbol_count: int = 0
     module_id: Optional[str] = None  # Parent module ID when level=symbol
 
@@ -25,6 +26,8 @@ class GraphEdge(BaseModel):
     type: str  # import, require, contains, call
     resolved: bool = True
     source_line: int = 1
+    is_type_only: bool = False
+    is_dynamic: bool = False
 
 
 class GraphSummary(BaseModel):
@@ -35,6 +38,8 @@ class GraphSummary(BaseModel):
     internal_edges: int = 0
     external_edges: int = 0
     cycle_count: int = 0
+    runtime_cycle_count: int = 0
+    type_cycle_count: int = 0
     orphan_count: int = 0
     entry_point_count: int = 0
     high_complexity_module_count: int = 0
