@@ -224,11 +224,11 @@ export const RefactoredCodeTab: React.FC<Props> = ({ projectId }) => {
                         </p>
                         <p
                           className={`text-[10px] font-bold ${
-                            selected.syntax_valid ? 'text-emerald-400' : 'text-rose-400'
+                            !selected.syntax_valid ? 'text-rose-400' : selected.language === 'python' ? 'text-emerald-400' : 'text-amber-300'
                           }`}
                         >
                           {selected.syntax_valid
-                            ? 'Syntax check passed'
+                            ? selected.language === 'python' ? 'Python syntax check passed' : 'Bracket balance checked; syntax unverified'
                             : selected.syntax_error}
                         </p>
                       </div>

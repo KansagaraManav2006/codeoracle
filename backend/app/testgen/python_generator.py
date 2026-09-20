@@ -1,4 +1,5 @@
 from pathlib import Path
+import hashlib
 from typing import List, Optional
 
 from app.analysis.models import ModuleAnalysis, ProjectAnalysis
@@ -18,10 +19,11 @@ def _relative_path_to_module_import(rel_path: str) -> str:
 
 
 def _safe_test_filename(rel_path: str) -> str:
-    """Generates a safe test file path like 'tests/test_math_helper.py'."""
+    """Use a flat, stable name that distinguishes full paths and extensions."""
     p = Path(rel_path)
     clean_name = p.stem.replace(".", "_")
-    return f"tests/test_{clean_name}.py"
+    digest = hashlib.sha256(rel_path.replace("\\", "/").encode("utf-8")).hexdigest()[:20]
+    return f"tests/test_{clean_name}_{digest}.py"
 
 
 def generate_python_unit_tests(
@@ -51,9 +53,19 @@ def generate_python_unit_tests(
 
     strategies_used = set()
     test_count = 0
+    emitted_names = set()
+
+    def unique_name(base: str) -> str:
+        name = base
+        suffix = 2
+        while name.casefold() in emitted_names:
+            name = f"{base}_{suffix}"
+            suffix += 1
+        emitted_names.add(name.casefold())
+        return name
 
     # 1. Module import smoke test
-    lines.append(f"def test_{module.module_id.replace('-', '_')}_import_smoke():")
+    lines.append(f"def {unique_name('test_' + module.module_id.replace('-', '_') + '_import_smoke')}():")
     lines.append(f"    '''Smoke test to verify {mod_import} can be safely imported.'''")
     lines.append(f"    assert {mod_import} is not None")
     lines.append("")
@@ -69,7 +81,7 @@ def generate_python_unit_tests(
         qualified_target = f"{mod_import}.{func_name}"
 
         # Existence test
-        lines.append(f"def test_{func_name}_existence():")
+        lines.append(f"def {unique_name('test_' + func_name + '_existence')}():")
         lines.append(f"    '''Verify function {func_name} exists and is callable.'''")
         lines.append(f"    assert hasattr({mod_import}, '{func_name}')")
         lines.append(f"    assert callable({qualified_target})")
@@ -101,7 +113,7 @@ def generate_python_unit_tests(
 
         # Basic execution test
         call_str = f"{qualified_target}({', '.join(arg_values)})"
-        lines.append(f"def test_{func_name}_basic_execution():")
+        lines.append(f"def {unique_name('test_' + func_name + '_basic_execution')}():")
         lines.append(f"    '''Verify {func_name} executes cleanly with inferable inputs.'''")
         lines.append("    try:")
         lines.append(f"        result = {call_str}")
@@ -125,7 +137,7 @@ def generate_python_unit_tests(
 
             if empty_args:
                 empty_call = f"{qualified_target}({', '.join(empty_args)})"
-                lines.append(f"def test_{func_name}_boundary_empty():")
+                lines.append(f"def {unique_name('test_' + func_name + '_boundary_empty')}():")
                 lines.append(f"    '''Test {func_name} with empty/zero boundary inputs.'''")
                 lines.append("    try:")
                 lines.append(f"        res = {empty_call}")
@@ -141,7 +153,7 @@ def generate_python_unit_tests(
         cls_name = cls.name
         qualified_cls = f"{mod_import}.{cls_name}"
 
-        lines.append(f"def test_class_{cls_name}_instantiation():")
+        lines.append(f"def {unique_name('test_class_' + cls_name + '_instantiation')}():")
         lines.append(f"    '''Verify class {cls_name} exists and can be instantiated.'''")
         lines.append(f"    assert hasattr({mod_import}, '{cls_name}')")
         lines.append("    try:")

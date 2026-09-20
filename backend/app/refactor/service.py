@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Callable, List, Tuple
 
 from sqlalchemy.orm import Session
+import tree_sitter
+import tree_sitter_javascript
 
 from app.ingestion.workspace import get_workspace_dir
 from app.models.db import Project, ProjectFile, ProjectRefactorRecord
@@ -33,13 +35,25 @@ PYTHON_RULES: List[Rule] = [
 
 JS_RULES: List[Rule] = [
     (re.compile(r"(?m)^(\s*)var\s+"), r"\1let ", "JS_VAR_DECLARATION", "Replaced function-scoped var with block-scoped let.", True),
-    (re.compile(r"(?<![=!])==(?!=)"), "===", "JS_STRICT_EQUALITY", "Replaced loose equality with strict equality.", True),
-    (re.compile(r"(?<![=!])!=(?!=)"), "!==", "JS_STRICT_INEQUALITY", "Replaced loose inequality with strict inequality.", True),
 ]
-
 
 def _line_for(text: str, offset: int) -> int:
     return text.count("\n", 0, offset) + 1
+
+
+def _first_loose_js_equality_line(source: str) -> int | None:
+    """Find an equality expression, ignoring comments and literal text."""
+    parser = tree_sitter.Parser(tree_sitter.Language(tree_sitter_javascript.language()))
+    root = parser.parse(source.encode("utf-8")).root_node
+    pending = [root]
+    while pending:
+        node = pending.pop()
+        if node.type == "binary_expression":
+            operator = node.child_by_field_name("operator")
+            if operator is not None and operator.type in {"==", "!="}:
+                return operator.start_point.row + 1
+        pending.extend(reversed(node.named_children))
+    return None
 
 
 def _apply_rules(source: str, rules: List[Rule]) -> Tuple[str, List[str], List[RefactorWarning]]:
@@ -61,6 +75,16 @@ def _apply_rules(source: str, rules: List[Rule]) -> Tuple[str, List[str], List[R
         )
         updated, count = pattern.subn(replacement, updated)
         changes.append(f"{message} ({count} occurrence{'s' if count != 1 else ''})")
+    if rules is JS_RULES:
+        equality_line = _first_loose_js_equality_line(source)
+        if equality_line is not None:
+            warnings.append(RefactorWarning(
+                code="JS_EQUALITY_REVIEW_REQUIRED",
+                severity="risk",
+                message="Loose equality was left unchanged. Converting it to strict equality can change null/undefined and mixed-type behavior; review each comparison manually.",
+                line=equality_line,
+                breaking_change=False,
+            ))
     return updated, changes, warnings
 
 
@@ -109,7 +133,7 @@ def run_refactor_for_project(db: Session, project_id: str, force: bool = False) 
         raise ValueError("Project not found.")
 
     cached = db.query(ProjectRefactorRecord).filter(ProjectRefactorRecord.project_id == project_id).first()
-    if cached and cached.content_hash == project.content_hash and not force:
+    if cached and cached.content_hash == project.content_hash and cached.engine_version == REFACTOR_ENGINE_VERSION and not force:
         return ProjectRefactorResult.model_validate(cached.refactor_data)
 
     raw_dir = get_workspace_dir(project.workspace_id) / "raw"
@@ -130,6 +154,12 @@ def run_refactor_for_project(db: Session, project_id: str, force: bool = False) 
         else:
             modern, changes, warnings = _apply_rules(original, JS_RULES)
         valid, syntax_error = _syntax_check(project_file.language, modern)
+        if project_file.language != "python" and original != modern:
+            warnings.append(RefactorWarning(
+                code="JS_SYNTAX_REVIEW_REQUIRED",
+                severity="risk",
+                message="Only bracket balance was checked. Parse and test this JavaScript or TypeScript change before applying it.",
+            ))
         if not valid:
             warnings.append(RefactorWarning(code="SYNTAX_REVIEW_REQUIRED", severity="risk", message="The proposal did not pass static syntax validation; do not apply it automatically.", breaking_change=True))
 
@@ -161,7 +191,8 @@ def run_refactor_for_project(db: Session, project_id: str, force: bool = False) 
         changed_files=changed_files,
         total_changes=total_changes,
         breaking_warning_count=breaking_count,
-        safe_to_apply_automatically=bool(changed_files) and breaking_count == 0 and all(item.syntax_valid for item in results),
+        # Static syntax checks and rule warnings cannot establish behavioral equivalence.
+        safe_to_apply_automatically=False,
         summary=(f"Prepared {total_changes} modernization rule group(s) across {changed_files} file(s). "
                  "Review every diff and run the generated tests before merging." if changed_files else
                  "No deterministic legacy patterns were found. The engine left all source files unchanged."),

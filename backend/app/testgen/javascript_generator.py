@@ -1,4 +1,5 @@
 from pathlib import Path
+import hashlib
 from typing import List, Optional
 
 from app.analysis.models import ModuleAnalysis, ProjectAnalysis
@@ -14,10 +15,11 @@ def _relative_path_to_js_import(rel_path: str) -> str:
 
 
 def _safe_js_test_filename(rel_path: str) -> str:
-    """Generates a safe test file path like 'tests/math_helper.test.js'."""
+    """Use a flat, stable name that distinguishes full paths and extensions."""
     p = Path(rel_path)
     clean_name = p.stem.replace(".", "_")
-    return f"tests/{clean_name}.test.js"
+    digest = hashlib.sha256(rel_path.replace("\\", "/").encode("utf-8")).hexdigest()[:20]
+    return f"tests/{clean_name}_{digest}.test.js"
 
 
 def generate_javascript_unit_tests(

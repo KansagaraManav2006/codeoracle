@@ -3,7 +3,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
-REFACTOR_ENGINE_VERSION = "1.0.0"
+REFACTOR_ENGINE_VERSION = "1.1.0"
 
 
 class RefactorWarning(BaseModel):

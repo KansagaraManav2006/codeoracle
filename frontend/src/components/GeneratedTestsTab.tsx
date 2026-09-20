@@ -180,8 +180,8 @@ export const GeneratedTestsTab: React.FC<Props> = ({
               value={`${result.syntax_valid_count}/${result.test_files.length}`}
             />
             <StatCard
-              label="Test run"
-              value={result.execution_enabled ? `${result.passed_test_count} passed` : 'Safety locked'}
+              label="Test files run"
+              value={result.execution_enabled ? `${result.passed_test_count} passed files` : 'Safety locked'}
             />
             <StatCard
               label="Measured coverage"

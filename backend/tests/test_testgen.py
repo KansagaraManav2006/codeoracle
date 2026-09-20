@@ -5,7 +5,9 @@ from app.analysis.models import ProjectAnalysis
 from app.analysis.python_analyzer import analyze_python_source
 from app.testgen.coverage import parse_pytest_coverage_json
 from app.testgen.javascript_generator import generate_javascript_unit_tests
+from app.testgen.javascript_generator import _safe_js_test_filename
 from app.testgen.python_generator import generate_python_unit_tests
+from app.testgen.python_generator import _safe_test_filename
 from app.testgen.runner import execute_generated_tests_safely
 from app.testgen.validator import validate_javascript_test_code, validate_python_test_code
 
@@ -28,7 +30,7 @@ def test_python_generator_creates_syntax_valid_pytest(tmp_path) -> None:
     generated = generate_python_unit_tests(module, _project(module))
     assert generated.framework == "pytest"
     assert generated.syntax_valid is True
-    assert generated.test_count >= 3
+    assert generated.test_count == 4
     assert "calculator.add(10, 10)" in generated.code
 
 
@@ -40,6 +42,26 @@ def test_javascript_commonjs_generator_uses_require(tmp_path) -> None:
     assert generated.framework == "vitest"
     assert generated.syntax_valid is True
     assert "require('../math.cjs')" in generated.code
+
+
+def test_generated_filenames_distinguish_paths_and_extensions() -> None:
+    python_paths = ["a/item.py", "b/item.py", "a/__init__.py", "b/__init__.py", "A/item.py", "a.b.py", "a_b.py"]
+    js_paths = ["a/index.ts", "b/index.ts", "a/index.js", "A/index.ts", "foo.js", "foo.ts", "foo.cjs"]
+    for paths, filename in ((python_paths, _safe_test_filename), (js_paths, _safe_js_test_filename)):
+        names = [filename(path) for path in paths]
+        assert len({name.casefold() for name in names}) == len(paths)
+        assert all(name.startswith("tests/") and name.count("/") == 1 for name in names)
+        assert names == [filename(path) for path in paths]
+
+
+def test_python_duplicate_function_names_have_distinct_tests(tmp_path) -> None:
+    source = tmp_path / "duplicate.py"
+    source.write_text("def same(a):\n    return a\ndef same(a):\n    return a\n", encoding="utf-8")
+    module = analyze_python_source("proj_test", "duplicate.py", source)
+    generated = generate_python_unit_tests(module, _project(module))
+    import ast
+    names = [node.name for node in ast.parse(generated.code).body if isinstance(node, ast.FunctionDef)]
+    assert len(names) == len(set(names)) == generated.test_count
 
 
 def test_generated_code_validators_reject_dangerous_calls() -> None:
