@@ -325,6 +325,7 @@ const AppContent: React.FC = () => {
                     targetFile={targetFile}
                     onSelectFile={handleSelectFile}
                     onInspectImpact={handleInspectImpact}
+                    onNavigateTab={handleTabChange}
                     onTestsUpdated={handleTestsUpdated}
                     onStatusChange={(generating, err) => {
                       setIsGeneratingTests(generating);
@@ -340,6 +341,7 @@ const AppContent: React.FC = () => {
                     targetFile={targetFile}
                     onSelectFile={handleSelectFile}
                     onInspectImpact={handleInspectImpact}
+                    onNavigateTab={handleTabChange}
                   />
                 )}
                 {activeTab === 'migration' && (
