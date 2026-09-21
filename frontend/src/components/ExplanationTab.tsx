@@ -24,6 +24,7 @@ import SearchField from './common/SearchField';
 import { FilterChip } from './common/Chips';
 import { LanguageTag, StatusTag } from './common/Tags';
 import { useToast } from './common/Toast';
+import EmptyState from './common/EmptyState';
 
 interface ExplanationTabProps {
   projectId?: string | null;
@@ -353,7 +354,6 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
-    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -384,13 +384,30 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
     );
   }
 
-  if (error || !analysis) {
+  if (error) {
     return (
-      <div className="p-8 bg-red-surface rounded-xl border border-red-line text-center">
-        <p className="font-bold text-red-text text-sm mb-3">{error || 'Unable to load analysis.'}</p>
-        <Button variant="outline" size="sm" onClick={() => fetchData(false)}>
-          Retry
+      <div className="p-8 bg-red-surface rounded-xl border border-red-line text-center space-y-4">
+        <AlertTriangle className="w-8 h-8 text-red mx-auto" />
+        <h3 className="text-base font-bold text-red-text">Unable to load codebase architecture</h3>
+        <p className="text-xs text-ink-3 max-w-md mx-auto">{error}</p>
+        <Button variant="outline" size="sm" onClick={() => fetchData(false)} icon={<RefreshCw className="w-3.5 h-3.5" />}>
+          Retry Analysis
         </Button>
+      </div>
+    );
+  }
+
+  if (!analysis) {
+    return (
+      <div className="p-8">
+        <EmptyState
+          icon={BookOpen}
+          headline="No Architecture Analysis Available"
+          description="Analysis data is not available for this project. Trigger a fresh analysis to evaluate modules and AST contracts."
+          actionText="Run Codebase Analysis"
+          onAction={() => fetchData(true)}
+          iconVariant="brand"
+        />
       </div>
     );
   }
@@ -623,7 +640,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                 icon={<Play className="w-3.5 h-3.5" strokeWidth={1.75} />}
                 title="Generate pinning characterization tests"
               >
-                Generate Tests
+                Generate Safety Tests
               </Button>
               <Button
                 variant="outline"
@@ -632,7 +649,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                 icon={<Wand2 className="w-3.5 h-3.5" strokeWidth={1.75} />}
                 title="Preview automated modernization proposals"
               >
-                Review Modernization
+                Review Modernization Proposals
               </Button>
               <Button
                 variant="outline"
@@ -641,7 +658,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                 icon={<Flame className="w-3.5 h-3.5 text-red" strokeWidth={1.75} />}
                 title="View deterministic hotspot prioritization table"
               >
-                Open Hotspots
+                View Risk Hotspots
               </Button>
             </div>
           </div>
@@ -1048,8 +1065,15 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
       {/* Module Accordion Rows */}
       <div className="space-y-2.5" role="region" aria-label="Analyzed Modules List">
         {filteredModules.length === 0 ? (
-          <div className="bg-surface border border-line rounded-lg p-10 text-center text-sm text-ink-3">
-            No modules match your query "{searchQuery}".
+          <div className="p-8">
+            <EmptyState
+              icon={BookOpen}
+              headline="No Modules Match Query"
+              description={`No analyzed modules match your search "${searchQuery}".`}
+              actionText="Clear Search"
+              onAction={() => setSearchQuery('')}
+              iconVariant="muted"
+            />
           </div>
         ) : (
           filteredModules.slice(0, visibleCount).map((mod) => {
@@ -1144,7 +1168,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                         onClick={() => handleGenerateTests(mod.relative_path)}
                         icon={<Play className="w-3.5 h-3.5" strokeWidth={1.75} />}
                       >
-                        Generate Tests
+                        Generate Safety Tests
                       </Button>
                       <Button
                         variant="outline"
@@ -1152,7 +1176,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                         onClick={() => handleReviewModernization(mod.relative_path)}
                         icon={<Wand2 className="w-3.5 h-3.5" strokeWidth={1.75} />}
                       >
-                        Review Modernization
+                        Review Modernization Proposals
                       </Button>
                     </div>
 

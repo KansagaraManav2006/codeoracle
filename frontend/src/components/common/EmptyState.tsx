@@ -1,5 +1,6 @@
 import React from 'react';
 import { LucideIcon } from 'lucide-react';
+import Button from './Button';
 
 interface EmptyStateProps {
   icon: LucideIcon;
@@ -21,38 +22,39 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   iconVariant = 'brand',
 }) => {
   const iconBgMap = {
-    brand: 'bg-[#EAE9FB] text-[#4340A0] border-[#C7C4F7]',
-    signal: 'bg-[#F5E8CC] text-[#C7953D] border-[#E6D3A9]',
-    success: 'bg-[#E0EFEB] text-[#368A80] border-[#BEE0D6]',
-    muted: 'bg-[#F0EBE2] text-[#6B645A] border-[#D8CFC2]',
+    brand: 'bg-indigo-surface text-indigo border-indigo/20',
+    signal: 'bg-amber-surface text-amber-strong border-amber/30',
+    success: 'bg-teal-surface text-teal-strong border-teal/20',
+    muted: 'bg-tile text-ink-3 border-line',
   };
 
   return (
-    <div className="rounded-[24px] border border-dashed border-[#D8CFC2] bg-[#EFE9DD]/50 p-8 text-center sm:p-12 max-w-2xl mx-auto">
+    <div className="rounded-2xl border border-dashed border-line bg-tile/40 p-8 text-center sm:p-10 max-w-xl mx-auto shadow-xs">
       <div
-        className={`mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border shadow-sm ${iconBgMap[iconVariant]}`}
+        className={`mx-auto mb-3.5 flex h-12 w-12 items-center justify-center rounded-xl border shadow-xs ${iconBgMap[iconVariant]}`}
       >
-        <Icon className="h-6 w-6" />
+        <Icon className="h-5 w-5" strokeWidth={1.75} />
       </div>
 
-      <h3 className="text-lg font-bold text-[#292622] tracking-tight">{headline}</h3>
+      <h3 className="text-base font-bold text-ink tracking-tight font-display">{headline}</h3>
 
-      <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-[#4D4842]">{description}</p>
+      <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-ink-3">{description}</p>
 
       {actionText && onAction && (
-        <div className="mt-6">
-          <button
-            type="button"
+        <div className="mt-5">
+          <Button
+            variant="indigo"
+            size="sm"
             onClick={onAction}
-            className="btn-brand-pill px-6 py-2.5 text-xs inline-flex items-center gap-2"
+            className="shadow-xs font-semibold"
           >
-            <span>{actionText}</span>
-          </button>
+            {actionText}
+          </Button>
         </div>
       )}
 
       {trustCopy && (
-        <p className="mt-4 text-[11px] italic text-[#6B645A] border-t border-[#D8CFC2]/60 pt-3 max-w-md mx-auto">
+        <p className="mt-4 text-[11px] italic text-ink-3 border-t border-line/60 pt-3 max-w-md mx-auto">
           {trustCopy}
         </p>
       )}
@@ -61,3 +63,4 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 };
 
 export default EmptyState;
+

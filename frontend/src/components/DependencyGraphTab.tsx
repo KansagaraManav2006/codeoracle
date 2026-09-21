@@ -1411,7 +1411,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                         icon={<TestTube className="w-3.5 h-3.5" />}
                         className="text-xs justify-center"
                       >
-                        Tests
+                        Safety Tests
                       </Button>
                       <Button
                         variant="outline"

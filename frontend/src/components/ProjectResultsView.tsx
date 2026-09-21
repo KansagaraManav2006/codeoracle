@@ -173,15 +173,31 @@ export const ProjectResultsView: React.FC<ProjectResultsViewProps> = ({
               className="max-h-[320px] overflow-y-auto custom-scrollbar divide-y divide-line/60 rounded-md border border-line bg-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo"
             >
               {filteredFiles.length === 0 ? (
-                <div className="p-6 text-center text-xs text-ink-3">
-                  No files match "{fileSearch}".
+                <div className="p-6 text-center text-xs text-ink-3 space-y-2">
+                  <p>No files match "{fileSearch}".</p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setFileSearch('')}
+                    className="text-xs"
+                  >
+                    Clear search filter
+                  </Button>
                 </div>
               ) : (
                 filteredFiles.map((file) => (
                   <div
                     key={file.file_id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => onSelectFile?.(file.relative_path)}
-                    className="flex items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-tile/70 cursor-pointer transition-colors text-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onSelectFile?.(file.relative_path);
+                      }
+                    }}
+                    className="flex items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-tile/70 cursor-pointer transition-colors text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo"
                     title={file.relative_path}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">

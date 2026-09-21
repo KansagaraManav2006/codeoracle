@@ -548,7 +548,7 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
                         }}
                         icon={<Network className="w-3 h-3" />}
                       >
-                        Inspect in Graph
+                        Inspect in Dependency Map
                       </Button>
                     )}
                     {blocker.target_file && (
@@ -561,7 +561,7 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
                         }}
                         icon={<TestTube className="w-3 h-3 text-teal-strong" />}
                       >
-                        Generate Tests
+                        Generate Safety Tests
                       </Button>
                     )}
                     {blocker.target_file && (
@@ -574,7 +574,7 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
                         }}
                         icon={<Flame className="w-3 h-3 text-amber-strong" />}
                       >
-                        Check Hotspot
+                        Inspect Risk Hotspot
                       </Button>
                     )}
                   </div>
@@ -1026,8 +1026,17 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
                         return (
                           <div
                             key={item.id}
+                            role="checkbox"
+                            aria-checked={isDone}
+                            tabIndex={0}
                             onClick={() => toggleTask(item.id)}
-                            className={`flex items-start gap-2 p-1.5 rounded-md text-xs cursor-pointer transition-colors ${
+                            onKeyDown={(e) => {
+                              if (e.key === ' ' || e.key === 'Enter') {
+                                e.preventDefault();
+                                toggleTask(item.id);
+                              }
+                            }}
+                            className={`flex items-start gap-2 p-1.5 rounded-md text-xs cursor-pointer transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo ${
                               isDone ? 'bg-teal-surface text-teal-strong line-through' : 'hover:bg-surface text-ink-2'
                             }`}
                           >
@@ -1075,7 +1084,7 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
                       onClick={() => onFocusInGraph?.(wave.files[0])}
                       icon={<Network className="w-3.5 h-3.5" />}
                     >
-                      Focus Wave in Graph
+                      Inspect in Dependency Map
                     </Button>
                   )}
                   {wave.files[0] && (
@@ -1101,7 +1110,7 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
                       }}
                       icon={<Flame className="w-3.5 h-3.5 text-amber-strong" />}
                     >
-                      Check Hotspots
+                      Inspect Risk Hotspots
                     </Button>
                   )}
                   {wave.files[0] && (

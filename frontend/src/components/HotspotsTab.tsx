@@ -22,6 +22,7 @@ import KpiCard from './common/KpiCard';
 import SearchField from './common/SearchField';
 import { FilterChip } from './common/Chips';
 import { StatusTag } from './common/Tags';
+import EmptyState from './common/EmptyState';
 
 interface HotspotsTabProps {
   projectId: string;
@@ -357,7 +358,7 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
               icon={<TestTube className="w-3.5 h-3.5 text-amber-on-dark" />}
               title="Generate characterization pinning tests for this file"
             >
-              Generate Tests
+              Generate Safety Tests
             </Button>
             <Button
               variant="outline"
@@ -367,7 +368,7 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
               icon={<Wand2 className="w-3.5 h-3.5 text-amber-on-dark" />}
               title="Preview automated modernization proposals in disposable sandbox"
             >
-              Review Modernization
+              Review Modernization Proposals
             </Button>
             <Button
               variant="indigo"
@@ -451,6 +452,8 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
           ].map((s) => (
             <button
               key={s.id}
+              type="button"
+              aria-label={`Sort by ${s.label}`}
               onClick={() => {
                 if (sortField === s.id) {
                   setSortAsc(!sortAsc);
@@ -459,7 +462,7 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
                   setSortAsc(false);
                 }
               }}
-              className={`px-2.5 py-1 rounded-md font-sans text-xs shrink-0 flex items-center gap-1 transition-colors ${
+              className={`px-2.5 py-1 rounded-md font-sans text-xs shrink-0 flex items-center gap-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo ${
                 sortField === s.id
                   ? 'bg-ink text-white font-semibold'
                   : 'bg-tile text-ink-2 hover:bg-track border border-line'
@@ -489,8 +492,22 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
         </div>
 
         {filtered.length === 0 ? (
-          <div className="p-10 text-center text-xs text-ink-3">
-            No files match the search query and risk filter criteria.
+          <div className="p-8">
+            <EmptyState
+              icon={Flame}
+              headline="No Hotspots Match Your Filter"
+              description={
+                searchTerm
+                  ? `No risk hotspots match "${searchTerm}" with the current filter settings.`
+                  : 'No files match the selected risk filter criteria.'
+              }
+              actionText="Reset Search & Filters"
+              onAction={() => {
+                setSearchTerm('');
+                setRiskFilter('all');
+              }}
+              iconVariant="signal"
+            />
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -522,11 +539,20 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
                   return (
                     <React.Fragment key={item.file}>
                       <tr
+                        role="button"
+                        tabIndex={0}
                         onClick={() => {
                           setExpandedFile(isExpanded ? null : item.file);
                           onSelectFile?.(item.file);
                         }}
-                        className={`cursor-pointer transition-colors hover:bg-track/50 ${
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setExpandedFile(isExpanded ? null : item.file);
+                            onSelectFile?.(item.file);
+                          }
+                        }}
+                        className={`cursor-pointer transition-colors hover:bg-track/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo ${
                           isTarget
                             ? 'bg-indigo-surface/60 border-l-4 border-indigo font-medium'
                             : isExpanded
@@ -685,9 +711,9 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
                                   size="sm"
                                   onClick={() => handleGenerateTests(item.file)}
                                   icon={<TestTube className="w-3.5 h-3.5" />}
-                                  title="Generate pinning tests"
+                                  title="Generate pinning safety tests"
                                 >
-                                  Generate Tests
+                                  Generate Safety Tests
                                 </Button>
                                 <Button
                                   variant="outline"
@@ -696,7 +722,7 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
                                   icon={<Wand2 className="w-3.5 h-3.5" />}
                                   title="Review automated modernization diffs"
                                 >
-                                  Review Modernization
+                                  Review Modernization Proposals
                                 </Button>
                                 <Button
                                   variant="outline"

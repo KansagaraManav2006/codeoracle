@@ -81,7 +81,7 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
   return (
     <div className="w-full mb-6">
       {/* Guided modernization workflow subtitle banner */}
-      <div className="mb-2.5 flex min-w-max items-center justify-between gap-2 px-1 text-[11px] font-sans">
+      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 px-1 text-[11px] font-sans">
         <div className="flex items-center gap-2">
           <span className="font-bold text-ink uppercase tracking-wider text-[10px]">
             Guided workflow:

@@ -925,8 +925,16 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
 
           <div className="overflow-y-auto custom-scrollbar divide-y divide-line/40 mt-2 pr-1">
             {filteredFiles.length === 0 ? (
-              <div className="p-6 text-center text-xs text-ink-3">
-                No files with suggestions match your filter.
+              <div className="p-6 text-center text-xs text-ink-3 space-y-2">
+                <p>No files with suggestions match your filter.</p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSearch('')}
+                  className="text-xs"
+                >
+                  Clear Filter
+                </Button>
               </div>
             ) : (
               filteredFiles.map((f) => {

@@ -333,16 +333,16 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
             Download ZIP
           </Button>
 
-          <Button
-            variant="indigo"
-            size="sm"
-            onClick={handleRegenerate}
-            loading={regenerating}
-            loadingText="Regenerating…"
-            icon={<Play className="w-3.5 h-3.5" strokeWidth={1.75} />}
-          >
-            Regenerate tests
-          </Button>
+            <Button
+              variant="indigo"
+              size="sm"
+              onClick={handleRegenerate}
+              loading={regenerating}
+              loadingText="Regenerating…"
+              icon={<Play className="w-3.5 h-3.5" strokeWidth={1.75} />}
+            >
+              Regenerate Safety Tests
+            </Button>
         </div>
       </section>
 
@@ -458,8 +458,19 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
           <div className="overflow-y-auto custom-scrollbar divide-y divide-line/40 mt-2 pr-1">
             {sidebarTab === 'tests' ? (
               filteredFiles.length === 0 ? (
-                <div className="p-6 text-center text-xs text-ink-3">
-                  No test files found.
+                <div className="p-6 text-center text-xs text-ink-3 space-y-2">
+                  <p>No test files found matching filter.</p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSearch('');
+                      setCategoryFilter('all');
+                    }}
+                    className="text-xs"
+                  >
+                    Clear Filter
+                  </Button>
                 </div>
               ) : (
                 filteredFiles.map((f, idx) => {
@@ -511,10 +522,18 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
               unprotectedFiles.map((path) => (
                 <div
                   key={path}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => {
                     onSelectFile?.(path);
                   }}
-                  className="p-2.5 rounded-md my-0.5 bg-tile/40 hover:bg-tile text-xs cursor-pointer transition-colors flex items-center justify-between"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onSelectFile?.(path);
+                    }
+                  }}
+                  className="p-2.5 rounded-md my-0.5 bg-tile/40 hover:bg-tile text-xs cursor-pointer transition-colors flex items-center justify-between focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo"
                 >
                   <div className="truncate pr-2">
                     <div
@@ -603,7 +622,7 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
                         icon={<Wand2 className="w-3.5 h-3.5" />}
                         className="text-xs"
                       >
-                        Preview Modernization
+                        Preview Modernization Proposals
                       </Button>
                     )}
                   </div>
