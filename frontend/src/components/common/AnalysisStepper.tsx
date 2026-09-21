@@ -90,14 +90,35 @@ export const AnalysisStepper: React.FC<AnalysisStepperProps> = ({
     <div
       className={`max-w-[560px] w-full mx-auto bg-surface rounded-xl border border-line shadow-shell p-6 sm:p-8 ${className}`}
     >
-      <div className="mb-6 border-b border-line pb-4">
-        <h3 className="font-display font-bold text-lg text-ink">Analyzing Codebase</h3>
+      <div className="mb-5 border-b border-line pb-4">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="font-display font-bold text-lg text-ink">Analyzing Codebase</h3>
+          {progressPercentage !== undefined && progressPercentage > 0 && (
+            <span className="text-xs font-mono font-bold text-indigo bg-indigo-surface px-2 py-0.5 rounded border border-indigo/20">
+              {progressPercentage}%
+            </span>
+          )}
+        </div>
         <p className="text-xs text-ink-3 mt-1 font-sans">
           Deterministic static analysis, dependency resolution, and contract characterization.
         </p>
+
+        {/* Live Progress Bar */}
+        <div className="w-full bg-track rounded-full h-2 overflow-hidden mt-3.5 border border-line/60">
+          <div
+            className="h-full bg-gradient-to-r from-indigo to-teal rounded-full transition-all duration-500 ease-out"
+            style={{
+              width: `${
+                progressPercentage && progressPercentage > 0
+                  ? progressPercentage
+                  : steps.filter((s) => s.state === 'completed').length * 20 + 10
+              }%`,
+            }}
+          />
+        </div>
       </div>
 
-      <div className="space-y-5">
+      <div className="space-y-4">
         {steps.map((step) => {
           return (
             <div key={step.id} className="flex items-start gap-3.5">

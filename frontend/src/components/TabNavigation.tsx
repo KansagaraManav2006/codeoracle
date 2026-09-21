@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { BookOpen, Flame, Workflow, TestTube, Wand2, Map, LucideIcon } from 'lucide-react';
+import { BookOpen, Flame, Workflow, TestTube, Wand2, Map, LucideIcon, FolderGit2 } from 'lucide-react';
 import { TabType } from '../types';
 
 interface TabNavigationProps {
@@ -28,6 +28,7 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
   const tabButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const tabs: TabConfig[] = [
+    { id: 'overview', label: 'Project Details', icon: FolderGit2 },
     { id: 'explanation', label: 'Architecture Overview', icon: BookOpen },
     { id: 'hotspots', label: 'Risk Hotspots', icon: Flame },
     {

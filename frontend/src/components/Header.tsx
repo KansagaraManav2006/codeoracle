@@ -12,7 +12,7 @@ export const Header: React.FC<HeaderProps> = ({ onStatusChange }) => {
       className="w-full border-b border-line bg-surface/80 backdrop-blur-sm transition-colors"
       aria-label="Application Header"
     >
-      <div className="w-full max-w-[1240px] h-14 mx-auto px-3.5 sm:px-6 lg:px-8 flex items-center justify-between">
+      <div className="w-full h-14 px-4 sm:px-6 lg:px-8 flex items-center justify-between">
         {/* Compact Brand Identity */}
         <div className="flex items-center gap-2.5">
           <div

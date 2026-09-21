@@ -7,7 +7,7 @@ interface WorkspaceShellProps {
 
 export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({ children, className = '' }) => {
   return (
-    <div className={`w-full max-w-[1240px] mx-auto transition-all duration-base ${className}`}>
+    <div className={`w-full transition-all duration-base ${className}`}>
       {children}
     </div>
   );

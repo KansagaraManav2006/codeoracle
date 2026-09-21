@@ -1,22 +1,20 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Header from './components/Header';
 import WorkspaceShell from './components/WorkspaceShell';
-import TabNavigation from './components/TabNavigation';
-import ProjectResultsView from './components/ProjectResultsView';
+import ProjectNavBar from './components/ProjectNavBar';
 import InputSection from './components/InputSection';
 import JobProgressView from './components/JobProgressView';
 import RecentProjectsSection from './components/RecentProjectsSection';
+import ProjectOverviewTab from './components/ProjectOverviewTab';
 import ExplanationTab from './components/ExplanationTab';
 import HotspotsTab from './components/HotspotsTab';
 import DependencyGraphTab from './components/DependencyGraphTab';
 import GeneratedTestsTab from './components/GeneratedTestsTab';
 import RefactoredCodeTab from './components/RefactoredCodeTab';
 import MigrationPlanTab from './components/MigrationPlanTab';
-import { Target } from 'lucide-react';
 import { ToastProvider } from './components/common/Toast';
 import ShortcutsModal from './components/common/ShortcutsModal';
 import ChangeImpactModal from './components/common/ChangeImpactModal';
-import Button from './components/common/Button';
 import { useJobPoller } from './hooks/useJobPoller';
 import { TabType } from './types';
 
@@ -26,6 +24,8 @@ const AppContent: React.FC = () => {
     const params = new URLSearchParams(window.location.search);
     const t = params.get('tab') as TabType;
     if (
+      t === 'overview' ||
+      t === 'explanation' ||
       t === 'hotspots' ||
       t === 'graph' ||
       t === 'tests' ||
@@ -34,7 +34,7 @@ const AppContent: React.FC = () => {
     ) {
       return t;
     }
-    return 'explanation';
+    return 'overview';
   };
 
   const getInitialFile = (): string | null => {
@@ -152,16 +152,18 @@ const AppContent: React.FC = () => {
         e.preventDefault();
         setShowShortcuts((v) => !v);
       } else if (e.key === '1') {
-        handleTabChange('explanation');
+        handleTabChange('overview');
       } else if (e.key === '2') {
-        handleTabChange('hotspots');
+        handleTabChange('explanation');
       } else if (e.key === '3') {
-        handleTabChange('graph');
+        handleTabChange('hotspots');
       } else if (e.key === '4') {
-        handleTabChange('tests');
+        handleTabChange('graph');
       } else if (e.key === '5') {
-        handleTabChange('refactor');
+        handleTabChange('tests');
       } else if (e.key === '6') {
+        handleTabChange('refactor');
+      } else if (e.key === '7') {
         handleTabChange('migration');
       } else if (e.key === '/') {
         e.preventDefault();
@@ -200,14 +202,31 @@ const AppContent: React.FC = () => {
         Skip to content
       </a>
 
-      {/* Brand Header — Rendered on Landing Screen */}
-      {!project && <Header />}
+      {/* Navigation & Brand Header */}
+      {!project ? (
+        <Header />
+      ) : (
+        <ProjectNavBar
+          project={project}
+          files={files}
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          targetFile={targetFile}
+          onSelectFile={handleSelectFile}
+          onReset={reset}
+          onOpenImpactModal={handleOpenImpactModal}
+          hasDependencyLoops={hasDependencyLoops}
+          hasHumanReviewRequired={hasHumanReviewRequired}
+        />
+      )}
 
-      {/* Main Page Canvas with Warm Cream Background per DESIGN.md §4.1 */}
+      {/* Main Page Content without restrictive side margins */}
       <main
         id="main-content"
-        className={`flex-1 w-full max-w-[1240px] mx-auto px-3.5 sm:px-6 lg:px-8 ${
-          !project ? 'py-6 sm:py-8' : 'py-3 sm:py-4'
+        className={`flex-1 w-full ${
+          !project
+            ? 'max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8'
+            : 'px-3 sm:px-5 lg:px-6 py-3 sm:py-4'
         }`}
       >
         {!project ? (
@@ -236,59 +255,17 @@ const AppContent: React.FC = () => {
             )}
           </div>
         ) : (
-          <div className="space-y-3 sm:space-y-3.5">
-            {/* Cohesive In-Page Repository Context Hero & Collapsible Files */}
-            <ProjectResultsView
-              project={project}
-              files={files}
-              onReset={reset}
-              onSelectFile={handleSelectFile}
-            />
-
-            {/* Workspace Shell holding Tab Navigation & Active Views */}
-            <WorkspaceShell>
-              <TabNavigation
-                activeTab={activeTab}
-                onTabChange={handleTabChange}
-                targetFile={targetFile}
-                hasDependencyLoops={hasDependencyLoops}
-                hasHumanReviewRequired={hasHumanReviewRequired}
-              />
-
-              {/* Active Target File Context Bar with Primary Action */}
-              {targetFile && (
-                <div className="mb-3 px-3.5 py-2 bg-surface border border-line rounded-lg flex flex-wrap items-center justify-between gap-2.5 shadow-xs animate-[fade-down_120ms_ease-out]">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3">
-                      Selected File:
-                    </span>
-                    <span className="font-mono text-xs font-bold text-ink bg-tile px-2 py-0.5 rounded border border-line truncate max-w-[280px] sm:max-w-[400px]">
-                      {targetFile}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="indigo"
-                      size="sm"
-                      onClick={() => handleOpenImpactModal(targetFile)}
-                      icon={<Target className="w-3.5 h-3.5" />}
-                      className="text-xs font-bold shadow-xs"
-                    >
-                      What breaks if I change this?
-                    </Button>
-                    <button
-                      type="button"
-                      onClick={() => handleSelectFile('')}
-                      className="text-xs text-ink-3 hover:text-ink font-semibold ml-1 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo rounded-xs"
-                      title="Clear selected file"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="w-full">
+          <WorkspaceShell>
+            <div className="w-full">
+                {activeTab === 'overview' && (
+                  <ProjectOverviewTab
+                    project={project}
+                    files={files}
+                    onSelectFile={handleSelectFile}
+                    onNavigateTab={handleTabChange}
+                    onReset={reset}
+                  />
+                )}
                 {activeTab === 'explanation' && (
                   <ExplanationTab
                     projectId={project.project_id}
@@ -362,7 +339,6 @@ const AppContent: React.FC = () => {
                 )}
               </div>
             </WorkspaceShell>
-          </div>
         )}
       </main>
 
