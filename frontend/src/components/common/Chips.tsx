@@ -23,7 +23,7 @@ export const FilterChip: React.FC<FilterChipProps> = ({
       aria-pressed={active}
       className={`inline-flex items-center gap-1.5 h-7 px-3 rounded-pill text-[11px] font-bold uppercase tracking-[0.04em] transition-all duration-fast select-none border focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo focus-visible:outline-offset-2 ${
         active
-          ? 'bg-indigo-surface text-indigo-text border-indigo/30 shadow-xs'
+          ? 'bg-ink text-white border-transparent shadow-xs'
           : 'bg-surface text-ink-2 border-line hover:border-line-strong hover:bg-tile'
       } disabled:opacity-40 disabled:cursor-not-allowed`}
     >

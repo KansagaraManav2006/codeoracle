@@ -185,13 +185,6 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
   const topHotspot: HotspotItem =
     data.hotspots.find((h) => h.file === data.recommended_start_file) || data.hotspots[0];
 
-  const getScoreBadgeClass = (score: number) => {
-    if (score >= 70) return 'text-red bg-red-surface border-red-line';
-    if (score >= 45) return 'text-amber-strong bg-amber-surface border-amber/30';
-    if (score >= 20) return 'text-indigo-text bg-indigo-surface border-indigo/20';
-    return 'text-teal-strong bg-teal-surface border-teal/20';
-  };
-
   return (
     <div className="space-y-3.5 sm:space-y-4 animate-[fade-up_250ms_ease-out_both]" role="tabpanel" id="tabpanel-hotspots" aria-labelledby="tab-hotspots">
       {/* 1. Header Card & KPIs */}
@@ -300,31 +293,31 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
             </div>
           </div>
 
-          {/* 7 Required Metrics Grid for Top File */}
+          {/* 6 Required Metrics Grid for Top File */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-2 border-t border-white/15">
-            <div className="bg-white/5 rounded-md p-2.5 border border-white/10">
-              <span className="text-[10px] uppercase font-bold text-white/60 block">Hotspot Score</span>
-              <span className="font-mono text-sm font-bold text-amber-on-dark">{topHotspot.hotspot_score} / 100</span>
+            <div className="bg-white/5 rounded-md p-2.5 border border-white/10 flex flex-col justify-between h-[58px]">
+              <span className="text-[10px] uppercase font-bold text-white/60 tracking-wider leading-none block">Hotspot Score</span>
+              <span className="font-mono text-sm font-bold text-amber-on-dark leading-tight">{topHotspot.hotspot_score} / 100</span>
             </div>
-            <div className="bg-white/5 rounded-md p-2.5 border border-white/10">
-              <span className="text-[10px] uppercase font-bold text-white/60 block">Complexity</span>
-              <span className="font-mono text-sm font-bold text-white">{topHotspot.complexity} CC ({topHotspot.complexity_rating.toUpperCase()})</span>
+            <div className="bg-white/5 rounded-md p-2.5 border border-white/10 flex flex-col justify-between h-[58px]">
+              <span className="text-[10px] uppercase font-bold text-white/60 tracking-wider leading-none block">Complexity</span>
+              <span className="font-mono text-sm font-bold text-white leading-tight">{topHotspot.complexity} CC ({topHotspot.complexity_rating.toUpperCase()})</span>
             </div>
-            <div className="bg-white/5 rounded-md p-2.5 border border-white/10">
-              <span className="text-[10px] uppercase font-bold text-white/60 block">Lines of Code</span>
-              <span className="font-mono text-sm font-bold text-white">{formatNumber(topHotspot.lines_of_code)} LOC</span>
+            <div className="bg-white/5 rounded-md p-2.5 border border-white/10 flex flex-col justify-between h-[58px]">
+              <span className="text-[10px] uppercase font-bold text-white/60 tracking-wider leading-none block">Lines of Code</span>
+              <span className="font-mono text-sm font-bold text-white leading-tight">{formatNumber(topHotspot.lines_of_code)} LOC</span>
             </div>
-            <div className="bg-white/5 rounded-md p-2.5 border border-white/10">
-              <span className="text-[10px] uppercase font-bold text-white/60 block">Dependency Fan-In</span>
-              <span className="font-mono text-sm font-bold text-white">{topHotspot.dependency_fan_in} caller(s)</span>
+            <div className="bg-white/5 rounded-md p-2.5 border border-white/10 flex flex-col justify-between h-[58px]">
+              <span className="text-[10px] uppercase font-bold text-white/60 tracking-wider leading-none block">Dependency Fan-In</span>
+              <span className="font-mono text-sm font-bold text-white leading-tight">{topHotspot.dependency_fan_in} caller(s)</span>
             </div>
-            <div className="bg-white/5 rounded-md p-2.5 border border-white/10">
-              <span className="text-[10px] uppercase font-bold text-white/60 block">Warnings</span>
-              <span className="font-mono text-sm font-bold text-white">{topHotspot.warnings_count} finding(s)</span>
+            <div className="bg-white/5 rounded-md p-2.5 border border-white/10 flex flex-col justify-between h-[58px]">
+              <span className="text-[10px] uppercase font-bold text-white/60 tracking-wider leading-none block">Warnings</span>
+              <span className="font-mono text-sm font-bold text-white leading-tight">{topHotspot.warnings_count} finding(s)</span>
             </div>
-            <div className="bg-white/5 rounded-md p-2.5 border border-white/10">
-              <span className="text-[10px] uppercase font-bold text-white/60 block">Blast Radius</span>
-              <span className="font-mono text-sm font-bold text-white">{topHotspot.blast_radius} dependent(s)</span>
+            <div className="bg-white/5 rounded-md p-2.5 border border-white/10 flex flex-col justify-between h-[58px]">
+              <span className="text-[10px] uppercase font-bold text-white/60 tracking-wider leading-none block">Blast Radius</span>
+              <span className="font-mono text-sm font-bold text-white leading-tight">{topHotspot.blast_radius} dependent(s)</span>
             </div>
           </div>
 
@@ -384,13 +377,13 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
       )}
 
       {/* 3. Static-Score Disclaimer Banner */}
-      <section className="bg-amber-surface border border-amber/30 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+      <section className="bg-[#FEF9EE] border border-amber-line/70 rounded-xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
         <div className="flex items-start gap-3">
           <ShieldAlert className="w-5 h-5 text-amber-strong shrink-0 mt-0.5" />
           <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
               <strong className="text-ink font-semibold">Static Scoring Disclaimer (AST &amp; Callgraph Analysis)</strong>
-              <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-pill bg-surface border border-amber/40 text-amber-strong uppercase">
+              <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-pill bg-white border border-amber-line text-amber-strong uppercase shadow-xs">
                 NO GIT CHURN CLAIMED
               </span>
             </div>
@@ -401,7 +394,7 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
         </div>
 
         <div className="shrink-0 self-end sm:self-center">
-          <span className="px-2.5 py-1 rounded-md bg-surface border border-line text-[11px] font-mono text-ink-3">
+          <span className="px-2.5 py-1 rounded-md bg-white border border-amber-line/50 text-[11px] font-mono text-ink-2 shadow-xs">
             Engine: {data.summary.scoring_engine || 'static_v1'}
           </span>
         </div>
@@ -462,10 +455,10 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
                   setSortAsc(false);
                 }
               }}
-              className={`px-2.5 py-1 rounded-md font-sans text-xs shrink-0 flex items-center gap-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo ${
+              className={`h-7 px-3 rounded-pill font-sans text-[11px] font-bold uppercase tracking-[0.04em] shrink-0 flex items-center gap-1 transition-all select-none border focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo ${
                 sortField === s.id
-                  ? 'bg-ink text-white font-semibold'
-                  : 'bg-tile text-ink-2 hover:bg-track border border-line'
+                  ? 'bg-ink text-white font-semibold border-transparent shadow-xs'
+                  : 'bg-surface text-ink-2 border-line hover:border-line-strong hover:bg-tile'
               }`}
             >
               <span>{s.label}</span>
@@ -578,15 +571,15 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
                         {/* Risk Level */}
                         <td className="py-3.5 px-4">
                           <StatusTag
-                            status={item.risk_level === 'critical' ? 'critical' : item.risk_level === 'high' ? 'complex' : 'analyzed'}
+                            status={item.risk_level}
                             label={item.risk_level.toUpperCase()}
                           />
                         </td>
 
                         {/* Hotspot Score */}
                         <td className="py-3.5 px-4 text-center">
-                          <span className={`inline-flex items-center gap-1 font-mono font-bold px-2 py-0.5 rounded border ${getScoreBadgeClass(item.hotspot_score)}`}>
-                            <Flame className="w-3 h-3 fill-current" />
+                          <span className="inline-flex items-center gap-1 font-mono font-bold px-2 py-0.5 rounded-md bg-indigo-surface text-indigo-text border border-indigo/25 text-xs">
+                            <Flame className="w-3 h-3 text-indigo fill-current" />
                             {item.hotspot_score}
                           </span>
                         </td>

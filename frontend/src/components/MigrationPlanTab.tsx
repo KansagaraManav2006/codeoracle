@@ -319,7 +319,7 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
             <button
               type="button"
               onClick={() => onNavigateTab?.('graph')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-tile border border-line text-ink hover:border-indigo/40 transition-colors font-medium text-xs"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill bg-surface border border-line text-ink hover:bg-tile hover:border-line-strong transition-all font-medium text-xs shadow-xs"
             >
               <Network className="w-3.5 h-3.5 text-indigo" />
               <span>Dependency Map</span>
@@ -327,7 +327,7 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
             <button
               type="button"
               onClick={() => onNavigateTab?.('tests')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-tile border border-line text-ink hover:border-teal/40 transition-colors font-medium text-xs"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill bg-surface border border-line text-ink hover:bg-tile hover:border-line-strong transition-all font-medium text-xs shadow-xs"
             >
               <TestTube className="w-3.5 h-3.5 text-teal-strong" />
               <span>Safety Tests</span>
@@ -335,7 +335,7 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
             <button
               type="button"
               onClick={() => onNavigateTab?.('hotspots')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-tile border border-line text-ink hover:border-amber/40 transition-colors font-medium text-xs"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill bg-surface border border-line text-ink hover:bg-tile hover:border-line-strong transition-all font-medium text-xs shadow-xs"
             >
               <Flame className="w-3.5 h-3.5 text-amber-strong" />
               <span>Risk Hotspots</span>
@@ -343,7 +343,7 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
             <button
               type="button"
               onClick={() => onNavigateTab?.('refactor')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-tile border border-line text-ink hover:border-indigo/40 transition-colors font-medium text-xs"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill bg-surface border border-line text-ink hover:bg-tile hover:border-line-strong transition-all font-medium text-xs shadow-xs"
             >
               <Wand2 className="w-3.5 h-3.5 text-indigo" />
               <span>Modernization</span>
@@ -477,8 +477,18 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
       <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-line">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-md bg-amber-surface text-amber-strong flex items-center justify-center border border-amber/20 shrink-0">
-              <AlertTriangle className="w-4 h-4" strokeWidth={2} />
+            <div
+              className={`w-8 h-8 rounded-md flex items-center justify-center border shrink-0 ${
+                (plan.score_blockers?.length || 0) > 0
+                  ? 'bg-amber-surface text-amber-strong border-amber/20'
+                  : 'bg-teal-surface text-teal-strong border-teal/20'
+              }`}
+            >
+              {(plan.score_blockers?.length || 0) > 0 ? (
+                <AlertTriangle className="w-4 h-4" strokeWidth={2} />
+              ) : (
+                <ShieldCheck className="w-4 h-4" strokeWidth={2} />
+              )}
             </div>
             <div>
               <h3 className="font-display font-bold text-base text-ink">
@@ -913,13 +923,7 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
                           {wave.title}
                         </h4>
                         <StatusTag
-                          status={
-                            wave.risk_level === 'critical'
-                              ? 'critical'
-                              : wave.risk_level === 'high'
-                              ? 'complex'
-                              : 'analyzed'
-                          }
+                          status={wave.risk_level}
                           label={wave.risk_level.toUpperCase()}
                         />
                       </div>
@@ -1055,7 +1059,7 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
 
                 {/* Residual Risk Remaining Box */}
                 <div
-                  className={`p-3 rounded-lg border text-xs space-y-1 ${
+                  className={`p-3.5 rounded-lg border text-xs space-y-1 ${
                     residualRisk.riskLevel === 'high'
                       ? 'bg-amber-surface/40 border-amber-line/70'
                       : residualRisk.riskLevel === 'medium'
@@ -1063,10 +1067,18 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
                       : 'bg-teal-surface/30 border-teal/20'
                   }`}
                 >
-                  <div className="flex items-center gap-2 font-bold text-ink">
+                  <div className="flex items-center gap-2 font-bold text-ink flex-wrap">
                     <ShieldCheck className="w-3.5 h-3.5 text-teal-strong shrink-0" />
                     <span>Residual Risk Remaining After Wave {wave.wave}:</span>
-                    <span className="text-[10px] px-2 py-0.2 rounded font-mono uppercase tracking-wider bg-surface border border-line">
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-pill font-sans uppercase tracking-wider font-bold border ${
+                        residualRisk.riskLevel === 'high'
+                          ? 'bg-amber-surface text-amber-text border-amber-line/60'
+                          : residualRisk.riskLevel === 'medium'
+                          ? 'bg-amber-surface/70 text-amber-text border-amber-line/40'
+                          : 'bg-teal-surface text-teal-text border-teal/25'
+                      }`}
+                    >
                       {residualRisk.label}
                     </span>
                   </div>

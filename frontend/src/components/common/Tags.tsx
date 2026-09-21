@@ -83,22 +83,25 @@ export const StatusTag: React.FC<StatusTagProps> = ({ status, label, className =
   let defaultLabel = (label || status).toUpperCase();
 
   if (norm === 'critical' || norm === 'complexity-critical') {
-    tagClass = 'bg-red-strong text-white font-bold';
+    tagClass = 'bg-red-strong text-white border border-transparent font-bold';
     defaultLabel = label || (norm === 'critical' ? 'CRITICAL' : 'COMPLEXITY: CRITICAL');
   } else if (norm === 'high' || norm === 'complexity-high' || norm === 'high risk') {
-    tagClass = 'bg-red-surface text-red-text font-bold';
+    tagClass = 'bg-red-surface text-red-text border border-red-line/40 font-bold';
     defaultLabel = label || (norm === 'high' ? 'HIGH RISK' : 'COMPLEXITY: HIGH');
   } else if (norm === 'medium' || norm === 'complexity-medium') {
-    tagClass = 'bg-amber-surface text-amber-text font-bold';
+    tagClass = 'bg-amber-surface text-amber-text border border-amber-line/40 font-bold';
     defaultLabel = label || (norm === 'medium' ? 'MEDIUM' : 'COMPLEXITY: MEDIUM');
   } else if (norm === 'low' || norm === 'complexity-low') {
-    tagClass = 'bg-teal-surface text-teal-text font-bold';
+    tagClass = 'bg-slate-surface text-slate-text border border-slate/25 font-bold';
     defaultLabel = label || (norm === 'low' ? 'LOW' : 'COMPLEXITY: LOW');
   } else if (norm === 'analyzed') {
-    tagClass = 'bg-teal-surface text-teal-text font-bold';
-    defaultLabel = 'ANALYZED';
+    tagClass = 'bg-slate-surface text-slate-text border border-slate/25 font-bold';
+    defaultLabel = label || 'ANALYZED';
+  } else if (norm === 'verified' || norm === 'ready') {
+    tagClass = 'bg-teal-surface text-teal-text border border-teal/30 font-bold';
+    defaultLabel = label || 'READY';
   } else if (norm === 'project-view') {
-    tagClass = 'bg-indigo-surface text-indigo-text font-bold';
+    tagClass = 'bg-indigo-surface text-indigo-text border border-indigo/25 font-bold';
     defaultLabel = 'PROJECT VIEW';
   }
 

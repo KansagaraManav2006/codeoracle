@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, lazy, Suspense } from 'react';
 import Header from './components/Header';
 import WorkspaceShell from './components/WorkspaceShell';
 import ProjectNavBar from './components/ProjectNavBar';
@@ -18,6 +18,8 @@ import ChangeImpactModal from './components/common/ChangeImpactModal';
 import { useJobPoller } from './hooks/useJobPoller';
 import { TabType } from './types';
 
+const NeuralMapPage = lazy(() => import('./components/NeuralMap/NeuralMapPage'));
+
 const AppContent: React.FC = () => {
   // Sync tab with URL query param '?tab=' per DESIGN.md §11.3
   const getInitialTab = (): TabType => {
@@ -28,6 +30,7 @@ const AppContent: React.FC = () => {
       t === 'explanation' ||
       t === 'hotspots' ||
       t === 'graph' ||
+      t === 'neural-map' ||
       t === 'tests' ||
       t === 'refactor' ||
       t === 'migration'
@@ -136,12 +139,13 @@ const AppContent: React.FC = () => {
   }, [project?.project_id]);
 
   // Global keyboard shortcuts per DESIGN.md §11.3:
-  // 1-6: switch tabs, /: focus search, c: copy code, ?: shortcuts modal
+  // 1-8: switch tabs, /: focus search, c: copy code, ?: shortcuts modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (
         target.tagName === 'INPUT' ||
+        target.tagName === 'SELECT' ||
         target.tagName === 'TEXTAREA' ||
         target.isContentEditable
       ) {
@@ -160,10 +164,12 @@ const AppContent: React.FC = () => {
       } else if (e.key === '4') {
         handleTabChange('graph');
       } else if (e.key === '5') {
-        handleTabChange('tests');
+        handleTabChange('neural-map');
       } else if (e.key === '6') {
-        handleTabChange('refactor');
+        handleTabChange('tests');
       } else if (e.key === '7') {
+        handleTabChange('refactor');
+      } else if (e.key === '8') {
         handleTabChange('migration');
       } else if (e.key === '/') {
         e.preventDefault();
@@ -295,6 +301,16 @@ const AppContent: React.FC = () => {
                     onNavigateTab={handleTabChange}
                     onSelectFile={handleSelectFile}
                   />
+                )}
+                {activeTab === 'neural-map' && (
+                  <Suspense fallback={<p role="status">Loading Neural Map…</p>}>
+                    <NeuralMapPage key={project.project_id} projectId={project.project_id} targetFile={targetFile}
+                      onNavigate={(tab, file) => {
+                        setTargetFile(file);
+                        setActiveTab(tab);
+                        updateUrlParams(tab, file);
+                      }} />
+                  </Suspense>
                 )}
                 {activeTab === 'tests' && (
                   <GeneratedTestsTab

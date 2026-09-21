@@ -592,12 +592,12 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
       const isConnectedToSelected =
         Boolean(selectedNodeId) && (e.source === selectedNodeId || e.target === selectedNodeId);
 
-      let stroke = 'rgba(77, 80, 215, 0.7)';
+      let stroke = 'rgba(29, 78, 216, 0.75)';
       let strokeWidth = 1.75;
       let strokeDasharray: string | undefined = undefined;
       let opacity = selectedNodeId ? (isConnectedToSelected ? 1 : 0.12) : 0.75;
       let label: string | undefined = undefined;
-      let markerColor = '#4D50D7';
+      let markerColor = '#1D4ED8';
 
       if (isCycle) {
         stroke = '#DC2626';
@@ -606,11 +606,11 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
         opacity = 1;
         markerColor = '#DC2626';
       } else if (e.is_type_only) {
-        stroke = '#7862DE'; // Type-only import (violet)
+        stroke = '#60A5FA'; // Type-only import (light blue dashed)
         strokeWidth = 1.5;
         strokeDasharray = '4 4';
         label = 'type';
-        markerColor = '#7862DE';
+        markerColor = '#60A5FA';
         opacity = selectedNodeId ? (isConnectedToSelected ? 0.95 : 0.12) : 0.65;
       } else if (e.type === 'require') {
         stroke = '#0D9488'; // Dynamic require (teal)
@@ -619,9 +619,9 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
         label = 'require';
         opacity = selectedNodeId ? (isConnectedToSelected ? 1 : 0.12) : 0.7;
       } else if (isConnectedToSelected) {
-        stroke = '#4D50D7';
+        stroke = '#1D4ED8';
         strokeWidth = 2.5;
-        markerColor = '#4D50D7';
+        markerColor = '#1D4ED8';
         opacity = 1;
       }
 
@@ -850,12 +850,16 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
         {/* 6 Stat tiles */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-5">
           <StatTile label="Files shown" value={formatNumber(filteredNodes.length)} color="ink" />
-          <StatTile label="Connections" value={formatNumber(filteredEdges.length)} color="indigo" />
-          <StatTile label="Dependency loops" value={formatNumber(cycleCount)} color="red" />
+          <StatTile label="Connections" value={formatNumber(filteredEdges.length)} color="ink" />
+          <StatTile
+            label="Dependency loops"
+            value={formatNumber(cycleCount)}
+            color={cycleCount > 0 ? 'red' : 'ink'}
+          />
           <StatTile
             label="Standalone files"
             value={formatNumber(graph.summary.orphan_count || 0)}
-            color="amber"
+            color="ink"
           />
           <StatTile
             label="Entry points"
@@ -865,166 +869,179 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
           <StatTile
             label="Needs review"
             value={formatNumber(graph.summary.high_complexity_module_count || 0)}
-            color="amber"
+            color={(graph.summary.high_complexity_module_count || 0) > 0 ? 'amber' : 'ink'}
           />
         </div>
       </section>
 
       {/* 2. Subgraph Views & Layout Toolbar */}
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 bg-surface border border-line rounded-lg p-3 sm:px-4 shadow-1">
-        {/* Search */}
-        <SearchField
-          id="graph-search"
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder="Search files and modules…"
-          resultCount={{ current: filteredNodes.length, total: graph.nodes.length, unit: 'nodes' }}
-          className="w-full xl:w-64"
-        />
+      <div className="bg-surface border border-line rounded-lg p-3 sm:px-4 shadow-1 space-y-3">
+        {/* Row 1: Search & Subgraph Filters */}
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+          <SearchField
+            id="graph-search"
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search files and modules…"
+            resultCount={{ current: filteredNodes.length, total: graph.nodes.length, unit: 'nodes' }}
+            className="w-full xl:w-72"
+          />
 
-        {/* Subgraph Filter Chips */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-xs font-bold text-ink-2 flex items-center gap-1 mr-1">
-            <Filter className="w-3 h-3 text-indigo" />
-            Filter:
-          </span>
-          <FilterChip
-            label="ALL"
-            active={filterMode === 'all'}
-            onClick={() => setFilterMode('all')}
-          />
-          <FilterChip
-            label="ENTRY POINTS"
-            active={filterMode === 'entry_points'}
-            onClick={() => setFilterMode('entry_points')}
-          />
-          <FilterChip
-            label="HIGH COMPLEXITY"
-            active={filterMode === 'high_complexity'}
-            onClick={() => setFilterMode('high_complexity')}
-          />
-          {cycleCount > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs font-bold text-ink-2 flex items-center gap-1 mr-1">
+              <Filter className="w-3.5 h-3.5 text-indigo" />
+              Filter:
+            </span>
             <FilterChip
-              label={`CYCLES (${cycleCount})`}
-              active={filterMode === 'cycles'}
-              onClick={() => setFilterMode('cycles')}
+              label="ALL"
+              active={filterMode === 'all'}
+              onClick={() => setFilterMode('all')}
             />
-          )}
-          <FilterChip
-            label={selectedNodeId ? `UPSTREAM (${upstreamNodeIds.size - 1})` : 'UPSTREAM'}
-            active={filterMode === 'upstream'}
-            onClick={() => {
-              if (!selectedNodeId) {
-                showToast('Select a node first to isolate its upstream callers.', 'info');
-              } else {
-                setFilterMode(filterMode === 'upstream' ? 'all' : 'upstream');
-              }
-            }}
-          />
-          <FilterChip
-            label={selectedNodeId ? `DOWNSTREAM (${downstreamNodeIds.size - 1})` : 'DOWNSTREAM'}
-            active={filterMode === 'downstream'}
-            onClick={() => {
-              if (!selectedNodeId) {
-                showToast('Select a node first to isolate its downstream dependencies.', 'info');
-              } else {
-                setFilterMode(filterMode === 'downstream' ? 'all' : 'downstream');
-              }
-            }}
-          />
+            <FilterChip
+              label="ENTRY POINTS"
+              active={filterMode === 'entry_points'}
+              onClick={() => setFilterMode('entry_points')}
+            />
+            <FilterChip
+              label="HIGH COMPLEXITY"
+              active={filterMode === 'high_complexity'}
+              onClick={() => setFilterMode('high_complexity')}
+            />
+            {cycleCount > 0 && (
+              <FilterChip
+                label={`CYCLES (${cycleCount})`}
+                active={filterMode === 'cycles'}
+                onClick={() => setFilterMode('cycles')}
+              />
+            )}
+            <FilterChip
+              label={selectedNodeId ? `UPSTREAM (${upstreamNodeIds.size - 1})` : 'UPSTREAM'}
+              active={filterMode === 'upstream'}
+              onClick={() => {
+                if (!selectedNodeId) {
+                  showToast('Select a node first to isolate its upstream callers.', 'info');
+                } else {
+                  setFilterMode(filterMode === 'upstream' ? 'all' : 'upstream');
+                }
+              }}
+            />
+            <FilterChip
+              label={selectedNodeId ? `DOWNSTREAM (${downstreamNodeIds.size - 1})` : 'DOWNSTREAM'}
+              active={filterMode === 'downstream'}
+              onClick={() => {
+                if (!selectedNodeId) {
+                  showToast('Select a node first to isolate its downstream dependencies.', 'info');
+                } else {
+                  setFilterMode(filterMode === 'downstream' ? 'all' : 'downstream');
+                }
+              }}
+            />
+          </div>
         </div>
 
-        {/* Mode Controls & Toggles */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Edge Filter Segmented Control */}
-          <SegmentedControl<EdgeFilterType>
-            options={[
-              { id: 'all', label: 'ALL EDGES' },
-              { id: 'runtime', label: 'RUNTIME' },
-              { id: 'require', label: 'REQUIRE' },
-              { id: 'type', label: 'TYPE-ONLY' },
-            ]}
-            value={edgeFilter}
-            onChange={setEdgeFilter}
-          />
+        {/* Row 2: Edge Controls + Layout Controls (Separated with distinct groups and dividers) */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-2.5 border-t border-line">
+          {/* Edge Controls Group */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-bold text-ink-2 flex items-center gap-1 mr-1">
+              <Workflow className="w-3.5 h-3.5 text-indigo" />
+              Edge Type:
+            </span>
+            <SegmentedControl<EdgeFilterType>
+              options={[
+                { id: 'all', label: 'ALL EDGES' },
+                { id: 'runtime', label: 'RUNTIME' },
+                { id: 'require', label: 'REQUIRE' },
+                { id: 'type', label: 'TYPE-ONLY' },
+              ]}
+              value={edgeFilter}
+              onChange={setEdgeFilter}
+            />
 
-          <ToggleChip
-            label={includeExternal ? 'EXT: ON' : 'EXT: OFF'}
-            active={includeExternal}
-            tone="slate"
-            onToggle={() => setIncludeExternal((v) => !v)}
-          />
+            <ToggleChip
+              label={includeExternal ? 'EXT: ON' : 'EXT: OFF'}
+              active={includeExternal}
+              tone="slate"
+              onToggle={() => setIncludeExternal((v) => !v)}
+            />
 
-          <ToggleChip
-            label={highlightCycles ? 'CYCLES: ON' : 'CYCLES: OFF'}
-            active={highlightCycles}
-            tone="red"
-            onToggle={() => setHighlightCycles((v) => !v)}
-          />
-
-          {/* Layout Mode Selector */}
-          <div className="inline-flex rounded-md border border-line bg-panel p-0.5">
-            <button
-              type="button"
-              onClick={() => {
-                setGraphLayout('architecture');
-                setFitTrigger((v) => v + 1);
-              }}
-              className={`px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1.5 transition-colors ${
-                graphLayout === 'architecture'
-                  ? 'bg-surface text-indigo shadow-xs'
-                  : 'text-ink-3 hover:text-ink'
-              }`}
-              title="Architecture Overview Layout (Layered Tiers)"
-            >
-              <Layers className="w-3.5 h-3.5" />
-              Overview
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setGraphLayout('standard');
-                setFitTrigger((v) => v + 1);
-              }}
-              className={`px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1.5 transition-colors ${
-                graphLayout === 'standard'
-                  ? 'bg-surface text-indigo shadow-xs'
-                  : 'text-ink-3 hover:text-ink'
-              }`}
-              title="Standard Grid Layout"
-            >
-              <Workflow className="w-3.5 h-3.5" />
-              Grid
-            </button>
-            <button
-              type="button"
-              onClick={handleToggleFocusMode}
-              className={`px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1.5 transition-colors ${
-                graphLayout === 'focus'
-                  ? 'bg-surface text-indigo shadow-xs'
-                  : 'text-ink-3 hover:text-ink'
-              }`}
-              title="Selected-Node Focus Mode (3-Column Neighborhood Pipeline)"
-            >
-              <Eye className="w-3.5 h-3.5" />
-              Focus
-            </button>
+            <ToggleChip
+              label={highlightCycles ? 'CYCLES: ON' : 'CYCLES: OFF'}
+              active={highlightCycles}
+              tone={cycleCount > 0 ? 'red' : 'indigo'}
+              onToggle={() => setHighlightCycles((v) => !v)}
+            />
           </div>
 
-          <Button
-            variant={viewMode === 'list' ? 'indigo' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode((m) => (m === 'graph' ? 'list' : 'graph'))}
-            icon={<List className="w-3.5 h-3.5" strokeWidth={1.75} />}
-          >
-            {viewMode === 'list' ? 'Graph View' : 'List View'}
-          </Button>
+          {/* View Mode & Layout Group */}
+          <div className="flex flex-wrap items-center gap-2 lg:pl-4 lg:border-l lg:border-line">
+            <span className="text-xs font-bold text-ink-2 flex items-center gap-1 mr-1">
+              <Layers className="w-3.5 h-3.5 text-indigo" />
+              View Mode:
+            </span>
+            <div className="inline-flex rounded-md border border-line bg-panel p-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setGraphLayout('architecture');
+                  setFitTrigger((v) => v + 1);
+                }}
+                className={`px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1.5 transition-colors ${
+                  graphLayout === 'architecture'
+                    ? 'bg-surface text-indigo shadow-xs'
+                    : 'text-ink-3 hover:text-ink'
+                }`}
+                title="Architecture Overview Layout (Layered Tiers)"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                Overview
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setGraphLayout('standard');
+                  setFitTrigger((v) => v + 1);
+                }}
+                className={`px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1.5 transition-colors ${
+                  graphLayout === 'standard'
+                    ? 'bg-surface text-indigo shadow-xs'
+                    : 'text-ink-3 hover:text-ink'
+                }`}
+                title="Standard Grid Layout"
+              >
+                <Workflow className="w-3.5 h-3.5" />
+                Grid
+              </button>
+              <button
+                type="button"
+                onClick={handleToggleFocusMode}
+                className={`px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1.5 transition-colors ${
+                  graphLayout === 'focus'
+                    ? 'bg-surface text-indigo shadow-xs'
+                    : 'text-ink-3 hover:text-ink'
+                }`}
+                title="Selected-Node Focus Mode (3-Column Neighborhood Pipeline)"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                Focus
+              </button>
+            </div>
+
+            <Button
+              variant={viewMode === 'list' ? 'indigo' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode((m) => (m === 'graph' ? 'list' : 'graph'))}
+              icon={<List className="w-3.5 h-3.5" strokeWidth={1.75} />}
+            >
+              {viewMode === 'list' ? 'Graph View' : 'List View'}
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* 3. Main Workspace: Graph Canvas vs List View */}
       {viewMode === 'graph' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_310px] gap-4 items-start">
+        <div className={`grid grid-cols-1 ${selectedNodeData ? 'lg:grid-cols-[1fr_310px]' : 'lg:grid-cols-[1fr_220px]'} gap-4 items-start`}>
           {/* React Flow Canvas Container */}
           <div className="relative w-full h-[580px] sm:h-[650px] rounded-lg border border-line overflow-hidden graph-dot-grid shadow-inner">
             {/* Large Graph Info Banner */}
@@ -1121,7 +1138,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
 
                 {/* Collapsible Edge-Type & Node Legend */}
                 <Panel position="bottom-left" className="!m-3">
-                  <div className="bg-surface/95 backdrop-blur-md border border-line rounded-lg p-2.5 shadow-2 max-w-md text-xs">
+                  <div className="bg-surface/98 backdrop-blur-md border border-line-strong/60 rounded-lg p-3 shadow-lg max-w-md text-xs">
                     <div className="flex items-center justify-between gap-3 pb-1.5 border-b border-line/60 mb-2">
                       <span className="font-bold text-[11px] uppercase tracking-wider text-ink-2 flex items-center gap-1.5">
                         <Compass className="w-3.5 h-3.5 text-indigo" /> Graph Legend
@@ -1145,7 +1162,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                           </span>
                           <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-ink-2 font-sans">
                             <span className="flex items-center gap-1.5">
-                              <span className="w-2.5 h-2.5 rounded-xs border-l-2 border-l-teal bg-surface border border-line" />
+                              <span className="w-2.5 h-2.5 rounded-xs border-l-[3px] border-l-teal bg-surface border border-line" />
                               Entry Point
                             </span>
                             <span className="flex items-center gap-1.5">
@@ -1157,7 +1174,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                               High Complexity
                             </span>
                             <span className="flex items-center gap-1.5">
-                              <span className="w-2.5 h-2.5 rounded-xs bg-red-surface border border-red-line" />
+                              <span className="w-2.5 h-2.5 rounded-xs bg-red-surface/95 border-2 border-red-line ring-1 ring-red/30" />
                               Cycle Member
                             </span>
                             <span className="flex items-center gap-1.5 col-span-2">
@@ -1182,7 +1199,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                               Dynamic Require
                             </span>
                             <span className="flex items-center gap-1.5">
-                              <span className="w-3 h-0.5 border-t border-dashed border-[#7862DE]" />
+                              <span className="w-3 h-0.5 border-t border-dashed border-blue-400" />
                               Type-Only Import
                             </span>
                             <span className="flex items-center gap-1.5">
@@ -1220,7 +1237,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                     )
                       return '#D97706';
                     if (node.data?.isExternal) return '#94A3B8';
-                    return '#4D50D7';
+                    return '#1D4ED8';
                   }}
                   maskColor="rgba(231, 224, 211, 0.45)"
                   zoomable
@@ -1429,11 +1446,13 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                   </div>
                 </div>
               ) : (
-                <div className="py-12 px-2 text-center text-ink-4 flex flex-col items-center">
-                  <Info className="w-8 h-8 mb-2.5 stroke-1 text-ink-3" />
-                  <h4 className="text-xs font-bold text-ink mb-1">No Node Selected</h4>
-                  <p className="text-xs text-ink-3 font-sans leading-relaxed max-w-xs">
-                    Click any node on the graph canvas to inspect callers, runtime vs type dependencies, cycle loops, and run Change-Impact analysis.
+                <div className="py-8 px-2 text-center text-ink-3 flex flex-col items-center justify-center my-auto">
+                  <div className="w-10 h-10 rounded-full bg-tile border border-line flex items-center justify-center mb-3 text-ink-3 shadow-xs">
+                    <Info className="w-5 h-5" />
+                  </div>
+                  <h4 className="text-xs font-bold text-ink mb-1.5">No Node Selected</h4>
+                  <p className="text-[11px] text-ink-3 font-sans leading-relaxed">
+                    Click any module on the canvas to inspect callers, runtime vs type dependencies, circular loops, and run Change-Impact analysis.
                   </p>
                 </div>
               )}

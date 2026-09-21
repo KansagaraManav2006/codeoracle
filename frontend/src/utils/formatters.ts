@@ -101,7 +101,7 @@ export function getScoreBand(score: number): ScoreBandInfo {
       color: 'teal',
       barFill: 'var(--teal)',
       textColor: 'var(--teal-strong)',
-      strokeColor: '#378C7B',
+      strokeColor: '#0D9488',
       surfaceClass: 'bg-surface border-line',
       isRisk: false,
     };
@@ -112,7 +112,7 @@ export function getScoreBand(score: number): ScoreBandInfo {
       color: 'amber',
       barFill: 'var(--amber-strong)',
       textColor: 'var(--amber-text)',
-      strokeColor: '#A9761F',
+      strokeColor: '#D97706',
       surfaceClass: 'bg-surface border-line',
       isRisk: false,
     };
@@ -122,7 +122,7 @@ export function getScoreBand(score: number): ScoreBandInfo {
     color: 'red',
     barFill: 'var(--red)',
     textColor: 'var(--red-text)',
-    strokeColor: '#C1625D',
+    strokeColor: '#DC2626',
     surfaceClass: 'bg-red-wash border-red-line',
     isRisk: true,
   };

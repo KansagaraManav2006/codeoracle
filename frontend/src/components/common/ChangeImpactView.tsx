@@ -566,7 +566,7 @@ export const ChangeImpactView: React.FC<ChangeImpactViewProps> = ({
             onFocusInGraph?.(impact.relative_path);
             onNavigateTab?.('graph');
           }}
-          icon={<Network className="w-3.5 h-3.5" />}
+          icon={<Network className="w-3.5 h-3.5 text-indigo" />}
         >
           Inspect in Dependency Map
         </Button>
@@ -577,7 +577,7 @@ export const ChangeImpactView: React.FC<ChangeImpactViewProps> = ({
             onSelectFile?.(impact.relative_path);
             onNavigateTab?.('tests');
           }}
-          icon={<TestTube className="w-3.5 h-3.5" />}
+          icon={<TestTube className="w-3.5 h-3.5 text-teal-strong" />}
         >
           Generate Tests
         </Button>
@@ -599,7 +599,7 @@ export const ChangeImpactView: React.FC<ChangeImpactViewProps> = ({
             onSelectFile?.(impact.relative_path);
             onNavigateTab?.('refactor');
           }}
-          icon={<Wand2 className="w-3.5 h-3.5" />}
+          icon={<Wand2 className="w-3.5 h-3.5 text-indigo" />}
         >
           Review Modernization
         </Button>
@@ -610,7 +610,7 @@ export const ChangeImpactView: React.FC<ChangeImpactViewProps> = ({
             onSelectFile?.(impact.relative_path);
             onNavigateTab?.('migration');
           }}
-          icon={<Map className="w-3.5 h-3.5" />}
+          icon={<Map className="w-3.5 h-3.5 text-indigo" />}
         >
           Open Impact &amp; Plan
         </Button>

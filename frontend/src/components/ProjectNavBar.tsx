@@ -4,6 +4,7 @@ import {
   RotateCcw,
   BookOpen,
   Flame,
+  Network,
   Workflow,
   TestTube,
   Wand2,
@@ -63,6 +64,7 @@ export const ProjectNavBar: React.FC<ProjectNavBarProps> = ({
       icon: Workflow,
       statusDot: hasDependencyLoops ? 'red' : undefined,
     },
+    { id: 'neural-map', label: 'Neural Map', icon: Network },
     { id: 'tests', label: 'Safety Tests', icon: TestTube },
     { id: 'refactor', label: 'Modernization', icon: Wand2 },
     {
@@ -261,7 +263,7 @@ export const ProjectNavBar: React.FC<ProjectNavBarProps> = ({
           <div className="hidden lg:flex items-center gap-2 text-[11px] text-ink-4 font-sans ml-auto">
             <span>Shortcuts:</span>
             <kbd className="px-1.5 py-0.5 rounded bg-surface border border-line font-mono text-[10px] text-ink-3">
-              1-7
+              1-8
             </kbd>
             <span>Tabs</span>
             <span className="text-ink-4">·</span>

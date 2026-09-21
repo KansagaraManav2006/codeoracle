@@ -686,16 +686,16 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
             </div>
 
             {/* 10-Item Structured Comparison Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-4">
               {/* 1 & 2. Tests Before vs After */}
-              <div className="bg-tile border border-line rounded-lg p-3 space-y-1">
+              <div className="bg-tile border border-line rounded-lg p-4 flex flex-col justify-between min-h-[92px]">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
                   1. Tests Before vs After
                 </span>
-                <p className="font-mono text-sm font-bold text-ink">
+                <p className="font-mono text-sm font-bold text-ink mt-1">
                   {verification.baseline_tests.passed_tests} → {verification.after_tests.passed_tests} passed
                 </p>
-                <div className="flex items-center justify-between text-[11px] text-ink-3">
+                <div className="flex items-center justify-between text-[11px] text-ink-3 mt-1 pt-1 border-t border-line/40">
                   <span>Failed: {verification.after_tests.failed_tests}</span>
                   <span
                     className={`font-bold ${
@@ -708,122 +708,124 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
               </div>
 
               {/* 3. Syntax Status */}
-              <div className="bg-tile border border-line rounded-lg p-3 space-y-1">
+              <div className="bg-tile border border-line rounded-lg p-4 flex flex-col justify-between min-h-[92px]">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
                   2. Syntax AST Status
                 </span>
                 <p
-                  className={`font-mono text-sm font-bold ${
+                  className={`font-mono text-sm font-bold mt-1 ${
                     verification.syntax_status === 'passed' ? 'text-teal-strong' : 'text-red'
                   }`}
                 >
                   {verification.syntax_status === 'passed' ? 'AST Validated' : 'Syntax Error'}
                 </p>
-                <p className="text-[11px] text-ink-3">
+                <p className="text-[11px] text-ink-3 mt-1 pt-1 border-t border-line/40">
                   {verification.changed_files.length} modified file(s) parsed
                 </p>
               </div>
 
               {/* 4. Coverage Before vs After */}
-              <div className="bg-tile border border-line rounded-lg p-3 space-y-1">
+              <div className="bg-tile border border-line rounded-lg p-4 flex flex-col justify-between min-h-[92px]">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
                   3. Line Coverage
                 </span>
-                <p className="font-mono text-sm font-bold text-ink">
+                <p className="font-mono text-sm font-bold text-ink mt-1">
                   {verification.after_tests.line_coverage != null
                     ? `${Math.round(verification.after_tests.line_coverage)}% line`
                     : 'Instrumented'}
                 </p>
-                <p className="text-[11px] text-ink-3">
+                <p className="text-[11px] text-ink-3 mt-1 pt-1 border-t border-line/40">
                   Baseline: {verification.baseline_tests.line_coverage != null ? `${Math.round(verification.baseline_tests.line_coverage)}%` : 'Unmeasured'}
                 </p>
               </div>
 
               {/* 5. New Dependency Cycles */}
-              <div className="bg-tile border border-line rounded-lg p-3 space-y-1">
+              <div className="bg-tile border border-line rounded-lg p-4 flex flex-col justify-between min-h-[92px]">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
                   4. Dependency Cycles
                 </span>
                 <p
-                  className={`font-mono text-sm font-bold ${
+                  className={`font-mono text-sm font-bold mt-1 ${
                     verification.metrics.new_cycles === 0 ? 'text-teal-strong' : 'text-red'
                   }`}
                 >
                   {verification.metrics.new_cycles} new cycles
                 </p>
-                <p className="text-[11px] text-ink-3">
+                <p className="text-[11px] text-ink-3 mt-1 pt-1 border-t border-line/40">
                   Total: {verification.metrics.cycles_after} (base: {verification.metrics.cycles_before})
                 </p>
               </div>
 
               {/* 6. Resolved Findings */}
-              <div className="bg-tile border border-line rounded-lg p-3 space-y-1">
+              <div className="bg-tile border border-line rounded-lg p-4 flex flex-col justify-between min-h-[92px]">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
                   5. Resolved Findings
                 </span>
-                <p className="font-mono text-sm font-bold text-teal-strong">
+                <p className="font-mono text-sm font-bold text-teal-strong mt-1">
                   {verification.metrics.resolved_warnings_count} resolved
                 </p>
-                {verification.metrics.resolved_warnings.length > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowResolvedFindings((v) => !v)}
-                    className="text-[11px] text-indigo hover:underline flex items-center gap-0.5"
-                  >
-                    <span>{showResolvedFindings ? 'Hide list' : 'View list'}</span>
-                    {showResolvedFindings ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                  </button>
-                ) : (
-                  <p className="text-[11px] text-ink-3">Zero findings to resolve</p>
-                )}
+                <div className="mt-1 pt-1 border-t border-line/40">
+                  {verification.metrics.resolved_warnings.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowResolvedFindings((v) => !v)}
+                      className="text-[11px] text-indigo hover:underline flex items-center gap-0.5"
+                    >
+                      <span>{showResolvedFindings ? 'Hide list' : 'View list'}</span>
+                      {showResolvedFindings ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </button>
+                  ) : (
+                    <p className="text-[11px] text-ink-3">Zero findings to resolve</p>
+                  )}
+                </div>
               </div>
 
               {/* 7. Readiness Before */}
-              <div className="bg-tile border border-line rounded-lg p-3 space-y-1">
+              <div className="bg-tile border border-line rounded-lg p-4 flex flex-col justify-between min-h-[92px]">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
                   6. Readiness Before
                 </span>
-                <p className="font-mono text-sm font-bold text-ink">
+                <p className="font-mono text-sm font-bold text-ink mt-1">
                   {verification.metrics.readiness_before} / 100
                 </p>
-                <p className="text-[11px] text-ink-3">Baseline readiness score</p>
+                <p className="text-[11px] text-ink-3 mt-1 pt-1 border-t border-line/40">Baseline readiness score</p>
               </div>
 
               {/* 8. Readiness After */}
-              <div className="bg-tile border border-line rounded-lg p-3 space-y-1">
+              <div className="bg-tile border border-line rounded-lg p-4 flex flex-col justify-between min-h-[92px]">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
                   7. Readiness After
                 </span>
-                <p className="font-mono text-sm font-bold text-ink">
+                <p className="font-mono text-sm font-bold text-ink mt-1">
                   {verification.metrics.readiness_after} / 100
                 </p>
-                <p className="text-[11px] text-ink-3">Re-analyzed post-refactor</p>
+                <p className="text-[11px] text-ink-3 mt-1 pt-1 border-t border-line/40">Re-analyzed post-refactor</p>
               </div>
 
               {/* 9. Readiness Delta */}
-              <div className="bg-tile border border-line rounded-lg p-3 space-y-1">
+              <div className="bg-tile border border-line rounded-lg p-4 flex flex-col justify-between min-h-[92px]">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
                   8. Readiness Delta
                 </span>
                 <p
-                  className={`font-mono text-sm font-bold ${
+                  className={`font-mono text-sm font-bold mt-1 ${
                     verification.metrics.readiness_delta >= 0 ? 'text-teal-strong' : 'text-red'
                   }`}
                 >
                   {verification.metrics.readiness_delta >= 0 ? '+' : ''}
                   {verification.metrics.readiness_delta} pts
                 </p>
-                <p className="text-[11px] font-semibold text-teal-strong">
+                <p className="text-[11px] font-semibold text-teal-strong mt-1 pt-1 border-t border-line/40">
                   {verification.metrics.readiness_delta >= 0 ? 'Score improved' : 'Decreased'}
                 </p>
               </div>
 
               {/* 10. Verified Status */}
-              <div className="bg-tile border border-line rounded-lg p-3 space-y-1 col-span-2">
+              <div className="bg-tile border border-line rounded-lg p-4 flex flex-col justify-between min-h-[92px] col-span-2">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
                   9 &amp; 10. Verification Outcome
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 mt-1">
                   <span
                     className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${
                       verification.verified
@@ -839,7 +841,7 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
                       : 'Regression / Syntax Issues'}
                   </span>
                 </div>
-                <p className="text-[10px] text-ink-4">
+                <p className="text-[10px] text-ink-4 mt-1 pt-1 border-t border-line/40">
                   Original repository source files remained 100% untouched.
                 </p>
               </div>

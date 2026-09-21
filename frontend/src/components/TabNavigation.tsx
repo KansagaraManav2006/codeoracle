@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { BookOpen, Flame, Workflow, TestTube, Wand2, Map, LucideIcon, FolderGit2 } from 'lucide-react';
+import { BookOpen, Flame, Network, Workflow, TestTube, Wand2, Map, LucideIcon, FolderGit2 } from 'lucide-react';
 import { TabType } from '../types';
 
 interface TabNavigationProps {
@@ -37,6 +37,7 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
       icon: Workflow,
       statusDot: hasDependencyLoops ? 'red' : undefined,
     },
+    { id: 'neural-map', label: 'Neural Map', icon: Network },
     { id: 'tests', label: 'Safety Tests', icon: TestTube },
     { id: 'refactor', label: 'Modernization', icon: Wand2 },
     {
@@ -88,7 +89,7 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
             Guided workflow:
           </span>
           <span className="text-ink-3 hidden sm:inline">
-            Architecture Overview → Risk Hotspots → Dependency Map → Safety Tests → Modernization → Impact &amp; Plan
+            Architecture Overview → Risk Hotspots → Dependency Map → Neural Map → Safety Tests → Modernization → Impact &amp; Plan
           </span>
         </div>
         {targetFile && (

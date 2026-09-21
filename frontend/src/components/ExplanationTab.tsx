@@ -436,7 +436,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-line">
           <div className="flex items-center gap-3.5 min-w-0">
             <div
-              className="w-11 h-11 rounded-md bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20"
+              className="w-10 h-10 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20"
               aria-hidden="true"
             >
               <BookOpen className="w-5 h-5" strokeWidth={1.75} />
@@ -519,7 +519,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="bg-surface border border-line rounded-md p-3.5">
-              <span className="font-sans text-[11px] font-bold text-indigo-text uppercase tracking-wider block mb-1">
+              <span className="font-sans text-[11px] font-bold text-ink uppercase tracking-wider block mb-1">
                 How It Starts (Entry Points)
               </span>
               <p className="font-sans text-xs text-ink-2 leading-[1.5]">
@@ -531,7 +531,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
             </div>
 
             <div className="bg-surface border border-line rounded-md p-3.5">
-              <span className="font-sans text-[11px] font-bold text-indigo-text uppercase tracking-wider block mb-1">
+              <span className="font-sans text-[11px] font-bold text-ink uppercase tracking-wider block mb-1">
                 Core Domain Modules
               </span>
               <p className="font-sans text-xs text-ink-2 leading-[1.5]">
@@ -541,7 +541,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
             </div>
 
             <div className="bg-surface border border-line rounded-md p-3.5">
-              <span className="font-sans text-[11px] font-bold text-indigo-text uppercase tracking-wider block mb-1">
+              <span className="font-sans text-[11px] font-bold text-ink uppercase tracking-wider block mb-1">
                 Structural Topology
               </span>
               <p className="font-sans text-xs text-ink-2 leading-[1.5]">
@@ -561,12 +561,12 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
           <div className="absolute top-0 right-0 w-32 h-32 bg-indigo/5 rounded-full blur-2xl pointer-events-none" />
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-line">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-md bg-indigo text-white flex items-center justify-center shrink-0 shadow-sm">
-                <Compass className="w-5 h-5" strokeWidth={2} />
+              <div className="w-10 h-10 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
+                <Compass className="w-5 h-5" strokeWidth={1.75} />
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-pill bg-indigo-surface text-indigo border border-indigo/30 uppercase tracking-wide">
+                  <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-pill bg-indigo-surface text-indigo border border-indigo/20 uppercase tracking-wide">
                     Question 4 · Recommended Starting Point
                   </span>
                   <StatusTag status="verified" label="DETERMINISTIC RANKING" />
@@ -578,9 +578,14 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="font-mono text-xs font-bold text-indigo bg-indigo-surface px-3 py-1 rounded-md border border-indigo/20">
+              <button
+                type="button"
+                onClick={() => onSelectFile?.(recommendedTarget.file)}
+                className="font-mono text-xs font-bold text-indigo bg-indigo-surface px-3 py-1 rounded-md border border-indigo/20 hover:border-indigo/40 hover:underline cursor-pointer transition-colors"
+                title={`Click to focus ${recommendedTarget.file}`}
+              >
                 Target: {recommendedTarget.file}
-              </span>
+              </button>
             </div>
           </div>
 
@@ -588,8 +593,14 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
             <div className="lg:col-span-2 space-y-2">
               <p className="font-sans text-sm text-ink-2 leading-relaxed">
                 <strong className="text-ink font-semibold">Recommended Target:</strong>{' '}
-                <span className="font-mono text-indigo font-bold">{recommendedTarget.file}</span>.{' '}
-                {recommendedTarget.reason}
+                <button
+                  type="button"
+                  onClick={() => onSelectFile?.(recommendedTarget.file)}
+                  className="font-mono text-indigo font-bold hover:underline cursor-pointer"
+                >
+                  {recommendedTarget.file}
+                </button>
+                .{' '}{recommendedTarget.reason}
               </p>
               {recommendedTarget.hotspot && (
                 <div className="flex items-center gap-3 text-xs text-ink-3 pt-1">
@@ -655,7 +666,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                 variant="outline"
                 size="sm"
                 onClick={() => handleOpenHotspots()}
-                icon={<Flame className="w-3.5 h-3.5 text-red" strokeWidth={1.75} />}
+                icon={<Flame className="w-3.5 h-3.5" strokeWidth={1.75} />}
                 title="View deterministic hotspot prioritization table"
               >
                 View Risk Hotspots
@@ -671,15 +682,15 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
       {architectureLayers.length > 0 && (
         <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-line">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded bg-teal-surface text-teal-strong flex items-center justify-center border border-teal/20">
-                <FolderGit2 className="w-4 h-4" />
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
+                <FolderGit2 className="w-5 h-5" strokeWidth={1.75} />
               </div>
               <div>
-                <span className="font-mono text-[10px] font-bold text-teal-strong uppercase tracking-wide block">
+                <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-pill bg-indigo-surface text-indigo border border-indigo/20 uppercase tracking-wide inline-block mb-0.5">
                   Question 2 · Structural Decomposition
                 </span>
-                <h3 className="font-display font-bold text-base text-ink">
+                <h3 className="font-display font-bold text-base sm:text-lg text-ink">
                   What Are Its Major Layers?
                 </h3>
               </div>
@@ -767,15 +778,15 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
           {/* 3A. Top-Risk Modules Leaderboard (2 Columns) */}
           <div className="lg:col-span-2 bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-line">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded bg-red-surface text-red flex items-center justify-center border border-red/20">
-                  <Flame className="w-4 h-4" />
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
+                  <Flame className="w-5 h-5" strokeWidth={1.75} />
                 </div>
                 <div>
-                  <span className="font-mono text-[10px] font-bold text-red uppercase tracking-wide block">
+                  <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-pill bg-indigo-surface text-indigo border border-indigo/20 uppercase tracking-wide inline-block mb-0.5">
                     Question 3 · Risk Hotspots
                   </span>
-                  <h3 className="font-display font-bold text-base text-ink">
+                  <h3 className="font-display font-bold text-base sm:text-lg text-ink">
                     What Is Risky? Top Modernization Targets
                   </h3>
                 </div>
@@ -784,7 +795,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                 variant="outline"
                 size="sm"
                 onClick={() => handleOpenHotspots()}
-                icon={<Flame className="w-3.5 h-3.5 text-amber-strong" />}
+                icon={<Flame className="w-3.5 h-3.5" />}
               >
                 View Hotspots Tab →
               </Button>
@@ -798,11 +809,16 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                 >
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-1.5">
-                      <span className="font-mono text-xs font-bold text-ink truncate" title={mod.relative_path}>
+                      <button
+                        type="button"
+                        onClick={() => onSelectFile?.(mod.relative_path)}
+                        className="font-mono text-xs font-bold text-indigo hover:text-indigo-press hover:underline truncate text-left cursor-pointer"
+                        title={`Click to focus ${mod.relative_path}`}
+                      >
                         #{index + 1} {truncateMiddle(mod.relative_path, 22)}
-                      </span>
+                      </button>
                       <StatusTag
-                        status={inCycle ? 'critical' : 'complex'}
+                        status={inCycle ? 'critical' : mod.complexity.rating.toLowerCase()}
                         label={inCycle ? 'CYCLE' : mod.complexity.rating.toUpperCase()}
                       />
                     </div>
@@ -880,17 +896,18 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                 </div>
                 <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
                   <span className="text-ink-2">Verified in Ephemeral Sandbox</span>
-                  <span className="font-mono font-bold text-indigo-text">
+                  <span className="font-mono font-bold text-teal-strong">
                     {findingFunnel.verified_changes}
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="pt-3 border-t border-line/80 text-[11px] text-ink-3 space-y-1">
+            {/* Well-contained Confidence Callout */}
+            <div className="bg-panel border border-line rounded-lg p-3 text-[11px] text-ink-3 space-y-1 mt-3">
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-teal-strong shrink-0" />
-                <span className="text-ink-2 font-medium">Confidence: Deterministic AST &amp; Callgraph</span>
+                <span className="text-ink font-semibold">Confidence: Deterministic AST &amp; Callgraph</span>
               </div>
               <p className="text-[11px] leading-tight text-ink-3 pl-5">
                 {findingFunnel.verification_label || 'Static analysis only: proposals require characterization tests.'}
@@ -903,16 +920,16 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
       {/* ========================================================================= */}
       {/* 5. SECTION 5: WHAT SHOULD I DO NEXT? (STEP-BY-STEP WORKFLOW GUIDE)        */}
       {/* ========================================================================= */}
-      <section className="bg-panel border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
-        <div className="flex items-center gap-2.5 pb-2 border-b border-line/60">
-          <div className="w-8 h-8 rounded bg-indigo text-white flex items-center justify-center">
-            <Activity className="w-4 h-4" />
+      <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
+        <div className="flex items-center gap-3 pb-3 border-b border-line">
+          <div className="w-10 h-10 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
+            <Activity className="w-5 h-5" strokeWidth={1.75} />
           </div>
           <div>
-            <span className="font-mono text-[10px] font-bold text-indigo uppercase tracking-wide block">
+            <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-pill bg-indigo-surface text-indigo border border-indigo/20 uppercase tracking-wide inline-block mb-0.5">
               Question 5 · Execution Roadmap
             </span>
-            <h3 className="font-display font-bold text-base text-ink">
+            <h3 className="font-display font-bold text-base sm:text-lg text-ink">
               What Should I Do Next? Guided Modernization Playbook
             </h3>
           </div>
@@ -920,9 +937,9 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {/* Step 1 */}
-          <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2">
+          <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2 hover:border-line-strong transition-colors">
             <div>
-              <span className="text-[10px] font-mono font-bold text-indigo-text block mb-1">STEP 1 · PIN</span>
+              <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 1 · PIN</span>
               <h4 className="font-bold text-xs text-ink">Generate Tests</h4>
               <p className="text-[11px] text-ink-3 leading-snug mt-1">
                 Pin behavior with deterministic characterization tests before modernizing code.
@@ -932,16 +949,16 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
               variant="outline"
               size="sm"
               onClick={() => handleGenerateTests()}
-              className="w-full text-xs !py-1"
+              className="w-full text-xs !py-1 font-semibold"
             >
               Generate Tests →
             </Button>
           </div>
 
           {/* Step 2 */}
-          <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2">
+          <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2 hover:border-line-strong transition-colors">
             <div>
-              <span className="text-[10px] font-mono font-bold text-teal-strong block mb-1">STEP 2 · MAP</span>
+              <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 2 · MAP</span>
               <h4 className="font-bold text-xs text-ink">Inspect Coupling</h4>
               <p className="text-[11px] text-ink-3 leading-snug mt-1">
                 Review internal &amp; external imports, entry points, and isolate dependency cycles.
@@ -951,16 +968,16 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
               variant="outline"
               size="sm"
               onClick={() => handleInspectInGraph()}
-              className="w-full text-xs !py-1"
+              className="w-full text-xs !py-1 font-semibold"
             >
               Dependency Map →
             </Button>
           </div>
 
           {/* Step 3 */}
-          <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2">
+          <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2 hover:border-line-strong transition-colors">
             <div>
-              <span className="text-[10px] font-mono font-bold text-amber-strong block mb-1">STEP 3 · SIMULATE</span>
+              <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 3 · SIMULATE</span>
               <h4 className="font-bold text-xs text-ink">Analyze Impact</h4>
               <p className="text-[11px] text-ink-3 leading-snug mt-1">
                 Simulate what breaks if you edit high-risk modules and check downstream ripple.
@@ -970,14 +987,14 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
               variant="outline"
               size="sm"
               onClick={() => handleAnalyzeImpact()}
-              className="w-full text-xs !py-1"
+              className="w-full text-xs !py-1 font-semibold"
             >
               Analyze Impact →
             </Button>
           </div>
 
           {/* Step 4 */}
-          <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2">
+          <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2 hover:border-line-strong transition-colors">
             <div>
               <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 4 · PREVIEW</span>
               <h4 className="font-bold text-xs text-ink">Modernize Code</h4>
@@ -989,16 +1006,16 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
               variant="outline"
               size="sm"
               onClick={() => handleReviewModernization()}
-              className="w-full text-xs !py-1"
+              className="w-full text-xs !py-1 font-semibold"
             >
               Review Diff →
             </Button>
           </div>
 
           {/* Step 5 */}
-          <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2">
+          <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2 hover:border-line-strong transition-colors">
             <div>
-              <span className="text-[10px] font-mono font-bold text-red block mb-1">STEP 5 · MIGRATE</span>
+              <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 5 · MIGRATE</span>
               <h4 className="font-bold text-xs text-ink">Plan Waves</h4>
               <p className="text-[11px] text-ink-3 leading-snug mt-1">
                 Execute phased migration waves and track readiness checklist completion.
@@ -1008,7 +1025,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
               variant="outline"
               size="sm"
               onClick={() => onNavigateTab?.('migration')}
-              className="w-full text-xs !py-1"
+              className="w-full text-xs !py-1 font-semibold"
             >
               Impact &amp; Plan →
             </Button>
