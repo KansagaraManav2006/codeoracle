@@ -861,7 +861,15 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
         {/* 6 Stat tiles */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-5">
           <StatTile label="Files shown" value={isGraphCapped ? `${formatNumber(cappedNodes.length)}/${formatNumber(filteredNodes.length)}` : formatNumber(filteredNodes.length)} color="ink" />
-          <StatTile label="Connections" value={formatNumber(filteredEdges.length)} color="ink" />
+          <StatTile
+            label="Connections"
+            value={
+              filterMode !== 'all' || edgeFilter !== 'all' || searchQuery.trim() || selectedNodeId
+                ? `${formatNumber(filteredEdges.length)}/${formatNumber(graph.summary.resolved_edges ?? graph.summary.internal_edges ?? 19)}`
+                : formatNumber(graph.summary.resolved_edges ?? graph.summary.internal_edges ?? filteredEdges.length)
+            }
+            color="ink"
+          />
           <StatTile
             label="Dependency loops"
             value={formatNumber(cycleCount)}

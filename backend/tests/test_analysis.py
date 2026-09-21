@@ -758,4 +758,15 @@ def test_typescript_files_are_discovered_and_analyzed(tmp_path) -> None:
     assert refreshed.json()["languages"] == ["typescript"]
     assert graph.status_code == 200
     assert graph.json()["nodes"][0]["language"] == "typescript"
+
+    arch = client.get(f"/api/projects/{project_id}/architecture")
+    assert arch.status_code == 200
+    arch_data = arch.json()
+    assert "coverage" in arch_data
+    assert "graph" in arch_data
+    assert "entry_points" in arch_data
+    assert "layers" in arch_data
+    assert "unresolved_diagnostics" in arch_data
+    assert arch_data["graph"]["resolved_edges"] == graph.json()["summary"].get("resolved_edges", 0)
+
     db.close()

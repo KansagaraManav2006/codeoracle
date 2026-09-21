@@ -8,6 +8,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Qu
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
+from app.analysis.architecture_models import ArchitectureOverview
+from app.analysis.architecture_service import build_architecture_overview
 from app.analysis.graph_models import GraphResponse
 from app.analysis.graph_service import build_project_dependency_graph
 from app.analysis.models import ANALYZER_VERSION, ProjectAnalysis, ProjectExplanation
@@ -698,6 +700,35 @@ def get_project_explanation(project_id: str, db: Session = Depends(get_db)) -> P
     raise HTTPException(
         status_code=status.HTTP_409_CONFLICT,
         detail="Explanation unavailable. Run project analysis first.",
+    )
+
+
+@router.get("/projects/{project_id}/architecture", response_model=ArchitectureOverview)
+def get_project_architecture(project_id: str, db: Session = Depends(get_db)) -> ArchitectureOverview:
+    """Retrieves canonical architecture overview, confidence metrics, and structural diagnostics."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+
+    rec = (
+        db.query(ProjectAnalysisRecord)
+        .filter(ProjectAnalysisRecord.project_id == project_id)
+        .first()
+    )
+
+    if rec:
+        try:
+            analysis = ProjectAnalysis.model_validate(rec.analysis_data)
+            project_files = db.query(ProjectFile).filter(ProjectFile.project_id == project_id).all()
+            if not analysis_languages_are_current(analysis, project_files):
+                analysis = run_analysis_for_project(db, project_id, force=True)
+            return build_architecture_overview(db, project_id, analysis)
+        except Exception:
+            logger.exception("Failed to build architecture overview for %s", project_id)
+
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="Architecture analysis unavailable. Run project analysis first.",
     )
 
 

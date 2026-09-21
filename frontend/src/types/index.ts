@@ -465,6 +465,11 @@ export interface GraphSummary {
   high_complexity_module_count: number;
   most_connected_modules: MostConnectedModule[];
   truncated_edges_count: number;
+  resolved_edges?: number;
+  runtime_edges?: number;
+  type_only_edges?: number;
+  dynamic_edges?: number;
+  unresolved_imports?: number;
 }
 
 export interface GraphResponse {
@@ -476,6 +481,134 @@ export interface GraphResponse {
   entry_point_ids: string[];
   orphan_module_ids: string[];
   summary: GraphSummary;
+}
+
+// --- Canonical Architecture Overview Types ---
+
+export type EntryPointKind =
+  | 'app_runtime'
+  | 'frontend_bootstrap'
+  | 'worker'
+  | 'cli'
+  | 'script'
+  | 'ml_training'
+  | 'route_root'
+  | 'config'
+  | 'unknown';
+
+export type ModuleRole =
+  | 'domain'
+  | 'application_service'
+  | 'api'
+  | 'repository'
+  | 'persistence'
+  | 'ui'
+  | 'generated'
+  | 'configuration'
+  | 'test'
+  | 'script'
+  | 'ml'
+  | 'utility';
+
+export interface DependencyGraphSummary {
+  node_count: number;
+  resolved_edges: number;
+  runtime_edges: number;
+  type_only_edges: number;
+  dynamic_edges: number;
+  unresolved_imports: number;
+  external_references: number;
+  cycle_count: number;
+  orphan_count: number;
+  isolated_modules_count: number;
+}
+
+export interface UnresolvedDiagnosticGroup {
+  key: string;
+  label: string;
+  count: number;
+  description: string;
+  examples: string[];
+}
+
+export interface UnresolvedDiagnosticsSummary {
+  total_unresolved: number;
+  groups: UnresolvedDiagnosticGroup[];
+}
+
+export interface ArchitectureLayer {
+  path: string;
+  file_count: number;
+  file_percentage: number;
+  loc: number;
+  loc_percentage: number;
+  role: string;
+  has_cycle: boolean;
+  languages: string[];
+  entry_points: number;
+}
+
+export interface ArchitectureEntryPoint {
+  path: string;
+  kind: EntryPointKind;
+  kind_label: string;
+  confidence: number;
+  description: string;
+}
+
+export interface KeyModule {
+  path: string;
+  role: ModuleRole;
+  role_label: string;
+  reason: string;
+  classes_count: number;
+  functions_count: number;
+  line_count: number;
+  complexity_rating: string;
+  is_entry_point: boolean;
+}
+
+export interface ScoreFactorBreakdown {
+  complexity: number;
+  warnings: number;
+  fan_in: number;
+  blast_radius: number;
+  loc: number;
+  hotspot_score: number;
+}
+
+export interface RecommendedTargetInfo {
+  path: string;
+  hotspot_score: number;
+  factors: ScoreFactorBreakdown;
+  reason: string;
+  highest_complexity_file: string;
+  highest_complexity_score: number;
+}
+
+export interface CoverageInfo {
+  total_source_files: number;
+  fully_parsed: number;
+  partial: number;
+  fallback: number;
+  failed: number;
+  full_ast_percentage: number;
+  confidence: 'high' | 'medium' | 'partial' | 'low';
+  cycle_label: string;
+  limitation_notice?: string | null;
+}
+
+export interface ArchitectureOverview {
+  project_id: string;
+  coverage: CoverageInfo;
+  graph: DependencyGraphSummary;
+  entry_points: ArchitectureEntryPoint[];
+  layers: ArchitectureLayer[];
+  key_modules: KeyModule[];
+  recommended_target?: RecommendedTargetInfo | null;
+  unresolved_diagnostics: UnresolvedDiagnosticsSummary;
+  architecture_summary: string;
+  frameworks_detected: string[];
 }
 
 // --- Generated Test Interfaces ---

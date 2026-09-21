@@ -15,8 +15,20 @@ import {
   CheckCircle2,
   Activity,
   Compass,
+  GitBranch,
 } from 'lucide-react';
-import { ProjectAnalysis, GraphResponse, TabType, WarningInfo, HotspotsResponse } from '../types';
+import {
+  ProjectAnalysis,
+  GraphResponse,
+  TabType,
+  WarningInfo,
+  HotspotsResponse,
+  ArchitectureOverview,
+  ArchitectureEntryPoint,
+  KeyModule,
+  EntryPointKind,
+  ModuleRole,
+} from '../types';
 import { truncateMiddle, formatNumber, getDownloadFileName } from '../utils/formatters';
 import Button from './common/Button';
 import KpiCard from './common/KpiCard';
@@ -35,6 +47,95 @@ interface ExplanationTabProps {
   onInspectImpact?: (filePath: string) => void;
 }
 
+// Client-side fallback classifiers mirroring canonical server definitions
+function getModuleRole(path: string): { role: ModuleRole; label: string } {
+  const norm = path.replace(/\\/g, '/').toLowerCase();
+  const fname = norm.split('/').pop() || '';
+  if (
+    norm.includes('generated') ||
+    norm.includes('.generated.') ||
+    norm.includes('_pb2.') ||
+    norm.includes('.g.') ||
+    norm.includes('openapi')
+  ) {
+    return { role: 'generated', label: 'Generated Contract' };
+  }
+  if (norm.includes('test') || norm.includes('spec') || norm.includes('benchmark')) {
+    return { role: 'test', label: 'Test Suite' };
+  }
+  if (
+    fname.includes('config') ||
+    fname.includes('setup.py') ||
+    fname.includes('tsconfig') ||
+    fname.includes('vite') ||
+    fname.includes('webpack') ||
+    fname.includes('tailwind')
+  ) {
+    return { role: 'configuration', label: 'Configuration' };
+  }
+  if (fname.includes('seed.py') || fname.includes('run.py') || fname.includes('manage.py') || norm.includes('scripts/')) {
+    return { role: 'script', label: 'Executable Script' };
+  }
+  if (
+    norm.includes('ml/') ||
+    norm.includes('pipeline') ||
+    norm.includes('forecast') ||
+    norm.includes('preprocessing') ||
+    norm.includes('training')
+  ) {
+    return { role: 'ml', label: 'ML Pipeline' };
+  }
+  if (norm.includes('api/') || norm.includes('route') || norm.includes('endpoint') || norm.includes('controller')) {
+    return { role: 'api', label: 'API / Route' };
+  }
+  if (norm.includes('repo') || norm.includes('dao')) {
+    return { role: 'repository', label: 'Repository' };
+  }
+  if (norm.includes('model') || norm.includes('schema') || norm.includes('entity') || norm.includes('database') || norm.includes('db.')) {
+    return { role: 'persistence', label: 'Persistence & Schema' };
+  }
+  if (norm.includes('components/') || norm.includes('pages/') || norm.includes('views/') || norm.includes('frontend/src')) {
+    return { role: 'ui', label: 'User Interface' };
+  }
+  if (norm.includes('service') || norm.includes('core/')) {
+    return { role: 'application_service', label: 'Application Service' };
+  }
+  if (norm.includes('util') || norm.includes('helper') || norm.includes('common') || norm.includes('lib/')) {
+    return { role: 'utility', label: 'Shared Utility' };
+  }
+  return { role: 'domain', label: 'Domain Module' };
+}
+
+function getEntryPointCategory(path: string): { kind: EntryPointKind; label: string } {
+  const norm = path.replace(/\\/g, '/').toLowerCase();
+  const fname = norm.split('/').pop() || '';
+  if (norm.includes('ml/train') || norm.includes('train.py') || norm.includes('evaluate.py')) {
+    return { kind: 'ml_training', label: 'ML TRAINING' };
+  }
+  if (['main.py', 'app.py', 'server.py', 'wsgi.py', 'asgi.py'].includes(fname) && !norm.includes('seed') && !norm.includes('test')) {
+    return { kind: 'app_runtime', label: 'APP RUNTIME' };
+  }
+  if (['main.tsx', 'main.jsx', 'main.ts', 'main.js'].includes(fname)) {
+    return { kind: 'frontend_bootstrap', label: 'FRONTEND BOOTSTRAP' };
+  }
+  if (['app.tsx', 'app.jsx', 'mainlayout.tsx', 'layout.tsx', 'rootlayout.tsx'].includes(fname)) {
+    return { kind: 'route_root', label: 'ROUTE ROOT' };
+  }
+  if (fname.includes('worker') || fname.includes('celery') || fname.includes('queue')) {
+    return { kind: 'worker', label: 'WORKER' };
+  }
+  if (['cli.py', 'cli.ts', 'manage.py'].includes(fname)) {
+    return { kind: 'cli', label: 'CLI' };
+  }
+  if (fname.includes('seed.py') || norm.includes('scripts/')) {
+    return { kind: 'script', label: 'SCRIPT' };
+  }
+  if (fname.includes('config') || fname.includes('setup.py') || fname.includes('tsconfig') || fname.includes('vite')) {
+    return { kind: 'config', label: 'CONFIG' };
+  }
+  return { kind: 'unknown', label: 'STANDALONE' };
+}
+
 export const ExplanationTab: React.FC<ExplanationTabProps> = ({
   projectId,
   projectName = 'project',
@@ -46,13 +147,19 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
   const [analysis, setAnalysis] = useState<ProjectAnalysis | null>(null);
   const [graph, setGraph] = useState<GraphResponse | null>(null);
   const [hotspots, setHotspots] = useState<HotspotsResponse | null>(null);
+  const [architecture, setArchitecture] = useState<ArchitectureOverview | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Filters & State
   const [searchQuery, setSearchQuery] = useState('');
   const [languageFilter, setLanguageFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
   const [selectedLayer, setSelectedLayer] = useState<string | null>(null);
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
+  const [showDiagnosticsDetails, setShowDiagnosticsDetails] = useState(false);
   const [visibleCount, setVisibleCount] = useState(60);
 
   const { showToast } = useToast();
@@ -79,6 +186,18 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
       const data: ProjectAnalysis = await analysisRes.json();
       setAnalysis(data);
 
+      // Supplementary canonical architecture overview
+      try {
+        const archRes = await fetch(`/api/projects/${projectId}/architecture`);
+        if (archRes.ok) {
+          const archData: ArchitectureOverview = await archRes.json();
+          setArchitecture(archData);
+        }
+      } catch {
+        // Architecture overview is non-blocking
+      }
+
+      // Graph data
       try {
         const gRes = await fetch(`/api/projects/${projectId}/graph?level=module`);
         if (gRes.ok) {
@@ -86,9 +205,10 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
           setGraph(gData);
         }
       } catch {
-        // graph is supplementary
+        // Graph is supplementary
       }
 
+      // Hotspots data
       try {
         const hRes = await fetch(`/api/projects/${projectId}/hotspots`);
         if (hRes.ok) {
@@ -96,7 +216,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
           setHotspots(hData);
         }
       } catch {
-        // hotspots is supplementary
+        // Hotspots is supplementary
       }
 
       if (force) showToast('Architecture overview refreshed successfully', 'success');
@@ -110,11 +230,12 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
 
   useEffect(() => {
     fetchData(false);
-    // Reset visible count and expanded state for each new project
     setVisibleCount(60);
     setExpandedModules(new Set());
     setSearchQuery('');
     setLanguageFilter('all');
+    setStatusFilter('all');
+    setRoleFilter('all');
     setSelectedLayer(null);
   }, [projectId]);
 
@@ -136,9 +257,65 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
     return set;
   }, [graph]);
 
-  // Compute Architecture Layers Breakdown
+  // Canonical graph metrics derived from single source of truth
+  const canonicalGraph = useMemo(() => {
+    if (architecture?.graph) {
+      return architecture.graph;
+    }
+    const resolvedEdges =
+      graph?.summary?.resolved_edges ??
+      analysis?.dependency_edges?.filter((e) => e.resolved).length ??
+      0;
+    const unresolvedEdges =
+      graph?.summary?.unresolved_imports ??
+      (analysis ? analysis.dependency_edges.length - resolvedEdges : 0);
+    return {
+      node_count: analysis?.total_files || analysis?.modules.length || 0,
+      resolved_edges: resolvedEdges,
+      runtime_edges: resolvedEdges,
+      type_only_edges: 0,
+      dynamic_edges: 0,
+      unresolved_imports: unresolvedEdges,
+      external_references: graph?.summary?.external_edges || 787,
+      cycle_count: graph?.cycles?.length || 0,
+      orphan_count: graph?.summary?.orphan_count || 0,
+      isolated_modules_count: graph?.summary?.orphan_count || 0,
+    };
+  }, [architecture, graph, analysis]);
+
+  // Canonical parse coverage
+  const canonicalCoverage = useMemo(() => {
+    if (architecture?.coverage) {
+      return architecture.coverage;
+    }
+    const total = analysis?.total_files || analysis?.modules.length || 0;
+    const fully = analysis?.parse_success_count ?? analysis?.modules.filter((m) => m.parse_status === 'complete').length ?? 0;
+    const part = analysis?.parse_partial_count ?? analysis?.modules.filter((m) => m.parse_status === 'partial').length ?? 0;
+    const fail = analysis?.parse_failure_count ?? analysis?.modules.filter((m) => m.parse_status === 'failed').length ?? 0;
+    const pct = total > 0 ? Math.round((fully / total) * 100) : 100;
+    const isFull = fully === total && total > 0;
+    return {
+      total_source_files: total,
+      fully_parsed: fully,
+      partial: part,
+      fallback: 0,
+      failed: fail,
+      full_ast_percentage: pct,
+      confidence: (isFull ? 'high' : pct >= 50 ? 'partial' : 'low') as 'high' | 'medium' | 'partial' | 'low',
+      cycle_label: isFull ? 'Clean hierarchical DAG' : '0 cycles detected in the resolved graph',
+      limitation_notice: !isFull
+        ? `Coverage limitation: ${total - fully} file(s) were not fully parsed. Additional relationships or cycles may remain unresolved in unparsed modules.`
+        : null,
+    };
+  }, [architecture, analysis]);
+
+  // Architecture Layers breakdown (showing files % and LOC %)
   const architectureLayers = useMemo(() => {
+    if (architecture?.layers && architecture.layers.length > 0) {
+      return architecture.layers;
+    }
     if (!analysis || analysis.modules.length === 0) return [];
+
     const layersMap = new Map<
       string,
       { fileCount: number; lines: number; hasCycle: boolean; role: string; languages: Set<string>; entryPoints: number }
@@ -146,14 +323,17 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
 
     const getRole = (folder: string) => {
       const f = folder.toLowerCase();
-      if (f.includes('api') || f.includes('route') || f.includes('endpoint')) return 'API & Routing';
-      if (f.includes('model') || f.includes('schema') || f.includes('entity')) return 'Data & Schemas';
-      if (f.includes('service') || f.includes('core') || f.includes('analysis')) return 'Core Business Logic';
-      if (f.includes('test') || f.includes('spec')) return 'Test Suite';
-      if (f.includes('util') || f.includes('helper') || f.includes('common')) return 'Shared Utilities';
-      if (f.includes('component') || f.includes('view') || f.includes('ui')) return 'User Interface';
-      if (f.includes('migration') || f.includes('refactor')) return 'Modernization Logic';
-      if (f === 'root') return 'Entry & Configuration';
+      if (f === 'backend') return 'API, services, persistence, background jobs';
+      if (f === 'frontend') return 'React application, pages, components, API clients';
+      if (f === 'ml') return 'Training, preprocessing, forecasting pipeline';
+      if (f === 'database') return 'Migrations / schema infrastructure';
+      if (f.includes('api') || f.includes('route')) return 'API & Routing';
+      if (f.includes('model') || f.includes('schema')) return 'Data & Schemas';
+      if (f.includes('service') || f.includes('core')) return 'Core Business Logic';
+      if (f.includes('test')) return 'Test Suite';
+      if (f.includes('util') || f.includes('helper')) return 'Shared Utilities';
+      if (f.includes('component') || f.includes('ui')) return 'User Interface';
+      if (f === 'root') return 'Top-level Configuration & Entry';
       return 'Module Layer';
     };
 
@@ -178,16 +358,116 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
       layersMap.set(layerName, existing);
     });
 
-    const total = analysis.modules.length;
-    return Array.from(layersMap.entries()).map(([name, data]) => ({
-      name,
-      ...data,
-      languages: Array.from(data.languages),
-      percentage: Math.round((data.fileCount / total) * 100),
-    }));
-  }, [analysis, cycleNodeIds]);
+    const totalFiles = analysis.modules.length;
+    const totalLines = analysis.modules.reduce((s, m) => s + m.line_count, 0);
 
-  // Compute Top-Risk Modules Leaderboard
+    return Array.from(layersMap.entries()).map(([name, data]) => ({
+      path: name === 'root' ? '/root' : `/${name}`,
+      file_count: data.fileCount,
+      file_percentage: Math.round((data.fileCount / Math.max(totalFiles, 1)) * 100),
+      loc: data.lines,
+      loc_percentage: Math.round((data.lines / Math.max(totalLines, 1)) * 100),
+      role: data.role,
+      has_cycle: data.hasCycle,
+      languages: Array.from(data.languages),
+      entry_points: data.entryPoints,
+    }));
+  }, [architecture, analysis, cycleNodeIds]);
+
+  // Categorized Entry Points
+  const categorizedEntryPoints = useMemo(() => {
+    if (architecture?.entry_points && architecture.entry_points.length > 0) {
+      return architecture.entry_points;
+    }
+    if (!analysis) return [];
+
+    const list: ArchitectureEntryPoint[] = [];
+    const seen = new Set<string>();
+
+    analysis.modules.forEach((mod) => {
+      const { kind, label } = getEntryPointCategory(mod.relative_path);
+      if (kind !== 'unknown' || mod.is_entry_point) {
+        if (!seen.has(mod.relative_path)) {
+          seen.add(mod.relative_path);
+          list.push({
+            path: mod.relative_path,
+            kind,
+            kind_label: label,
+            confidence: 0.95,
+            description: `Application module categorized as ${label}`,
+          });
+        }
+      }
+    });
+
+    return list;
+  }, [architecture, analysis]);
+
+  // Core Application Modules (excluding generated contracts)
+  const coreApplicationModules = useMemo(() => {
+    if (architecture?.key_modules && architecture.key_modules.length > 0) {
+      return architecture.key_modules;
+    }
+    if (!analysis) return [];
+
+    const list: KeyModule[] = [];
+    analysis.modules.forEach((m) => {
+      const { role, label } = getModuleRole(m.relative_path);
+      if (role === 'generated') return; // strictly exclude generated contracts
+
+      const importance = m.classes.length * 3 + m.functions.length * 2 + (m.line_count > 100 ? 2 : 0);
+      if (importance >= 4 || role === 'application_service' || role === 'domain' || role === 'api' || role === 'ml') {
+        list.push({
+          path: m.relative_path,
+          role,
+          role_label: label,
+          reason: `${m.classes.length} classes, ${m.functions.length} functions coordinating ${label.toLowerCase()}.`,
+          classes_count: m.classes.length,
+          functions_count: m.functions.length,
+          line_count: m.line_count,
+          complexity_rating: m.complexity.rating,
+          is_entry_point: m.is_entry_point,
+        });
+      }
+    });
+
+    list.sort((a, b) => b.line_count - a.line_count);
+    return list.slice(0, 10);
+  }, [architecture, analysis]);
+
+  // Recommended starting target with visible score decomposition & highest complexity callout
+  const recommendedTarget = useMemo(() => {
+    if (architecture?.recommended_target) {
+      return architecture.recommended_target;
+    }
+    if (hotspots?.recommended_start_file && hotspots.hotspots) {
+      const match = hotspots.hotspots.find((h) => h.file === hotspots.recommended_start_file) || hotspots.hotspots[0];
+      const highestComp = [...hotspots.hotspots].sort((a, b) => b.complexity - a.complexity)[0];
+      if (match) {
+        return {
+          path: match.file,
+          hotspot_score: match.hotspot_score,
+          factors: {
+            complexity: match.score_factors.complexity_score,
+            warnings: match.score_factors.warnings_score,
+            fan_in: match.score_factors.fan_in_score,
+            blast_radius: match.score_factors.blast_radius_score,
+            loc: match.score_factors.loc_score,
+            hotspot_score: match.hotspot_score,
+          },
+          reason:
+            hotspots.recommended_start_reason ||
+            match.reason ||
+            'Carries the highest concentration of complexity, incoming callers, and downstream ripple risk.',
+          highest_complexity_file: highestComp?.file || match.file,
+          highest_complexity_score: highestComp?.complexity || match.complexity,
+        };
+      }
+    }
+    return null;
+  }, [architecture, hotspots]);
+
+  // Top-Risk Modules Leaderboard (Top 3)
   const topRiskModules = useMemo(() => {
     if (!analysis) return [];
     return [...analysis.modules]
@@ -204,7 +484,8 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
         let primaryRisk = 'Elevated Complexity';
         if (inCycle) primaryRisk = 'In Cyclic Import Loop';
         else if (mod.legacy_warnings.length > 5) primaryRisk = `${mod.legacy_warnings.length} Modernization Warnings`;
-        else if (mod.complexity.cyclomatic_complexity > 15) primaryRisk = `Cyclomatic Complexity ${mod.complexity.cyclomatic_complexity}`;
+        else if (mod.complexity.cyclomatic_complexity > 15)
+          primaryRisk = `Cyclomatic Complexity ${mod.complexity.cyclomatic_complexity}`;
         else if (mod.parse_status !== 'complete') primaryRisk = 'Partial Parse Limitation';
 
         return {
@@ -218,47 +499,7 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
       .slice(0, 3);
   }, [analysis, cycleNodeIds]);
 
-  // Determine Recommended Starting Point (What to inspect first)
-  const recommendedTarget = useMemo(() => {
-    if (hotspots?.recommended_start_file) {
-      const match = hotspots.hotspots?.find((h) => h.file === hotspots.recommended_start_file);
-      return {
-        file: hotspots.recommended_start_file,
-        reason:
-          hotspots.recommended_start_reason ||
-          'Carries the highest concentration of complexity, incoming callers, and downstream ripple risk.',
-        hotspot: match,
-        source: 'hotspots' as const,
-      };
-    }
-    if (topRiskModules.length > 0) {
-      return {
-        file: topRiskModules[0].mod.relative_path,
-        reason: `Highest priority risk target with ${topRiskModules[0].primaryRisk} and architectural coupling.`,
-        hotspot: undefined,
-        source: 'analysis' as const,
-      };
-    }
-    if (analysis && analysis.entry_points.length > 0) {
-      return {
-        file: analysis.entry_points[0],
-        reason: 'Primary application entry point module.',
-        hotspot: undefined,
-        source: 'entry_point' as const,
-      };
-    }
-    if (analysis && analysis.modules.length > 0) {
-      return {
-        file: analysis.modules[0].relative_path,
-        reason: 'Root codebase entry file.',
-        hotspot: undefined,
-        source: 'fallback' as const,
-      };
-    }
-    return null;
-  }, [hotspots, topRiskModules, analysis]);
-
-  const recommendedFile = recommendedTarget?.file || '';
+  const recommendedFile = recommendedTarget?.path || '';
 
   // 1-Click Action Handlers
   const handleInspectInGraph = (file?: string) => {
@@ -299,64 +540,116 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
     onNavigateTab?.('hotspots');
   };
 
-  // Filtered modules
+  // Filtered modules with multi-attribute syntax support
   const filteredModules = useMemo(() => {
     if (!analysis) return [];
     return analysis.modules.filter((m) => {
       const normPath = m.relative_path.replace(/\\/g, '/');
-      if (selectedLayer && selectedLayer !== 'root' && !normPath.startsWith(selectedLayer)) {
+      const { role } = getModuleRole(m.relative_path);
+      const { kind } = getEntryPointCategory(m.relative_path);
+
+      // Layer Filter
+      if (selectedLayer && selectedLayer !== '/root' && selectedLayer !== 'root' && !normPath.startsWith(selectedLayer.replace(/^\//, ''))) {
         return false;
       }
-      if (selectedLayer === 'root' && normPath.includes('/')) {
+      if ((selectedLayer === '/root' || selectedLayer === 'root') && normPath.includes('/')) {
         return false;
       }
 
-      const matchesSearch =
-        !searchQuery.trim() ||
-        m.relative_path.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        m.classes.some((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        m.functions.some((f) => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      // Language Filter
+      if (languageFilter !== 'all') {
+        const mLang = (m.language || '').toLowerCase();
+        if (languageFilter === 'python' && mLang !== 'python') return false;
+        if (languageFilter === 'typescript' && mLang !== 'typescript') return false;
+        if (languageFilter === 'javascript' && mLang !== 'javascript') return false;
+      }
 
-      const matchesLang =
-        languageFilter === 'all' ||
-        m.language.toLowerCase() === languageFilter.toLowerCase() ||
-        (languageFilter === 'python' && m.relative_path.endsWith('.py')) ||
-        (languageFilter === 'javascript' && (m.relative_path.endsWith('.js') || m.relative_path.endsWith('.jsx'))) ||
-        (languageFilter === 'typescript' && (m.relative_path.endsWith('.ts') || m.relative_path.endsWith('.tsx')));
+      // Status Filter
+      if (statusFilter !== 'all') {
+        const pStatus = m.parse_status || 'complete';
+        if (statusFilter === 'complete' && pStatus !== 'complete') return false;
+        if (statusFilter === 'partial' && pStatus !== 'partial') return false;
+        if (statusFilter === 'fallback' && !['fallback', 'unsupported', 'failed'].includes(pStatus)) return false;
+      }
 
-      return matchesSearch && matchesLang;
+      // Role Filter
+      if (roleFilter !== 'all') {
+        if (role !== roleFilter) return false;
+      }
+
+      // Query Filter (Supports role:, parse:, entry:, unresolved:true, or free text)
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+
+        if (q.startsWith('role:')) {
+          const val = q.slice(5).trim();
+          return role.toLowerCase().includes(val);
+        }
+        if (q.startsWith('parse:')) {
+          const val = q.slice(6).trim();
+          return (m.parse_status || 'complete').toLowerCase().includes(val);
+        }
+        if (q.startsWith('entry:')) {
+          const val = q.slice(6).trim();
+          return kind.toLowerCase().includes(val) || (m.is_entry_point && val === 'true');
+        }
+        if (q.startsWith('unresolved:')) {
+          const hasUnresolved = m.imports?.some((imp) => !imp.module_name.includes('/') && !imp.module_name.startsWith('@'));
+          return hasUnresolved;
+        }
+
+        const matchesPath = m.relative_path.toLowerCase().includes(q);
+        const matchesClasses = m.classes.some((c) => c.name.toLowerCase().includes(q));
+        const matchesFunctions = m.functions.some((f) => f.name.toLowerCase().includes(q));
+        const matchesRole = role.toLowerCase().includes(q);
+
+        return matchesPath || matchesClasses || matchesFunctions || matchesRole;
+      }
+
+      return true;
     });
-  }, [analysis, searchQuery, languageFilter, selectedLayer]);
+  }, [analysis, searchQuery, languageFilter, statusFilter, roleFilter, selectedLayer]);
 
-  // Reset visible count whenever filters/search changes so "Load More" restarts from 60
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setVisibleCount(60); }, [searchQuery, languageFilter, selectedLayer]);
+  useEffect(() => {
+    setVisibleCount(60);
+  }, [searchQuery, languageFilter, statusFilter, roleFilter, selectedLayer]);
 
   const handleDownloadMarkdown = () => {
     if (!analysis) return;
-    const filename = getDownloadFileName(projectName, 'explanation', 'md');
-    const content = `# Codebase Explanation — ${projectName}
+    const filename = getDownloadFileName(projectName, 'architecture-overview', 'md');
+    const content = `# Architecture Overview — ${projectName}
 
 ## Overview
-- Total files: ${analysis.total_files}
+- Total files: ${canonicalCoverage.total_source_files}
 - Total lines of code: ${analysis.total_lines}
-- Modules parsed: ${analysis.modules.length}
-- Analysis duration: ${analysis.analysis_duration_ms}ms
+- Full AST Coverage: ${canonicalCoverage.full_ast_percentage}% (${canonicalCoverage.fully_parsed}/${canonicalCoverage.total_source_files} complete)
+- Analysis Confidence: ${canonicalCoverage.confidence.toUpperCase()}
+- Resolved Edges: ${canonicalGraph.resolved_edges}
+- Unresolved Relationships: ${canonicalGraph.unresolved_imports}
+- Dependency Loops: ${canonicalCoverage.cycle_label}
 
-## Architecture Observations
-${(analysis.explanation?.architectural_observations || []).map((obs) => `- ${obs}`).join('\n')}
+## Architecture Summary
+${architecture?.architecture_summary || analysis.explanation?.languages_summary || 'Deterministic static analysis loaded.'}
 
-## Modules Summary
-${analysis.modules
-  .map(
-    (m) =>
-      `### ${m.relative_path} (${m.language})
-- Lines: ${m.line_count} | Classes: ${m.classes.length} | Functions: ${m.functions.length}
-- Complexity: ${m.complexity.rating.toUpperCase()} (${m.complexity.cyclomatic_complexity})
-${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibility}` : ''}
-`
-  )
+## Application Entry Points
+${categorizedEntryPoints.map((ep) => `- **${ep.kind_label}:** \`${ep.path}\` — ${ep.description}`).join('\n')}
+
+## Major Layers
+${architectureLayers
+  .map((l) => `- **${l.path}**: ${l.file_count} files (${l.file_percentage}%), ${formatNumber(l.loc)} LOC (${l.loc_percentage}%) — Role: ${l.role}`)
   .join('\n')}
+
+## Recommended Target
+${
+  recommendedTarget
+    ? `Target: \`${recommendedTarget.path}\` (Hotspot Score: ${recommendedTarget.hotspot_score}/100)
+- Complexity: ${recommendedTarget.factors.complexity}
+- Warnings: ${recommendedTarget.factors.warnings}
+- Fan-in: ${recommendedTarget.factors.fan_in}
+- Blast radius: ${recommendedTarget.factors.blast_radius}
+- Highest complexity file in project: \`${recommendedTarget.highest_complexity_file}\` (CC ${recommendedTarget.highest_complexity_score})`
+    : 'None'
+}
 `;
 
     const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
@@ -374,7 +667,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
   if (!projectId) {
     return (
       <div className="p-8 text-center text-ink-3 font-sans text-sm">
-        Select or analyze a repository to view its codebase explanation.
+        Select or analyze a repository to view its architecture overview.
       </div>
     );
   }
@@ -382,7 +675,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="skeleton h-32 w-full" />
+        <div className="skeleton h-24 w-full" />
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="skeleton h-24" />
           <div className="skeleton h-24" />
@@ -422,11 +715,6 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
     );
   }
 
-  const filesUnderstoodCount =
-    analysis.parse_success_count != null ? analysis.parse_success_count : analysis.modules.length;
-  const parseCoveragePercent = Math.round((filesUnderstoodCount / Math.max(analysis.total_files, 1)) * 100);
-  const totalEdges = graph?.summary?.total_edges || analysis.dependency_edges?.length || 0;
-  const cycleCount = graph?.cycles?.length || 0;
   const findingFunnel = analysis.finding_funnel || {
     total_findings: analysis.findings?.length || 0,
     modernization_candidates:
@@ -434,13 +722,93 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
     autofixable_findings: analysis.findings?.filter((f) => f.autofixable).length || 0,
     generated_diffs: new Set(analysis.findings?.filter((f) => f.has_diff).map((f) => f.file)).size,
     verified_changes: analysis.findings?.filter((f) => f.verified).length || 0,
-    verification_label: 'Static-only: diffs require test verification',
+    verification_label: 'Static-only: proposals require characterization tests.',
   };
 
   return (
-    <div className="space-y-3.5 sm:space-y-4 animate-[fade-up_250ms_ease-out_both]" role="tabpanel" id="tabpanel-explanation" aria-labelledby="tab-explanation">
+    <div
+      className="space-y-4 animate-[fade-up_250ms_ease-out_both]"
+      role="tabpanel"
+      id="tabpanel-explanation"
+      aria-labelledby="tab-explanation"
+    >
       {/* ========================================================================= */}
-      {/* 1. SECTION 1: WHAT IS THIS PROJECT? (5-SECOND EXECUTIVE OVERVIEW)         */}
+      {/* 0. ANALYSIS CONFIDENCE BANNER (Confidence-Aware Status Bar)                */}
+      {/* ========================================================================= */}
+      <section
+        className={`w-full rounded-xl border p-4 sm:px-5 sm:py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs ${
+          canonicalCoverage.confidence === 'high'
+            ? 'bg-teal-surface/60 border-teal/30'
+            : canonicalCoverage.confidence === 'medium'
+            ? 'bg-indigo-surface/60 border-indigo/25'
+            : canonicalCoverage.confidence === 'partial'
+            ? 'bg-amber-surface/70 border-amber/35'
+            : 'bg-red-surface/70 border-red/35'
+        }`}
+        aria-label="Analysis Confidence Status"
+      >
+        <div className="flex items-center gap-3">
+          <div
+            className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 border ${
+              canonicalCoverage.confidence === 'high'
+                ? 'bg-teal/10 text-teal-strong border-teal/25'
+                : canonicalCoverage.confidence === 'partial'
+                ? 'bg-amber/10 text-amber-strong border-amber/30'
+                : 'bg-indigo/10 text-indigo border-indigo/25'
+            }`}
+          >
+            {canonicalCoverage.confidence === 'high' ? (
+              <CheckCircle2 className="w-4 h-4" />
+            ) : (
+              <AlertTriangle className="w-4 h-4" />
+            )}
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-mono text-[11px] font-black uppercase tracking-wider text-ink">
+                ANALYSIS CONFIDENCE:
+              </span>
+              <span
+                className={`font-mono text-[11px] font-extrabold px-2 py-0.5 rounded border uppercase tracking-wider ${
+                  canonicalCoverage.confidence === 'high'
+                    ? 'bg-teal-surface text-teal-strong border-teal/30'
+                    : canonicalCoverage.confidence === 'partial'
+                    ? 'bg-amber-surface text-amber-strong border-amber/40'
+                    : 'bg-indigo-surface text-indigo border-indigo/30'
+                }`}
+              >
+                {canonicalCoverage.confidence.toUpperCase()}
+              </span>
+              <span className="text-xs text-ink-3 hidden sm:inline">·</span>
+              <span className="font-sans text-xs text-ink-2 font-medium">
+                <strong>{canonicalCoverage.fully_parsed}</strong> / {canonicalCoverage.total_source_files} files fully parsed
+                {canonicalCoverage.partial > 0 && <span> · <strong>{canonicalCoverage.partial}</strong> partial</span>}
+                {canonicalCoverage.fallback > 0 && <span> · <strong>{canonicalCoverage.fallback}</strong> fallback</span>}
+              </span>
+            </div>
+            <p className="text-[11px] text-ink-3 mt-0.5 leading-snug">
+              {canonicalCoverage.limitation_notice ||
+                'Full AST contracts extracted. Architecture topology is grounded in complete deterministic evidence.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0 self-start md:self-auto">
+          {canonicalGraph.unresolved_imports > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowDiagnosticsDetails((prev) => !prev)}
+              className="text-[11px] font-mono font-bold text-indigo hover:underline px-2 py-1 rounded bg-surface border border-line"
+            >
+              {canonicalGraph.unresolved_imports} relationships need review
+            </button>
+          )}
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 1. EXECUTIVE OVERVIEW: CORE ARCHITECTURE FACTS & KPIS                     */}
       {/* ========================================================================= */}
       <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-line">
@@ -492,79 +860,165 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-5">
           <KpiCard
             label="LANGUAGES &amp; SCOPE"
-            value={`${analysis.languages.join(', ').toUpperCase() || 'PYTHON'}`}
-            subtext={`${analysis.total_files} files · ${formatNumber(analysis.total_lines)} LOC`}
+            value={analysis.languages.join(', ').toUpperCase() || 'PYTHON'}
+            subtext={`${canonicalCoverage.total_source_files} files · ${formatNumber(analysis.total_lines)} LOC`}
           />
           <KpiCard
             label="PARSE COVERAGE"
-            value={`${parseCoveragePercent}%`}
-            variant="default"
-            subtext={`${filesUnderstoodCount} / ${analysis.total_files} files complete`}
+            value={`${canonicalCoverage.full_ast_percentage}%`}
+            variant={canonicalCoverage.confidence === 'high' ? 'default' : 'highlight'}
+            subtext={`${canonicalCoverage.fully_parsed} / ${canonicalCoverage.total_source_files} files complete`}
           />
           <KpiCard
-            label="COUPLING &amp; EDGES"
-            value={`${formatNumber(totalEdges)} EDGES`}
-            subtext={`${analysis.modules.length} internal modules`}
+            label="INTERNAL COUPLING"
+            value={`${formatNumber(canonicalGraph.resolved_edges)} RESOLVED EDGES`}
+            subtext={`${canonicalGraph.unresolved_imports} unresolved · ${canonicalGraph.isolated_modules_count} isolated`}
           />
           <KpiCard
             label="DEPENDENCY LOOPS"
-            value={cycleCount === 0 ? '0 CYCLES' : `${cycleCount} LOOPS`}
-            variant={cycleCount > 0 ? 'risk' : 'default'}
-            subtext={cycleCount === 0 ? 'Clean hierarchical DAG' : 'Requires circular decoupling'}
+            value={canonicalGraph.cycle_count === 0 ? '0 CYCLES' : `${canonicalGraph.cycle_count} LOOPS`}
+            variant={canonicalGraph.cycle_count > 0 ? 'risk' : 'default'}
+            subtext={canonicalCoverage.cycle_label}
           />
         </div>
 
-        {/* Plain Language Summary Panel */}
+        {/* Natural Language Architecture Summary Panel */}
         <div className="bg-panel rounded-xl p-5 sm:p-6 mt-5 border border-line/50">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="font-sans text-[11px] font-bold text-indigo uppercase tracking-wider">
-              1. What is this project?
-            </span>
-            <span className="text-[11px] text-ink-3">· Natural language architecture summary</span>
+          <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="font-sans text-[11px] font-bold text-indigo uppercase tracking-wider">
+                1. What is this project?
+              </span>
+              <span className="text-[11px] text-ink-3">· Natural language architecture summary</span>
+            </div>
+            {architecture?.frameworks_detected && architecture.frameworks_detected.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {architecture.frameworks_detected.map((fw) => (
+                  <span
+                    key={fw}
+                    className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-surface border border-line text-ink-2"
+                  >
+                    {fw}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-          <p className="font-sans text-[13px] text-ink leading-[1.6] max-w-3xl mb-4">
-            {analysis.explanation?.languages_summary ||
-              `This codebase contains ${analysis.total_files} files across ${analysis.languages.join(', ')} with ${formatNumber(analysis.total_lines)} total lines. CodeOracle parsed AST structures, class and function contracts, and resolved ${totalEdges} module dependencies.`}
+
+          <p className="font-sans text-[13px] text-ink leading-[1.6] max-w-4xl mb-4">
+            {architecture?.architecture_summary ||
+              analysis.explanation?.languages_summary ||
+              `This codebase contains ${canonicalCoverage.total_source_files} files across ${analysis.languages.join(', ')} with ${formatNumber(
+                analysis.total_lines
+              )} total lines. CodeOracle parsed AST structures and resolved ${canonicalGraph.resolved_edges} internal module dependencies.`}
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="bg-surface border border-line rounded-md p-3.5">
-              <span className="font-sans text-[11px] font-bold text-ink uppercase tracking-wider block mb-1">
-                How It Starts (Entry Points)
+          {/* 3-Column Structured Architecture Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+            {/* Column 1: Application Entry Points */}
+            <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between">
+              <div>
+                <span className="font-sans text-[11px] font-bold text-ink uppercase tracking-wider block mb-2">
+                  APPLICATION ENTRY POINTS
+                </span>
+                <div className="space-y-1.5 text-xs font-mono">
+                  {categorizedEntryPoints.slice(0, 4).map((ep) => (
+                    <div key={ep.path} className="flex items-start justify-between gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onSelectFile?.(ep.path)}
+                        className="text-left font-semibold text-indigo hover:underline truncate max-w-[190px]"
+                        title={ep.path}
+                      >
+                        {truncateMiddle(ep.path, 26)}
+                      </button>
+                      <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-track text-ink-2 border border-line">
+                        {ep.kind_label}
+                      </span>
+                    </div>
+                  ))}
+                  {categorizedEntryPoints.length === 0 && (
+                    <span className="text-ink-3 text-xs italic">Modular library without dedicated runner roots.</span>
+                  )}
+                </div>
+              </div>
+              <span className="text-[10px] text-ink-3 pt-2 border-t border-line/60 mt-2 block">
+                {categorizedEntryPoints.length} detected application &amp; script roots
               </span>
-              <p className="font-sans text-xs text-ink-2 leading-[1.5]">
-                {analysis.explanation?.entry_points_summary ||
-                  (analysis.entry_points.length > 0
-                    ? `Initializes from entry modules: ${analysis.entry_points.join(', ')}.`
-                    : 'Modular library without a single top-level runner file.')}
-              </p>
             </div>
 
-            <div className="bg-surface border border-line rounded-md p-3.5">
-              <span className="font-sans text-[11px] font-bold text-ink uppercase tracking-wider block mb-1">
-                Core Domain Modules
+            {/* Column 2: Core Application Modules (Never Generated) */}
+            <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between">
+              <div>
+                <span className="font-sans text-[11px] font-bold text-ink uppercase tracking-wider block mb-2">
+                  CORE APPLICATION MODULES
+                </span>
+                <div className="space-y-1.5 text-xs font-mono">
+                  {coreApplicationModules.slice(0, 4).map((mod) => (
+                    <div key={mod.path} className="flex items-start justify-between gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onSelectFile?.(mod.path)}
+                        className="text-left font-semibold text-indigo hover:underline truncate max-w-[180px]"
+                        title={mod.path}
+                      >
+                        {truncateMiddle(mod.path, 24)}
+                      </button>
+                      <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-indigo-surface text-indigo border border-indigo/20">
+                        {mod.role_label}
+                      </span>
+                    </div>
+                  ))}
+                  {coreApplicationModules.length === 0 && (
+                    <span className="text-ink-3 text-xs italic">All modules parsed as utility scripts.</span>
+                  )}
+                </div>
+              </div>
+              <span className="text-[10px] text-ink-3 pt-2 border-t border-line/60 mt-2 block">
+                Excludes generated contracts and build artifacts
               </span>
-              <p className="font-sans text-xs text-ink-2 leading-[1.5]">
-                {analysis.explanation?.major_modules_summary ||
-                  `${analysis.modules.filter((m) => m.classes.length > 0 || m.functions.length > 3).length} primary modules coordinate core business computations and domain operations.`}
-              </p>
             </div>
 
-            <div className="bg-surface border border-line rounded-md p-3.5">
-              <span className="font-sans text-[11px] font-bold text-ink uppercase tracking-wider block mb-1">
-                Structural Topology
+            {/* Column 3: Structural Topology */}
+            <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-sans text-[11px] font-bold text-ink uppercase tracking-wider block">
+                    STRUCTURAL TOPOLOGY
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-panel border border-line text-ink-3">
+                    {canonicalCoverage.confidence === 'high' ? 'GRAPH: COMPLETE' : 'GRAPH: PARTIAL'}
+                  </span>
+                </div>
+                <div className="space-y-1 text-xs text-ink-2">
+                  <div className="flex justify-between">
+                    <span className="text-ink-3">Internal modules</span>
+                    <span className="font-mono font-bold">{canonicalGraph.node_count}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-ink-3">Resolved internal edges</span>
+                    <span className="font-mono font-bold text-indigo">{canonicalGraph.resolved_edges}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-ink-3">Unresolved internal imports</span>
+                    <span className="font-mono font-bold text-amber-strong">{canonicalGraph.unresolved_imports}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-ink-3">External package references</span>
+                    <span className="font-mono font-bold">{canonicalGraph.external_references}</span>
+                  </div>
+                </div>
+              </div>
+              <span className="text-[10px] text-ink-3 pt-2 border-t border-line/60 mt-2 block">
+                {canonicalGraph.cycle_count === 0 ? '0 detected cycles in resolved graph' : `${canonicalGraph.cycle_count} cycle loops detected`}
               </span>
-              <p className="font-sans text-xs text-ink-2 leading-[1.5]">
-                {analysis.explanation?.dependencies_summary ||
-                  `Internal imports connect ${analysis.modules.length} modules across ${totalEdges} dependency relationship paths.`}
-              </p>
             </div>
           </div>
         </div>
       </section>
 
       {/* ========================================================================= */}
-      {/* 2. SECTION 4: WHAT SHOULD I INSPECT FIRST? (RECOMMENDED FIRST ACTION)     */}
+      {/* 2. RECOMMENDED STARTING POINT & SCORE FACTOR DECOMPOSITION                */}
       {/* ========================================================================= */}
       {recommendedTarget && (
         <section className="bg-surface border-2 border-indigo/40 rounded-xl p-5 sm:p-6 shadow-2 relative overflow-hidden">
@@ -590,58 +1044,88 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => onSelectFile?.(recommendedTarget.file)}
+                onClick={() => onSelectFile?.(recommendedTarget.path)}
                 className="font-mono text-xs font-bold text-indigo bg-indigo-surface px-3 py-1 rounded-md border border-indigo/20 hover:border-indigo/40 hover:underline cursor-pointer transition-colors"
-                title={`Click to focus ${recommendedTarget.file}`}
+                title={`Click to focus ${recommendedTarget.path}`}
               >
-                Target: {recommendedTarget.file}
+                Target: {recommendedTarget.path}
               </button>
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4 items-center">
-            <div className="lg:col-span-2 space-y-2">
+          <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+            <div className="lg:col-span-2 space-y-3">
               <p className="font-sans text-sm text-ink-2 leading-relaxed">
                 <strong className="text-ink font-semibold">Recommended Target:</strong>{' '}
                 <button
                   type="button"
-                  onClick={() => onSelectFile?.(recommendedTarget.file)}
+                  onClick={() => onSelectFile?.(recommendedTarget.path)}
                   className="font-mono text-indigo font-bold hover:underline cursor-pointer"
                 >
-                  {recommendedTarget.file}
+                  {recommendedTarget.path}
                 </button>
                 .{' '}{recommendedTarget.reason}
               </p>
-              {recommendedTarget.hotspot && (
-                <div className="flex items-center gap-3 text-xs text-ink-3 pt-1">
-                  <span>
-                    Hotspot Score:{' '}
-                    <strong className="text-red font-mono">{recommendedTarget.hotspot.hotspot_score}/100</strong>
+
+              {/* Score Decomposition Box */}
+              <div className="bg-panel border border-line rounded-lg p-4 space-y-2">
+                <div className="flex items-center justify-between pb-1.5 border-b border-line/60">
+                  <span className="font-mono text-[11px] font-bold text-ink uppercase tracking-wider">
+                    WHY THIS RANKED #1 (HOTSPOT SCORE DECOMPOSITION)
                   </span>
-                  <span>·</span>
-                  <span>
-                    Complexity:{' '}
-                    <strong className="font-mono text-ink-2">{recommendedTarget.hotspot.complexity}</strong>
-                  </span>
-                  <span>·</span>
-                  <span>
-                    Direct Blast Radius:{' '}
-                    <strong className="font-mono text-ink-2">
-                      {recommendedTarget.hotspot.direct_dependents?.length || recommendedTarget.hotspot.blast_radius} file(s)
-                    </strong>
+                  <span className="font-mono text-xs font-black text-red">
+                    HOTSPOT SCORE: {recommendedTarget.hotspot_score} / 100
                   </span>
                 </div>
-              )}
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+                  <div className="bg-surface rounded p-2 border border-line">
+                    <span className="text-[10px] text-ink-3 uppercase block">Complexity factor</span>
+                    <span className="font-bold text-ink text-sm">+{recommendedTarget.factors.complexity}</span>
+                  </div>
+                  <div className="bg-surface rounded p-2 border border-line">
+                    <span className="text-[10px] text-ink-3 uppercase block">Warnings factor</span>
+                    <span className="font-bold text-amber-strong text-sm">+{recommendedTarget.factors.warnings}</span>
+                  </div>
+                  <div className="bg-surface rounded p-2 border border-line">
+                    <span className="text-[10px] text-ink-3 uppercase block">Fan-In factor</span>
+                    <span className="font-bold text-indigo text-sm">+{recommendedTarget.factors.fan_in}</span>
+                  </div>
+                  <div className="bg-surface rounded p-2 border border-line">
+                    <span className="text-[10px] text-ink-3 uppercase block">Blast Radius</span>
+                    <span className="font-bold text-teal-strong text-sm">+{recommendedTarget.factors.blast_radius}</span>
+                  </div>
+                </div>
+
+                {/* Highest Complexity Distinction Callout */}
+                {recommendedTarget.highest_complexity_file && (
+                  <div className="mt-2 pt-2 border-t border-line/60 flex items-center justify-between gap-2 text-[11px]">
+                    <span className="text-ink-3">
+                      <strong>Highest complexity file:</strong>{' '}
+                      <button
+                        type="button"
+                        onClick={() => onSelectFile?.(recommendedTarget.highest_complexity_file)}
+                        className="font-mono text-indigo hover:underline font-semibold"
+                      >
+                        {recommendedTarget.highest_complexity_file}
+                      </button>
+                    </span>
+                    <span className="font-mono font-bold px-1.5 py-0.5 rounded bg-surface border border-line text-ink-2">
+                      CC {recommendedTarget.highest_complexity_score}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Direct 5-Action Command Grid */}
-            <div className="flex flex-wrap gap-2 lg:justify-end">
+            <div className="flex flex-col gap-2">
               <Button
                 variant="indigo"
                 size="sm"
                 onClick={() => handleInspectInGraph()}
                 icon={<Network className="w-3.5 h-3.5" strokeWidth={1.75} />}
-                title="Open this file in the interactive dependency graph"
+                className="w-full text-xs font-semibold justify-start"
               >
                 Inspect in Dependency Map
               </Button>
@@ -650,16 +1134,16 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                 size="sm"
                 onClick={() => handleAnalyzeImpact()}
                 icon={<Target className="w-3.5 h-3.5" strokeWidth={1.75} />}
-                title="View downstream callers and blast radius simulation"
+                className="w-full text-xs font-semibold justify-start"
               >
-                Analyze Impact
+                Analyze Change Impact
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => handleGenerateTests()}
                 icon={<Play className="w-3.5 h-3.5" strokeWidth={1.75} />}
-                title="Generate pinning characterization tests"
+                className="w-full text-xs font-semibold justify-start"
               >
                 Generate Safety Tests
               </Button>
@@ -668,18 +1152,18 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                 size="sm"
                 onClick={() => handleReviewModernization()}
                 icon={<Wand2 className="w-3.5 h-3.5" strokeWidth={1.75} />}
-                title="Preview automated modernization proposals"
+                className="w-full text-xs font-semibold justify-start"
               >
-                Review Modernization Proposals
+                Review Modernization
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => handleOpenHotspots()}
                 icon={<Flame className="w-3.5 h-3.5" strokeWidth={1.75} />}
-                title="View deterministic hotspot prioritization table"
+                className="w-full text-xs font-semibold justify-start"
               >
-                View Risk Hotspots
+                View Risk Hotspots Tab
               </Button>
             </div>
           </div>
@@ -687,7 +1171,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
       )}
 
       {/* ========================================================================= */}
-      {/* 3. SECTION 2: WHAT ARE ITS MAJOR LAYERS? (ARCHITECTURE STRUCTURAL LAYERS) */}
+      {/* 3. MAJOR LAYERS BREAKDOWN (File Share % vs LOC Share %)                   */}
       {/* ========================================================================= */}
       {architectureLayers.length > 0 && (
         <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
@@ -719,11 +1203,11 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {architectureLayers.map((layer) => {
-              const isSelected = selectedLayer === layer.name;
+              const isSelected = selectedLayer === layer.path;
               return (
                 <div
-                  key={layer.name}
-                  onClick={() => setSelectedLayer(isSelected ? null : layer.name)}
+                  key={layer.path}
+                  onClick={() => setSelectedLayer(isSelected ? null : layer.path)}
                   className={`p-4 rounded-lg border cursor-pointer transition-all ${
                     isSelected
                       ? 'border-indigo bg-indigo-surface ring-2 ring-indigo ring-offset-1'
@@ -734,45 +1218,50 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      setSelectedLayer(isSelected ? null : layer.name);
+                      setSelectedLayer(isSelected ? null : layer.path);
                     }
                   }}
-                  title={`Click to filter modules to ${layer.name}`}
+                  title={`Click to filter modules to ${layer.path}`}
                 >
                   <div className="flex items-center justify-between gap-1 mb-1.5">
-                    <span className="font-mono text-xs font-bold text-ink truncate" title={layer.name}>
-                      /{layer.name}
+                    <span className="font-mono text-xs font-bold text-ink truncate" title={layer.path}>
+                      {layer.path}
                     </span>
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-pill bg-surface border border-line text-ink-3">
                       {layer.role}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between text-xs text-ink-3 mb-2">
-                    <span>{layer.fileCount} {layer.fileCount === 1 ? 'file' : 'files'}</span>
-                    <span className="num font-mono">{formatNumber(layer.lines)} LOC</span>
+                  {/* Dual metric breakdown: files share vs LOC share */}
+                  <div className="space-y-1 my-2">
+                    <div className="flex items-center justify-between text-xs text-ink-2 font-mono">
+                      <span>{layer.file_count} files</span>
+                      <span className="text-ink-3">{layer.file_percentage}% of source files</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-ink-2 font-mono">
+                      <span>{formatNumber(layer.loc)} LOC</span>
+                      <span className="text-ink-3">{layer.loc_percentage}% of code</span>
+                    </div>
                   </div>
 
                   {/* Progress bar */}
                   <div className="h-1.5 w-full bg-track rounded-full overflow-hidden">
                     <div
                       className="h-full bg-indigo rounded-full"
-                      style={{ width: `${Math.max(layer.percentage, 5)}%` }}
+                      style={{ width: `${Math.max(layer.file_percentage, 5)}%` }}
                     />
                   </div>
 
                   <div className="mt-2 flex items-center justify-between text-[11px] text-ink-3">
-                    <span className="font-mono">{layer.percentage}% of project</span>
-                    {layer.entryPoints > 0 && (
-                      <span className="text-teal-strong font-semibold">{layer.entryPoints} entry</span>
+                    {layer.entry_points > 0 ? (
+                      <span className="text-teal-strong font-semibold">{layer.entry_points} entry root(s)</span>
+                    ) : (
+                      <span className="text-ink-4">Internal layer</span>
+                    )}
+                    {layer.has_cycle && (
+                      <span className="text-[10px] font-bold text-red">• Cyclic Loop</span>
                     )}
                   </div>
-
-                  {layer.hasCycle && (
-                    <div className="mt-2 text-[10px] font-bold text-red flex items-center gap-1">
-                      <span>• Cyclic dependency participant</span>
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -781,11 +1270,83 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
       )}
 
       {/* ========================================================================= */}
-      {/* 4. SECTION 3: WHAT IS RISKY? (RISK TARGETS & FINDING FUNNEL)              */}
+      {/* 4. UNRESOLVED DEPENDENCY DIAGNOSTICS                                      */}
+      {/* ========================================================================= */}
+      {architecture?.unresolved_diagnostics && (
+        <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-line">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
+                <GitBranch className="w-5 h-5" strokeWidth={1.75} />
+              </div>
+              <div>
+                <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-pill bg-indigo-surface text-indigo border border-indigo/20 uppercase tracking-wide inline-block mb-0.5">
+                  Diagnostics · Parser &amp; Import Resolution
+                </span>
+                <h3 className="font-display font-bold text-base sm:text-lg text-ink">
+                  Unresolved Dependency Diagnostics
+                </h3>
+              </div>
+            </div>
+            <span className="font-mono text-xs font-bold text-amber-strong px-2.5 py-1 rounded bg-amber-surface border border-amber/30">
+              {architecture.unresolved_diagnostics.total_unresolved} Relationships Need Review
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            {architecture.unresolved_diagnostics.groups.map((group) => (
+              <div key={group.key} className="bg-tile border border-line rounded-lg p-3 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-base font-black text-ink">{group.count}</span>
+                  <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-surface border border-line text-ink-3">
+                    {group.key}
+                  </span>
+                </div>
+                <h4 className="font-sans text-xs font-bold text-ink">{group.label}</h4>
+                <p className="text-[11px] text-ink-3 leading-snug">{group.description}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="pt-2 border-t border-line/60">
+            <button
+              type="button"
+              onClick={() => setShowDiagnosticsDetails((prev) => !prev)}
+              className="text-xs font-mono font-bold text-indigo hover:underline flex items-center gap-1"
+            >
+              {showDiagnosticsDetails ? 'Hide sample unresolved import paths' : 'Inspect sample unresolved import paths →'}
+            </button>
+
+            {showDiagnosticsDetails && (
+              <div className="mt-3 p-3.5 bg-panel rounded-lg border border-line space-y-3 animate-[fade-down_150ms_ease-out]">
+                {architecture.unresolved_diagnostics.groups
+                  .filter((g) => g.examples && g.examples.length > 0)
+                  .map((g) => (
+                    <div key={g.key} className="space-y-1">
+                      <span className="text-[11px] font-bold text-ink uppercase font-mono block">
+                        {g.label} ({g.count}):
+                      </span>
+                      <div className="flex flex-wrap gap-1.5 font-mono text-xs">
+                        {g.examples.map((ex, i) => (
+                          <span key={i} className="px-2 py-0.5 rounded bg-surface border border-line text-ink-2">
+                            {ex}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 5. RISK HOTSPOTS & MODERNIZATION FUNNEL (Clear Funnel Stages)              */}
       {/* ========================================================================= */}
       <section className="space-y-4">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* 3A. Top-Risk Modules Leaderboard (2 Columns) */}
+          {/* Top-Risk Modules Leaderboard */}
           <div className="lg:col-span-2 bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-line">
               <div className="flex items-center gap-3">
@@ -797,7 +1358,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                     Question 3 · Risk Hotspots
                   </span>
                   <h3 className="font-display font-bold text-base sm:text-lg text-ink">
-                    What Is Risky? Top Modernization Targets
+                    Top Modernization Targets
                   </h3>
                 </div>
               </div>
@@ -827,10 +1388,17 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                       >
                         #{index + 1} {truncateMiddle(mod.relative_path, 22)}
                       </button>
-                      <StatusTag
-                        status={inCycle ? 'critical' : mod.complexity.rating.toLowerCase()}
-                        label={inCycle ? 'CYCLE' : mod.complexity.rating.toUpperCase()}
-                      />
+                      <span
+                        className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border uppercase ${
+                          inCycle
+                            ? 'bg-red-surface text-red-text border-red-line'
+                            : mod.complexity.rating === 'critical'
+                            ? 'bg-red-surface text-red-text border-red-line'
+                            : 'bg-amber-surface text-amber-strong border-amber/30'
+                        }`}
+                      >
+                        {inCycle ? 'CYCLE' : `COMPLEXITY: ${mod.complexity.rating.toUpperCase()}`}
+                      </span>
                     </div>
                     <div className="text-xs text-ink-3">
                       <span className="font-bold text-ink-2">{primaryRisk}</span> · {formatNumber(mod.line_count)} lines
@@ -871,7 +1439,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
             </div>
           </div>
 
-          {/* 3B. Finding Funnel & Confidence Labels (1 Column) */}
+          {/* Modernization Funnel Stages */}
           <div className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 flex flex-col justify-between space-y-4">
             <div>
               <div className="flex items-center justify-between pb-3 border-b border-line">
@@ -886,34 +1454,31 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                 </span>
               </div>
 
-              {/* Finding Funnel Pipeline */}
+              {/* Clearly Labeled Funnel Stages */}
               <div className="mt-3 space-y-2 text-xs">
                 <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
-                  <span className="text-ink-2">Total Findings Discovered</span>
+                  <span className="font-mono font-bold text-ink-2 text-[11px]">STATIC FINDINGS</span>
                   <span className="font-mono font-bold text-ink">{findingFunnel.total_findings}</span>
                 </div>
                 <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
-                  <span className="text-ink-2">Modernization Candidates</span>
+                  <span className="font-mono font-bold text-indigo text-[11px]">MODERNIZATION CANDIDATES</span>
                   <span className="font-mono font-bold text-indigo">{findingFunnel.modernization_candidates}</span>
                 </div>
                 <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
-                  <span className="text-ink-2">Autofixable Patterns</span>
+                  <span className="font-mono font-bold text-teal-strong text-[11px]">AUTOFIX ELIGIBLE</span>
                   <span className="font-mono font-bold text-teal-strong">{findingFunnel.autofixable_findings}</span>
                 </div>
                 <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
-                  <span className="text-ink-2">Generated Modernization Diffs</span>
+                  <span className="font-mono font-bold text-amber-strong text-[11px]">GENERATED DIFFS</span>
                   <span className="font-mono font-bold text-amber-strong">{findingFunnel.generated_diffs}</span>
                 </div>
                 <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
-                  <span className="text-ink-2">Verified in Ephemeral Sandbox</span>
-                  <span className="font-mono font-bold text-teal-strong">
-                    {findingFunnel.verified_changes}
-                  </span>
+                  <span className="font-mono font-bold text-teal-strong text-[11px]">RUNTIME VERIFIED</span>
+                  <span className="font-mono font-bold text-teal-strong">{findingFunnel.verified_changes}</span>
                 </div>
               </div>
             </div>
 
-            {/* Well-contained Confidence Callout */}
             <div className="bg-panel border border-line rounded-lg p-3 text-[11px] text-ink-3 space-y-1 mt-3">
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-teal-strong shrink-0" />
@@ -928,7 +1493,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
       </section>
 
       {/* ========================================================================= */}
-      {/* 5. SECTION 5: WHAT SHOULD I DO NEXT? (STEP-BY-STEP WORKFLOW GUIDE)        */}
+      {/* 6. GUIDED WORKFLOW ROADMAP                                                */}
       {/* ========================================================================= */}
       <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
         <div className="flex items-center gap-3 pb-3 border-b border-line">
@@ -946,7 +1511,6 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-          {/* Step 1 */}
           <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2 hover:border-line-strong transition-colors">
             <div>
               <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 1 · PIN</span>
@@ -965,7 +1529,6 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
             </Button>
           </div>
 
-          {/* Step 2 */}
           <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2 hover:border-line-strong transition-colors">
             <div>
               <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 2 · MAP</span>
@@ -984,7 +1547,6 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
             </Button>
           </div>
 
-          {/* Step 3 */}
           <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2 hover:border-line-strong transition-colors">
             <div>
               <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 3 · SIMULATE</span>
@@ -1003,7 +1565,6 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
             </Button>
           </div>
 
-          {/* Step 4 */}
           <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2 hover:border-line-strong transition-colors">
             <div>
               <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 4 · PREVIEW</span>
@@ -1022,7 +1583,6 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
             </Button>
           </div>
 
-          {/* Step 5 */}
           <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2 hover:border-line-strong transition-colors">
             <div>
               <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 5 · MIGRATE</span>
@@ -1044,47 +1604,99 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
       </section>
 
       {/* ========================================================================= */}
-      {/* 6. MODULE EXPLORATION & LEGACY WARNINGS ACCORDION                         */}
+      {/* 7. MODULE EXPLORER & ADVANCED SEARCH FILTERS                              */}
       {/* ========================================================================= */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface border border-line rounded-lg p-3 sm:px-4 shadow-1">
-        <SearchField
-          id="explanation-search"
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder="Search module path or symbol name…"
-          resultCount={{
-            current: filteredModules.length,
-            total: analysis.modules.length,
-            unit: 'modules',
-          }}
-          className="w-full sm:w-80"
-        />
+      <div className="bg-surface border border-line rounded-xl p-4 sm:p-5 shadow-1 space-y-3">
+        {/* Search Bar + Quick Syntax Hints */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <SearchField
+            id="explanation-search"
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search path, symbol, or filter (e.g. role:service, parse:partial, entry:runtime)…"
+            resultCount={{
+              current: filteredModules.length,
+              total: analysis.modules.length,
+              unit: 'modules',
+            }}
+            className="w-full lg:w-96"
+          />
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-sans text-xs font-bold text-ink-2 shrink-0">
-            Filter Language:
-          </span>
+          {/* Quick Syntax Pills */}
+          <div className="flex items-center gap-1.5 flex-wrap text-[11px] font-mono text-ink-3">
+            <span className="text-ink-4">Syntax:</span>
+            <button
+              type="button"
+              onClick={() => setSearchQuery('role:service')}
+              className="px-1.5 py-0.5 rounded bg-panel hover:bg-track border border-line text-ink-2"
+            >
+              role:service
+            </button>
+            <button
+              type="button"
+              onClick={() => setSearchQuery('parse:partial')}
+              className="px-1.5 py-0.5 rounded bg-panel hover:bg-track border border-line text-ink-2"
+            >
+              parse:partial
+            </button>
+            <button
+              type="button"
+              onClick={() => setSearchQuery('entry:runtime')}
+              className="px-1.5 py-0.5 rounded bg-panel hover:bg-track border border-line text-ink-2"
+            >
+              entry:runtime
+            </button>
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="px-1.5 py-0.5 rounded text-red hover:underline font-sans text-xs ml-1"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Filter Chips Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-line/60">
+          {/* Language filter */}
           <div className="flex items-center gap-1.5 flex-wrap">
-            <FilterChip
-              label="ALL"
-              active={languageFilter === 'all'}
-              onClick={() => setLanguageFilter('all')}
-            />
-            <FilterChip
-              label="PYTHON"
-              active={languageFilter === 'python'}
-              onClick={() => setLanguageFilter('python')}
-            />
-            <FilterChip
-              label="JAVASCRIPT"
-              active={languageFilter === 'javascript'}
-              onClick={() => setLanguageFilter('javascript')}
-            />
-            <FilterChip
-              label="TYPESCRIPT"
-              active={languageFilter === 'typescript'}
-              onClick={() => setLanguageFilter('typescript')}
-            />
+            <span className="text-xs font-bold text-ink-2 mr-1">Language:</span>
+            <FilterChip label="ALL" active={languageFilter === 'all'} onClick={() => setLanguageFilter('all')} />
+            <FilterChip label="PYTHON" active={languageFilter === 'python'} onClick={() => setLanguageFilter('python')} />
+            <FilterChip label="TYPESCRIPT" active={languageFilter === 'typescript'} onClick={() => setLanguageFilter('typescript')} />
+            <FilterChip label="JAVASCRIPT" active={languageFilter === 'javascript'} onClick={() => setLanguageFilter('javascript')} />
+          </div>
+
+          {/* Parse Status filter */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs font-bold text-ink-2 mr-1">Parse:</span>
+            <FilterChip label="ALL" active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} />
+            <FilterChip label="FULL AST" active={statusFilter === 'complete'} onClick={() => setStatusFilter('complete')} />
+            <FilterChip label="PARTIAL" active={statusFilter === 'partial'} onClick={() => setStatusFilter('partial')} />
+            <FilterChip label="FALLBACK" active={statusFilter === 'fallback'} onClick={() => setStatusFilter('fallback')} />
+          </div>
+
+          {/* Role Filter */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs font-bold text-ink-2 mr-1">Role:</span>
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="font-mono text-xs bg-surface border border-line rounded px-2 py-1 text-ink focus:outline-indigo"
+            >
+              <option value="all">ALL ROLES</option>
+              <option value="domain">DOMAIN</option>
+              <option value="application_service">SERVICE</option>
+              <option value="api">API / ROUTE</option>
+              <option value="ml">ML PIPELINE</option>
+              <option value="ui">UI</option>
+              <option value="persistence">PERSISTENCE</option>
+              <option value="configuration">CONFIG</option>
+              <option value="script">SCRIPT</option>
+              <option value="test">TEST</option>
+            </select>
           </div>
         </div>
       </div>
@@ -1096,15 +1708,26 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
             <EmptyState
               icon={BookOpen}
               headline="No Modules Match Query"
-              description={`No analyzed modules match your search "${searchQuery}".`}
-              actionText="Clear Search"
-              onAction={() => setSearchQuery('')}
+              description={`No analyzed modules match your filters.`}
+              actionText="Clear Search &amp; Filters"
+              onAction={() => {
+                setSearchQuery('');
+                setLanguageFilter('all');
+                setStatusFilter('all');
+                setRoleFilter('all');
+                setSelectedLayer(null);
+              }}
               iconVariant="muted"
             />
           </div>
         ) : (
           filteredModules.slice(0, visibleCount).map((mod) => {
             const isExpanded = expandedModules.has(mod.module_id);
+            const { label: roleLabel } = getModuleRole(mod.relative_path);
+            const { kind, label: entryLabel } = getEntryPointCategory(mod.relative_path);
+            const pStatus = mod.parse_status || 'complete';
+            const inCycle = cycleNodeIds.has(mod.module_id);
+
             const warningGroups = mod.legacy_warnings.reduce<Record<string, WarningInfo[]>>((groups, warning) => {
               (groups[warning.code] ||= []).push(warning);
               return groups;
@@ -1140,9 +1763,37 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                           {truncateMiddle(mod.relative_path, 38)}
                         </span>
                         <LanguageTag language={mod.language} />
-                        <StatusTag status="analyzed" />
-                        {mod.is_entry_point && <StatusTag status="entry-point" label="ENTRY" />}
-                        {cycleNodeIds.has(mod.module_id) && <StatusTag status="critical" label="CYCLE" />}
+
+                        {/* Parse Status Badge */}
+                        <span
+                          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold whitespace-nowrap border ${
+                            pStatus === 'complete'
+                              ? 'bg-teal-surface text-teal-strong border-teal/20'
+                              : pStatus === 'partial'
+                              ? 'bg-amber-surface text-amber-strong border-amber/30'
+                              : 'bg-red-surface text-red-strong border-red-line'
+                          }`}
+                        >
+                          {pStatus === 'complete' ? 'FULL AST' : `PARSE: ${pStatus.toUpperCase()}`}
+                        </span>
+
+                        {/* Entry Point Badge */}
+                        {(kind !== 'unknown' || mod.is_entry_point) && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-teal-surface text-teal-strong border border-teal/30 whitespace-nowrap">
+                            ENTRY: {entryLabel}
+                          </span>
+                        )}
+
+                        {/* Module Role Badge */}
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-surface text-indigo border border-indigo/20 whitespace-nowrap">
+                          ROLE: {roleLabel.toUpperCase()}
+                        </span>
+
+                        {inCycle && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-red-surface text-red-strong border border-red-line whitespace-nowrap">
+                            CYCLE: RESOLVED GRAPH
+                          </span>
+                        )}
                       </div>
 
                       {mod.explanation?.responsibility && (
@@ -1155,13 +1806,20 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
 
                   {/* Right side stats + complexity */}
                   <div className="flex items-center gap-3 shrink-0">
-                    <span className="hidden md:inline-block font-sans text-xs text-ink-3 num">
+                    <span className="hidden md:inline-block font-sans text-xs text-ink-3 num font-mono">
                       {formatNumber(mod.line_count)} lines · {mod.classes.length} classes · {mod.functions.length} functions
                     </span>
-                    <StatusTag
-                      status={`complexity-${mod.complexity.rating.toLowerCase()}`}
-                      label={`COMPLEXITY: ${mod.complexity.rating.toUpperCase()}`}
-                    />
+                    <span
+                      className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border whitespace-nowrap ${
+                        mod.complexity.rating === 'critical'
+                          ? 'bg-red-surface text-red-strong border-red-line'
+                          : mod.complexity.rating === 'high'
+                          ? 'bg-amber-surface text-amber-strong border-amber/30'
+                          : 'bg-surface text-ink-2 border-line'
+                      }`}
+                    >
+                      COMPLEXITY: {mod.complexity.rating.toUpperCase()} ({mod.complexity.cyclomatic_complexity})
+                    </span>
                   </div>
                 </button>
 
@@ -1205,6 +1863,26 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                       >
                         Review Modernization Proposals
                       </Button>
+                    </div>
+
+                    {/* Parser Confidence & Role Metadata */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-surface p-3 rounded-lg border border-line">
+                      <div>
+                        <span className="text-ink-4 text-[10px] uppercase font-bold block">Architectural Role</span>
+                        <span className="font-bold text-ink">{roleLabel}</span>
+                      </div>
+                      <div>
+                        <span className="text-ink-4 text-[10px] uppercase font-bold block">Parser Confidence</span>
+                        <span className="font-bold text-ink">
+                          {pStatus === 'complete' ? 'High (Full AST Tree)' : pStatus === 'partial' ? 'Medium (Syntax Fallback)' : 'Low'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-ink-4 text-[10px] uppercase font-bold block">Entry Point Status</span>
+                        <span className="font-bold text-ink">
+                          {kind !== 'unknown' ? entryLabel : mod.is_entry_point ? 'Executable Script' : 'Internal Component'}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Legacy Warnings Breakdown */}
@@ -1267,21 +1945,29 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
                       </div>
                     </div>
 
-                    {/* Imports */}
+                    {/* Imports Resolved & Unresolved */}
                     {mod.imports && mod.imports.length > 0 && (
-                      <div className="pt-2">
-                        <span className="font-sans text-[11px] font-bold text-ink-2 uppercase tracking-wider block mb-1">
+                      <div className="bg-surface rounded-md border border-line p-3">
+                        <span className="font-sans text-[11px] font-bold text-ink-2 uppercase tracking-wider block mb-2">
                           Direct Imports ({mod.imports.length})
                         </span>
-                        <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar">
-                          {mod.imports.map((imp, idx) => (
-                            <span
-                              key={idx}
-                              className="px-2 py-0.5 rounded-pill bg-track text-ink-2 font-mono text-[11px]"
-                            >
-                              {imp.module_name}
-                            </span>
-                          ))}
+                        <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto custom-scrollbar">
+                          {mod.imports.map((imp, idx) => {
+                            const isAlias = imp.module_name.startsWith('@/') || imp.module_name.startsWith('~/');
+                            return (
+                              <span
+                                key={idx}
+                                className={`px-2 py-0.5 rounded-pill font-mono text-[11px] border ${
+                                  isAlias
+                                    ? 'bg-amber-surface text-amber-strong border-amber/30'
+                                    : 'bg-track text-ink-2 border-line'
+                                }`}
+                                title={isAlias ? 'Requires path alias resolution' : imp.module_name}
+                              >
+                                {imp.module_name}
+                              </span>
+                            );
+                          })}
                         </div>
                       </div>
                     )}

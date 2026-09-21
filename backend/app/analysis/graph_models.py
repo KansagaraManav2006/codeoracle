@@ -37,6 +37,11 @@ class GraphSummary(BaseModel):
     total_edges: int = 0
     internal_edges: int = 0
     external_edges: int = 0
+    resolved_edges: int = 0
+    runtime_edges: int = 0
+    type_only_edges: int = 0
+    dynamic_edges: int = 0
+    unresolved_imports: int = 0
     cycle_count: int = 0
     runtime_cycle_count: int = 0
     type_cycle_count: int = 0

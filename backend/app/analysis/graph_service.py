@@ -238,6 +238,12 @@ def build_project_dependency_graph(
     external_edges_count = len(sorted_edges) - internal_edges_count
     high_comp_count = sum(1 for n in sorted_nodes if not n.is_external and n.complexity_rating in ("high", "critical"))
 
+    resolved_count = sum(1 for e in analysis.dependency_edges if e.resolved)
+    unresolved_count = len(analysis.dependency_edges) - resolved_count
+    runtime_count = sum(1 for e in sorted_edges if not getattr(e, "is_type_only", False))
+    type_only_count = sum(1 for e in sorted_edges if getattr(e, "is_type_only", False))
+    dynamic_count = sum(1 for e in sorted_edges if getattr(e, "is_dynamic", False))
+
     summary = GraphSummary(
         total_nodes=len(sorted_nodes),
         internal_nodes=internal_nodes_count,
@@ -245,6 +251,11 @@ def build_project_dependency_graph(
         total_edges=len(sorted_edges),
         internal_edges=internal_edges_count,
         external_edges=external_edges_count,
+        resolved_edges=resolved_count,
+        runtime_edges=runtime_count,
+        type_only_edges=type_only_count,
+        dynamic_edges=dynamic_count,
+        unresolved_imports=unresolved_count,
         cycle_count=len(cycles),
         runtime_cycle_count=len(cycles),
         type_cycle_count=type_cycle_count,
