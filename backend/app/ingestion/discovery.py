@@ -57,10 +57,20 @@ class DiscoveryResult:
 
 
 class IngestionError(Exception):
-    def __init__(self, code: str, message: str):
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        technical_message: str | None = None,
+        http_status: int | None = None,
+        subcode: str | None = None,
+    ):
         super().__init__(message)
         self.code = code
         self.message = message
+        self.subcode = subcode
+        self.technical_message = technical_message
+        self.http_status = http_status
 
 
 def is_binary_content(content_bytes: bytes) -> bool:

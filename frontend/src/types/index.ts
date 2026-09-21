@@ -18,9 +18,39 @@ export interface JobResponse {
   message?: string | null;
   error_code?: string | null;
   error_message?: string | null;
+  technical_message?: string | null;
+  http_status?: number | null;
   polling_url: string;
   created_at: string;
   updated_at: string;
+}
+
+export type FetchStage =
+  | 'idle'
+  | 'validating_url'
+  | 'fetching_repo'
+  | 'reading_files'
+  | 'building_graph'
+  | 'generating_analysis'
+  | 'completed'
+  | 'failed';
+
+export type RepoFetchErrorCode =
+  | 'INVALID_URL'
+  | 'REPO_NOT_FOUND'
+  | 'PRIVATE_REPO'
+  | 'RATE_LIMITED'
+  | 'CLONE_FAILED'
+  | 'TIMEOUT'
+  | 'REPO_TOO_LARGE'
+  | 'UNKNOWN';
+
+export interface RepoFetchError {
+  code: RepoFetchErrorCode;
+  message: string;
+  technicalMessage?: string;
+  httpStatus?: number;
+  stage: string;
 }
 
 export interface ProjectMetadataResponse {
@@ -42,12 +72,45 @@ export interface ProjectFileResponse {
   size_bytes: number;
   line_count: number;
   sha256_hash: string;
+  parse_status?: 'complete' | 'partial' | 'fallback' | 'unsupported' | 'failed';
+  parse_badge?: 'FULL AST' | 'PARTIAL' | 'FALLBACK' | 'UNSUPPORTED' | 'FAILED';
+  parse_reason?: string | null;
+  parser?: string;
+  confidence?: 'High' | 'Medium' | 'Low';
 }
 
 export interface ProjectFilesListResponse {
   project_id: string;
   total_files: number;
   files: ProjectFileResponse[];
+}
+
+export interface ProjectSummary {
+  project_id: string;
+  display_name: string;
+  repository: {
+    owner: string;
+    name: string;
+    url: string;
+  };
+  totals: {
+    repository_files?: number;
+    source_files: number;
+    loc: number;
+  };
+  languages: {
+    language: string;
+    loc: number;
+  }[];
+  parse_coverage: {
+    fully_parsed: number;
+    partial: number;
+    unsupported: number;
+    failed: number;
+    full_ast_percentage: number;
+  };
+  analysis_mode: 'static' | string;
+  warnings: string[];
 }
 
 export type TabType = 'overview' | 'explanation' | 'hotspots' | 'graph' | 'neural-map' | 'tests' | 'refactor' | 'migration';

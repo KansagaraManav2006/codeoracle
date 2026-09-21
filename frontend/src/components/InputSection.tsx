@@ -20,6 +20,8 @@ import { IngestionMode } from '../types';
 import Button from './common/Button';
 import { formatBytes } from '../utils/formatters';
 
+import { normalizeGithubUrl, validateGithubUrl } from '../utils/github';
+
 const MAX_ZIP_BYTES = 200 * 1024 * 1024;
 
 interface InputSectionProps {
@@ -27,6 +29,7 @@ interface InputSectionProps {
   onAnalyzeGithub: (url: string) => void;
   onLoadDemo: (benchmarkName?: string) => void;
   disabled?: boolean;
+  initialGithubUrl?: string | null;
 }
 
 export const InputSection: React.FC<InputSectionProps> = ({
@@ -34,13 +37,23 @@ export const InputSection: React.FC<InputSectionProps> = ({
   onAnalyzeGithub,
   onLoadDemo,
   disabled = false,
+  initialGithubUrl,
 }) => {
   const [mode, setMode] = useState<IngestionMode>('github');
-  const [githubUrl, setGithubUrl] = useState('');
+  const [githubUrl, setGithubUrl] = useState(initialGithubUrl || '');
   const [githubError, setGithubError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+
+  // Sync when initialGithubUrl changes (e.g. from Edit Repository URL)
+  React.useEffect(() => {
+    if (initialGithubUrl) {
+      setGithubUrl(initialGithubUrl);
+      setMode('github');
+      setGithubError(null);
+    }
+  }, [initialGithubUrl]);
 
   const sampleRepositories = [
     { label: 'Flask', url: 'https://github.com/pallets/flask', desc: 'Python 2/3' },
@@ -50,21 +63,16 @@ export const InputSection: React.FC<InputSectionProps> = ({
 
   const validateUrl = (url: string): boolean => {
     setGithubError(null);
-    if (!url.trim()) {
-      setGithubError('GitHub URL is required.');
-      return false;
-    }
-    const regex = /^https:\/\/github\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+(?:\.git)?$/;
-    if (!regex.test(url.trim())) {
-      setGithubError('Enter a valid public GitHub HTTPS repository URL (e.g. https://github.com/owner/repo)');
+    const result = validateGithubUrl(url);
+    if (!result.valid) {
+      setGithubError(result.error || 'Enter a valid public GitHub HTTPS repository URL');
       return false;
     }
     return true;
   };
 
   const isUrlValid = Boolean(
-    githubUrl.trim() &&
-    /^https:\/\/github\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+(?:\.git)?$/.test(githubUrl.trim())
+    githubUrl.trim() && validateGithubUrl(githubUrl).valid
   );
 
   const handleZipFile = (file: File) => {
@@ -102,8 +110,9 @@ export const InputSection: React.FC<InputSectionProps> = ({
     e.preventDefault();
     if (disabled) return;
     if (mode === 'github') {
-      if (!validateUrl(githubUrl)) return;
-      onAnalyzeGithub(githubUrl.trim());
+      const normalized = normalizeGithubUrl(githubUrl);
+      if (!validateUrl(normalized)) return;
+      onAnalyzeGithub(normalized);
     } else {
       if (!selectedFile) {
         setFileError('Please select a ZIP file to analyze.');

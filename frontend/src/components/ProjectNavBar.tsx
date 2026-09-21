@@ -133,7 +133,7 @@ export const ProjectNavBar: React.FC<ProjectNavBarProps> = ({
 
           <div className="flex items-center gap-2 min-w-0">
             <span
-              className="font-display font-bold text-sm sm:text-base text-ink truncate max-w-[240px] sm:max-w-[420px] lg:max-w-[600px]"
+              className="font-display font-bold text-sm sm:text-base text-ink whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px] sm:max-w-[380px] lg:max-w-[540px]"
               title={project.display_name}
             >
               {project.display_name}

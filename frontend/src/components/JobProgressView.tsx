@@ -1,5 +1,5 @@
 import React from 'react';
-import { JobResponse } from '../types';
+import { FetchStage, JobResponse, RepoFetchError } from '../types';
 import AnalysisStepper from './common/AnalysisStepper';
 
 interface JobProgressViewProps {
@@ -7,7 +7,10 @@ interface JobProgressViewProps {
   loading: boolean;
   error: string | null;
   errorCode: string | null;
+  fetchError?: RepoFetchError | null;
+  fetchStage?: FetchStage;
   onRetry: () => void;
+  onEditUrl?: () => void;
   onCancel?: () => void;
 }
 
@@ -16,12 +19,15 @@ export const JobProgressView: React.FC<JobProgressViewProps> = ({
   loading,
   error,
   errorCode,
+  fetchError,
+  fetchStage,
   onRetry,
+  onEditUrl,
   onCancel,
 }) => {
-  if (!loading && !job && !error) return null;
+  if (!loading && !job && !error && !fetchError) return null;
 
-  const currentStage = job?.stage || (loading ? 'Preparing analysis workspace…' : '');
+  const currentStage = job?.stage || (loading ? 'Validating repository and preparing workspace…' : '');
   const errorMessage =
     error ||
     (job?.state === 'failed'
@@ -32,10 +38,13 @@ export const JobProgressView: React.FC<JobProgressViewProps> = ({
     <div className="w-full my-6 sm:my-8">
       <AnalysisStepper
         currentStage={currentStage}
+        fetchStage={fetchStage}
         progressPercentage={job?.progress_percentage}
         errorMessage={errorMessage}
+        fetchError={fetchError}
         onCancel={onCancel}
         onRetry={onRetry}
+        onEditUrl={onEditUrl}
       />
     </div>
   );

@@ -61,8 +61,25 @@ const AppContent: React.FC = () => {
     setImpactModalOpen(true);
   };
 
-  const { job, project, files, loading, error, errorCode, submitZip, submitGithub, loadDemo, openProject, reset } =
-    useJobPoller();
+  const {
+    job,
+    project,
+    projectSummary,
+    files,
+    loading,
+    error,
+    errorCode,
+    repoFetchError,
+    lastGithubUrl,
+    fetchStage,
+    submitZip,
+    submitGithub,
+    loadDemo,
+    openProject,
+    retry,
+    editUrl,
+    reset,
+  } = useJobPoller();
 
   // Check background summary metrics for status dots on tabs
   useEffect(() => {
@@ -242,6 +259,7 @@ const AppContent: React.FC = () => {
               onAnalyzeGithub={submitGithub}
               onLoadDemo={loadDemo}
               disabled={loading}
+              initialGithubUrl={lastGithubUrl}
             />
 
             <JobProgressView
@@ -249,7 +267,10 @@ const AppContent: React.FC = () => {
               loading={loading}
               error={error}
               errorCode={errorCode}
-              onRetry={reset}
+              fetchError={repoFetchError}
+              fetchStage={fetchStage}
+              onRetry={retry}
+              onEditUrl={editUrl}
               onCancel={reset}
             />
 
@@ -266,6 +287,7 @@ const AppContent: React.FC = () => {
                 {activeTab === 'overview' && (
                   <ProjectOverviewTab
                     project={project}
+                    summary={projectSummary}
                     files={files}
                     onSelectFile={handleSelectFile}
                     onNavigateTab={handleTabChange}
