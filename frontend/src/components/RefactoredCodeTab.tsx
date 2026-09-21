@@ -329,7 +329,7 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
 
   return (
     <div
-      className="space-y-5 animate-[fade-up_250ms_ease-out_both]"
+      className="space-y-3.5 sm:space-y-4 animate-[fade-up_250ms_ease-out_both]"
       role="tabpanel"
       id="tabpanel-refactor"
       aria-labelledby="tab-refactor"

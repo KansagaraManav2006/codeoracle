@@ -79,15 +79,15 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
   };
 
   return (
-    <div className="w-full mb-6">
+    <div className="w-full mb-3.5">
       {/* Guided modernization workflow subtitle banner */}
-      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 px-1 text-[11px] font-sans">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1 text-[11px] font-sans">
         <div className="flex items-center gap-2">
           <span className="font-bold text-ink uppercase tracking-wider text-[10px]">
             Guided workflow:
           </span>
           <span className="text-ink-3 hidden sm:inline">
-            Audit → Risk Hotspots → Dependency Map → Safety Tests → Modernize → Impact &amp; Plan
+            Architecture Overview → Risk Hotspots → Dependency Map → Safety Tests → Modernization → Impact &amp; Plan
           </span>
         </div>
         {targetFile && (
@@ -110,7 +110,7 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
         ref={tabsListRef}
         role="tablist"
         aria-label="Workspace Tabs"
-        className="w-full flex items-center gap-2 p-2 bg-track rounded-xl overflow-x-auto custom-scrollbar scroll-smooth snap-x select-none"
+        className="w-full flex items-center gap-2 p-1.5 sm:p-2 bg-track rounded-xl overflow-x-auto custom-scrollbar scroll-smooth snap-x select-none"
       >
         {tabs.map((tab, idx) => {
           const Icon = tab.icon;
@@ -129,14 +129,14 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
               tabIndex={isActive ? 0 : -1}
               onClick={() => onTabChange(tab.id)}
               onKeyDown={(e) => handleKeyDown(e, idx)}
-              className={`relative flex items-center gap-2 h-10 px-4 rounded-pill font-sans text-sm font-semibold whitespace-nowrap snap-start transition-[background-color,border-color,transform,box-shadow] duration-fast ${
+              className={`relative flex items-center gap-2 h-9 sm:h-10 px-3.5 sm:px-4 rounded-pill font-sans text-xs sm:text-sm font-semibold whitespace-nowrap snap-start transition-[background-color,border-color,transform,box-shadow] duration-fast ${
                 isActive
                   ? 'bg-ink text-white shadow-none border border-transparent'
                   : 'bg-surface text-ink border border-line shadow-1 hover:border-line-strong hover:-translate-y-[1px]'
               } focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo focus-visible:outline-offset-2`}
             >
               <Icon
-                className={`w-[18px] h-[18px] shrink-0 ${
+                className={`w-4 h-4 sm:w-[18px] sm:h-[18px] shrink-0 ${
                   isActive ? 'text-amber-on-dark' : 'text-ink'
                 }`}
                 strokeWidth={1.75}
@@ -154,8 +154,8 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
               {tab.statusDot === 'amber' && (
                 <span
                   className="w-2 h-2 rounded-full bg-amber shrink-0"
-                  aria-label="Human review recommended"
-                  title="Human review recommended"
+                  aria-label="Human review required"
+                  title="Human review required"
                 />
               )}
             </button>

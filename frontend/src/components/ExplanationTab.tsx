@@ -428,7 +428,7 @@ ${m.explanation?.responsibility ? `- Responsibility: ${m.explanation.responsibil
   };
 
   return (
-    <div className="space-y-6 animate-[fade-up_250ms_ease-out_both]" role="tabpanel" id="tabpanel-explanation" aria-labelledby="tab-explanation">
+    <div className="space-y-3.5 sm:space-y-4 animate-[fade-up_250ms_ease-out_both]" role="tabpanel" id="tabpanel-explanation" aria-labelledby="tab-explanation">
       {/* ========================================================================= */}
       {/* 1. SECTION 1: WHAT IS THIS PROJECT? (5-SECOND EXECUTIVE OVERVIEW)         */}
       {/* ========================================================================= */}

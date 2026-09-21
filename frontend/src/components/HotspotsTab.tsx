@@ -193,7 +193,7 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
   };
 
   return (
-    <div className="space-y-6 animate-[fade-up_250ms_ease-out_both]" role="tabpanel" id="tabpanel-hotspots" aria-labelledby="tab-hotspots">
+    <div className="space-y-3.5 sm:space-y-4 animate-[fade-up_250ms_ease-out_both]" role="tabpanel" id="tabpanel-hotspots" aria-labelledby="tab-hotspots">
       {/* 1. Header Card & KPIs */}
       <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-line">
@@ -333,7 +333,7 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
             <Button
               variant="outline"
               size="sm"
-              className="!text-white !border-white/20 hover:!bg-white/10"
+              className="!bg-white/10 hover:!bg-white/20 active:!bg-white/25 !text-white !border-white/25 shadow-none"
               onClick={() => handleInspectInGraph(topHotspot.file)}
               icon={<Network className="w-3.5 h-3.5 text-amber-on-dark" />}
               title="Inspect coupling in interactive Dependency Map"
@@ -343,7 +343,7 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
             <Button
               variant="outline"
               size="sm"
-              className="!text-white !border-white/20 hover:!bg-white/10 font-bold"
+              className="!bg-white/15 hover:!bg-white/25 active:!bg-white/30 !text-white !border-white/30 shadow-none font-bold"
               onClick={() => handleWhatBreaks(topHotspot.file)}
               icon={<Target className="w-3.5 h-3.5 text-amber-on-dark" />}
               title="Simulate downstream blast radius and affected entry points"
@@ -353,7 +353,7 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
             <Button
               variant="outline"
               size="sm"
-              className="!text-white !border-white/20 hover:!bg-white/10"
+              className="!bg-white/10 hover:!bg-white/20 active:!bg-white/25 !text-white !border-white/25 shadow-none"
               onClick={() => handleGenerateTests(topHotspot.file)}
               icon={<TestTube className="w-3.5 h-3.5 text-amber-on-dark" />}
               title="Generate characterization pinning tests for this file"
@@ -363,7 +363,7 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
             <Button
               variant="outline"
               size="sm"
-              className="!text-white !border-white/20 hover:!bg-white/10"
+              className="!bg-white/10 hover:!bg-white/20 active:!bg-white/25 !text-white !border-white/25 shadow-none"
               onClick={() => handleReviewModernization(topHotspot.file)}
               icon={<Wand2 className="w-3.5 h-3.5 text-amber-on-dark" />}
               title="Preview automated modernization proposals in disposable sandbox"

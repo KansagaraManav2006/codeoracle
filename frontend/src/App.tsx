@@ -200,13 +200,15 @@ const AppContent: React.FC = () => {
         Skip to content
       </a>
 
-      {/* 68px Dark Sticky Application Header */}
-      <Header />
+      {/* Brand Header — Rendered on Landing Screen */}
+      {!project && <Header />}
 
       {/* Main Page Canvas with Warm Cream Background per DESIGN.md §4.1 */}
       <main
         id="main-content"
-        className="flex-1 w-full max-w-[1200px] mx-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-8"
+        className={`flex-1 w-full max-w-[1240px] mx-auto px-3.5 sm:px-6 lg:px-8 ${
+          !project ? 'py-6 sm:py-8' : 'py-3 sm:py-4'
+        }`}
       >
         {!project ? (
           <div className="space-y-6 sm:space-y-8">
@@ -234,8 +236,8 @@ const AppContent: React.FC = () => {
             )}
           </div>
         ) : (
-          <div className="space-y-6 sm:space-y-8">
-            {/* Project Summary Panel & Source Files Card per DESIGN.md §8.1 */}
+          <div className="space-y-3 sm:space-y-3.5">
+            {/* Cohesive In-Page Repository Context Hero & Collapsible Files */}
             <ProjectResultsView
               project={project}
               files={files}
@@ -243,7 +245,7 @@ const AppContent: React.FC = () => {
               onSelectFile={handleSelectFile}
             />
 
-            {/* Centered Workspace Shell holding the 6 tabs */}
+            {/* Workspace Shell holding Tab Navigation & Active Views */}
             <WorkspaceShell>
               <TabNavigation
                 activeTab={activeTab}
@@ -255,12 +257,12 @@ const AppContent: React.FC = () => {
 
               {/* Active Target File Context Bar with Primary Action */}
               {targetFile && (
-                <div className="mt-3 px-4 py-2.5 bg-surface border border-line rounded-lg flex flex-wrap items-center justify-between gap-3 shadow-xs animate-[fade-down_120ms_ease-out]">
+                <div className="mb-3 px-3.5 py-2 bg-surface border border-line rounded-lg flex flex-wrap items-center justify-between gap-2.5 shadow-xs animate-[fade-down_120ms_ease-out]">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-ink-3">
                       Selected File:
                     </span>
-                    <span className="font-mono text-xs font-bold text-ink bg-tile px-2 py-0.5 rounded border border-line">
+                    <span className="font-mono text-xs font-bold text-ink bg-tile px-2 py-0.5 rounded border border-line truncate max-w-[280px] sm:max-w-[400px]">
                       {targetFile}
                     </span>
                   </div>
@@ -277,7 +279,7 @@ const AppContent: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleSelectFile('')}
-                      className="text-xs text-ink-3 hover:text-ink font-semibold ml-1 cursor-pointer"
+                      className="text-xs text-ink-3 hover:text-ink font-semibold ml-1 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo rounded-xs"
                       title="Clear selected file"
                     >
                       Clear
@@ -286,7 +288,7 @@ const AppContent: React.FC = () => {
                 </div>
               )}
 
-              <div className="mt-4">
+              <div className="w-full">
                 {activeTab === 'explanation' && (
                   <ExplanationTab
                     projectId={project.project_id}

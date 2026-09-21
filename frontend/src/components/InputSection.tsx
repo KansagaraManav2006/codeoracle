@@ -72,19 +72,19 @@ export const InputSection: React.FC<InputSectionProps> = ({
   };
 
   return (
-    <div className="w-full max-w-landing mx-auto py-8 sm:py-12 flex flex-col items-center text-center">
+    <div className="w-full max-w-4xl mx-auto py-5 sm:py-8 flex flex-col items-center text-center">
       {/* H1 Title per DESIGN.md §8.7 */}
-      <h1 className="font-display font-extrabold text-[32px] sm:text-[44px] leading-[1.1] tracking-[-0.02em] text-ink max-w-[580px]">
+      <h1 className="font-display font-extrabold text-[30px] sm:text-[40px] leading-[1.12] tracking-[-0.02em] text-ink max-w-[580px]">
         Understand legacy code before you change it.
       </h1>
 
       {/* Lede per DESIGN.md §8.7 */}
-      <p className="mt-4 text-base sm:text-[17px] leading-[1.5] text-ink-3 max-w-[500px] font-sans">
+      <p className="mt-3.5 text-base sm:text-[17px] leading-[1.5] text-ink-3 max-w-[500px] font-sans">
         Deterministic dependency maps, explainable modernization readiness scores, and safe before-and-after proposals.
       </p>
 
       {/* Mode Switcher */}
-      <div className="flex items-center gap-1.5 p-1 bg-track rounded-pill border border-line mt-8 mb-6">
+      <div className="flex items-center gap-1.5 p-1 bg-track rounded-pill border border-line mt-6 mb-5">
         <button
           type="button"
           onClick={() => {
@@ -121,7 +121,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
       </div>
 
       {/* Form Area */}
-      <form onSubmit={handleSubmit} className="w-full space-y-4">
+      <form onSubmit={handleSubmit} className="w-full max-w-xl mx-auto space-y-4">
         {mode === 'github' ? (
           <div>
             <div className="relative flex items-center bg-surface border border-line rounded-pill shadow-1 p-1.5 focus-within:ring-2 focus-within:ring-indigo focus-within:border-transparent transition-all">
@@ -285,7 +285,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
       </div>
 
       {/* Three factual product statements per DESIGN.md §8.7 */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mt-12 pt-8 border-t border-line/80 w-full text-left">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mt-7 sm:mt-9 pt-6 sm:pt-7 border-t border-line/80 w-full text-left">
         <div className="flex items-start gap-3">
           <div className="w-8 h-8 rounded-md bg-teal-surface text-teal-strong flex items-center justify-center shrink-0 border border-teal/20">
             <Shield className="w-4 h-4" strokeWidth={1.75} />

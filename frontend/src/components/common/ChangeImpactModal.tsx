@@ -51,8 +51,9 @@ export const ChangeImpactModal: React.FC<ChangeImpactModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-md border border-line bg-surface hover:bg-tile text-ink-3 hover:text-ink flex items-center justify-center transition-colors"
+            className="w-8 h-8 rounded-md border border-line bg-surface hover:bg-tile text-ink-3 hover:text-ink flex items-center justify-center transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo"
             title="Close impact modal"
+            aria-label="Close impact modal"
           >
             <X className="w-4 h-4" />
           </button>

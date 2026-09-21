@@ -802,7 +802,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
 
   return (
     <div
-      className="space-y-6 animate-[fade-up_250ms_ease-out_both]"
+      className="space-y-3.5 sm:space-y-4 animate-[fade-up_250ms_ease-out_both]"
       role="tabpanel"
       id="tabpanel-graph"
       aria-labelledby="tab-graph"
