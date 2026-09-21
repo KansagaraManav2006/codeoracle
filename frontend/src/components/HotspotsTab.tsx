@@ -51,6 +51,7 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
   const [sortField, setSortField] = useState<SortField>('score');
   const [sortAsc, setSortAsc] = useState(false);
   const [expandedFile, setExpandedFile] = useState<string | null>(targetFile);
+  const [visibleHotspots, setVisibleHotspots] = useState(50);
 
   // Sync expandedFile if targetFile prop changes
   useEffect(() => {
@@ -79,8 +80,13 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
   useEffect(() => {
     if (projectId) {
       fetchHotspots();
+      // Reset visible count when project changes
+      setVisibleHotspots(50);
     }
   }, [projectId]);
+
+  // Reset visible count when filters change
+  useEffect(() => { setVisibleHotspots(50); }, [searchTerm, riskFilter, sortField, sortAsc]);
 
   // 5 Working Action Handlers
   const handleInspectInGraph = (file: string) => {
@@ -520,7 +526,7 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {filtered.map((item, index) => {
+                {filtered.slice(0, visibleHotspots).map((item, index) => {
                   const isExpanded = expandedFile === item.file;
                   const factors = item.score_factors;
 
@@ -736,6 +742,16 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
                 })}
               </tbody>
             </table>
+            {filtered.length > visibleHotspots && (
+              <div className="flex justify-center py-4 border-t border-line">
+                <button
+                  onClick={() => setVisibleHotspots((prev) => prev + 50)}
+                  className="px-6 py-2 rounded-lg bg-surface-2 border border-line text-ink-2 text-sm font-medium hover:bg-track hover:text-ink transition-colors"
+                >
+                  Load More Hotspots ({filtered.length - visibleHotspots} remaining)
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -12,7 +12,7 @@ from app.ingestion.discovery import IngestionError
 logger = logging.getLogger(__name__)
 
 GITHUB_URL_REGEX = re.compile(
-    r"^https://github\.com/([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+?)(?:\.git)?$"
+    r"^https://github\.com/([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.+-]+?)(?:\.git)?$"
 )
 
 
@@ -48,14 +48,17 @@ def validate_github_url(url_str: str) -> str:
         )
 
     owner, repo = match.groups()
+    # Keep the original repo name for cloning (GitHub accepts trailing dots)
     clean_url = f"https://github.com/{owner}/{repo}.git"
     return clean_url
 
 
 def extract_repo_display_name(clean_url: str) -> str:
-    """Extracts exact repository name, correctly handling suffixes like '.git' or 'audit'."""
+    """Extracts repository display name, stripping .git suffix and trailing dots/hyphens."""
     url_no_git = clean_url[:-4] if clean_url.endswith(".git") else clean_url
-    return url_no_git.split("/")[-1]
+    raw_name = url_no_git.split("/")[-1]
+    # Normalize: strip trailing dots/hyphens that appear in some GitHub repo names
+    return raw_name.rstrip(".-") or raw_name
 
 
 def get_dir_size_bytes(dir_path: Path) -> int:
@@ -87,11 +90,16 @@ def sanitize_git_stderr(stderr: str, target_dir: Path) -> str:
 def clone_github_repository(clean_url: str, target_dir: Path) -> None:
     """
     Executes git clone in a shallow, blobless, non-interactive subprocess with parameter array security.
+
+    Uses --no-progress and --quiet to suppress the verbose 'Updating files: X%' progress lines
+    that git writes to stderr. On Windows, these lines can fill the OS pipe buffer and cause
+    subprocess.run() to stall/deadlock when stderr=PIPE is used in a background thread.
     """
     target_dir.mkdir(parents=True, exist_ok=True)
 
     env = dict(os.environ)
     env["GIT_TERMINAL_PROMPT"] = "0"
+    env["GIT_OPTIONAL_LOCKS"] = "0"  # Prevent lock contention in concurrent clones
     env["LANG"] = "C"
 
     cmd = [
@@ -101,6 +109,8 @@ def clone_github_repository(clean_url: str, target_dir: Path) -> None:
         "1",
         "--filter=blob:none",
         "--single-branch",
+        "--no-progress",  # Suppress 'Updating files: X%' lines from stderr
+        "--quiet",        # Suppress 'Cloning into ...' header line
         clean_url,
         str(target_dir),
     ]
@@ -109,8 +119,8 @@ def clone_github_repository(clean_url: str, target_dir: Path) -> None:
         result = subprocess.run(
             cmd,
             env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,  # Discard stdout (clone has no useful stdout output)
+            stderr=subprocess.PIPE,     # Capture only the small quiet-mode error lines
             text=True,
             timeout=settings.CLONE_TIMEOUT_SECONDS,
         )
@@ -119,16 +129,21 @@ def clone_github_repository(clean_url: str, target_dir: Path) -> None:
             # Log sanitized stderr for diagnostics without exposing raw stderr or local paths
             safe_stderr = sanitize_git_stderr(result.stderr, target_dir)
             logger.error("Git clone failed for %s. Stderr: %s", clean_url, safe_stderr)
-            
+
             # Remove partial clone directory on failure
             if target_dir.exists():
                 shutil.rmtree(target_dir, ignore_errors=True)
 
-            stderr_lower = result.stderr.lower()
-            if "authentication failed" in stderr_lower or "repository not found" in stderr_lower:
+            stderr_lower = (result.stderr or "").lower()
+            if (
+                "authentication failed" in stderr_lower
+                or "repository not found" in stderr_lower
+                or "not found" in stderr_lower
+                or "does not exist" in stderr_lower
+            ):
                 raise IngestionError(
                     code="GITHUB_CLONE_FAILED",
-                    message="Failed to access public GitHub repository. Please verify the repository is public and the URL is correct.",
+                    message="Failed to access repository. Please verify the repository is public and the URL is correct.",
                 )
             raise IngestionError(
                 code="GITHUB_CLONE_FAILED",

@@ -110,6 +110,12 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
 
   useEffect(() => {
     fetchData(false);
+    // Reset visible count and expanded state for each new project
+    setVisibleCount(60);
+    setExpandedModules(new Set());
+    setSearchQuery('');
+    setLanguageFilter('all');
+    setSelectedLayer(null);
   }, [projectId]);
 
   const toggleModule = (id: string) => {
@@ -321,6 +327,10 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
       return matchesSearch && matchesLang;
     });
   }, [analysis, searchQuery, languageFilter, selectedLayer]);
+
+  // Reset visible count whenever filters/search changes so "Load More" restarts from 60
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setVisibleCount(60); }, [searchQuery, languageFilter, selectedLayer]);
 
   const handleDownloadMarkdown = () => {
     if (!analysis) return;

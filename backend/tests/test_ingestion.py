@@ -540,11 +540,13 @@ def test_33_unsupported_special_entry(mock_zipfile_cls, tmp_path):
     assert exc.value.code == "UNSUPPORTED_ENTRY_TYPE"
 
 
-# --- 34. Repository Display Name Extraction (audit suffix test) ---
+# --- 34. Repository Display Name Extraction (audit suffix & trailing dot test) ---
 def test_34_repo_display_name_audit_suffix():
     assert extract_repo_display_name("https://github.com/owner/smart-contract-audit.git") == "smart-contract-audit"
     assert extract_repo_display_name("https://github.com/owner/audit.git") == "audit"
     assert extract_repo_display_name("https://github.com/owner/audit") == "audit"
+    assert extract_repo_display_name("https://github.com/DeepMakwana-18/End-to-End-E-commerce-Demand-Forecasting-Inventory-Optimization-Platform..git") == "End-to-End-E-commerce-Demand-Forecasting-Inventory-Optimization-Platform"
+    assert validate_github_url("https://github.com/DeepMakwana-18/End-to-End-E-commerce-Demand-Forecasting-Inventory-Optimization-Platform..git") == "https://github.com/DeepMakwana-18/End-to-End-E-commerce-Demand-Forecasting-Inventory-Optimization-Platform..git"
 
 
 # --- 35. Deterministic ProjectFile IDs & Content Hash ---

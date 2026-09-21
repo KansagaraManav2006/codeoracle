@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     MAX_ZIP_ENTRIES: int = 10000
     MAX_COMPRESSION_RATIO: float = 100.0
     MAX_RELEVANT_LINES: int = 100000
-    CLONE_TIMEOUT_SECONDS: int = 150
+    CLONE_TIMEOUT_SECONDS: int = 300
     MAX_CLONE_SIZE_BYTES: int = 500 * 1024 * 1024  # 500MB
 
     # Generated-test execution is opt-in. Uploaded code is untrusted.

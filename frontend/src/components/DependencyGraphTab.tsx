@@ -361,7 +361,18 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
     focusNeighborhoodIds,
   ]);
 
-  const filteredNodeIds = useMemo(() => new Set(filteredNodes.map((n) => n.id)), [filteredNodes]);
+  // For large repos: cap the rendered nodes to prevent browser freeze.
+  // Sort by complexity so the most important nodes are always shown.
+  const MAX_GRAPH_NODES = 120;
+  const cappedNodes = useMemo(() => {
+    if (filteredNodes.length <= MAX_GRAPH_NODES) return filteredNodes;
+    return [...filteredNodes]
+      .sort((a, b) => (b.complexity_score ?? 0) - (a.complexity_score ?? 0))
+      .slice(0, MAX_GRAPH_NODES);
+  }, [filteredNodes]);
+  const isGraphCapped = filteredNodes.length > MAX_GRAPH_NODES;
+
+  const filteredNodeIds = useMemo(() => new Set(cappedNodes.map((n) => n.id)), [cappedNodes]);
 
   // Filtered edges based on filteredNodeIds and edgeFilter
   const filteredEdges = useMemo(() => {
@@ -388,15 +399,15 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
 
   // React Flow Nodes layout calculation
   const rfNodes: Node[] = useMemo(() => {
-    if (filteredNodes.length === 0) return [];
+    if (cappedNodes.length === 0) return [];
 
     // --- Mode 1: Selected-Node Focus Mode (3-column pipeline) ---
     if (graphLayout === 'focus' && selectedNodeId) {
-      const focalNode = filteredNodes.find((n) => n.id === selectedNodeId);
-      const upstreamList = filteredNodes.filter(
+      const focalNode = cappedNodes.find((n) => n.id === selectedNodeId);
+      const upstreamList = cappedNodes.filter(
         (n) => n.id !== selectedNodeId && upstreamNodeIds.has(n.id)
       );
-      const downstreamList = filteredNodes.filter(
+      const downstreamList = cappedNodes.filter(
         (n) => n.id !== selectedNodeId && downstreamNodeIds.has(n.id)
       );
 
@@ -467,12 +478,12 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
 
     // --- Mode 2: Architecture Overview Mode (Layered Tiers) ---
     if (graphLayout === 'architecture') {
-      const tier0: typeof filteredNodes = []; // Entry points
-      const tier1: typeof filteredNodes = []; // Core domain & intermediate services
-      const tier2: typeof filteredNodes = []; // Leaf modules & utilities
-      const tier3: typeof filteredNodes = []; // External packages
+      const tier0: typeof cappedNodes = []; // Entry points
+      const tier1: typeof cappedNodes = []; // Core domain & intermediate services
+      const tier2: typeof cappedNodes = []; // Leaf modules & utilities
+      const tier3: typeof cappedNodes = []; // External packages
 
-      filteredNodes.forEach((n) => {
+      cappedNodes.forEach((n) => {
         if (n.is_external) {
           tier3.push(n);
         } else if (
@@ -496,7 +507,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
 
       let currentY = 50;
 
-      const placeTier = (tierNodes: typeof filteredNodes) => {
+      const placeTier = (tierNodes: typeof cappedNodes) => {
         if (tierNodes.length === 0) return;
         tierNodes.forEach((n, idx) => {
           const col = idx % maxCols;
@@ -541,11 +552,11 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
     }
 
     // --- Mode 3: Standard Grid Mode ---
-    const cols = Math.max(2, Math.ceil(Math.sqrt(filteredNodes.length * 1.5)));
+    const cols = Math.max(2, Math.ceil(Math.sqrt(cappedNodes.length * 1.5)));
     const nodeWidth = 280;
     const nodeHeight = 145;
 
-    return filteredNodes.map((n, idx) => {
+    return cappedNodes.map((n, idx) => {
       const col = idx % cols;
       const row = Math.floor(idx / cols);
       const isCycle = cycleNodeIds.has(n.id) && highlightCycles;
@@ -573,7 +584,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
       };
     });
   }, [
-    filteredNodes,
+    cappedNodes,
     graphLayout,
     selectedNodeId,
     upstreamNodeIds,
@@ -849,7 +860,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
 
         {/* 6 Stat tiles */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-5">
-          <StatTile label="Files shown" value={formatNumber(filteredNodes.length)} color="ink" />
+          <StatTile label="Files shown" value={isGraphCapped ? `${formatNumber(cappedNodes.length)}/${formatNumber(filteredNodes.length)}` : formatNumber(filteredNodes.length)} color="ink" />
           <StatTile label="Connections" value={formatNumber(filteredEdges.length)} color="ink" />
           <StatTile
             label="Dependency loops"
@@ -1049,7 +1060,14 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
               <div className="absolute top-3 left-3 z-10 bg-surface/90 backdrop-blur-sm border border-line rounded-lg px-3 py-1.5 shadow-1 flex items-center gap-2.5 text-xs text-ink-2 max-w-lg">
                 <Info className="w-4 h-4 text-indigo shrink-0" />
                 <span className="truncate">
-                  Showing <strong>{filteredNodes.length}</strong> modules. Tip: Switch to Architecture mode or click Focus Mode for streamlined inspection.
+                  {isGraphCapped ? (
+                    <>
+                      Showing top <strong>{cappedNodes.length}</strong> of <strong>{filteredNodes.length}</strong> nodes (by complexity).
+                      Use search or filters to focus, or switch to Architecture / Focus Mode.
+                    </>
+                  ) : (
+                    <>Showing <strong>{cappedNodes.length}</strong> modules. Tip: Switch to Architecture mode or click Focus Mode for streamlined inspection.</>
+                  )}
                 </span>
                 <button
                   type="button"
@@ -1089,7 +1107,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
             )}
 
             {/* Empty & Filtered State Card */}
-            {filteredNodes.length === 0 && (
+            {cappedNodes.length === 0 && (
               <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-10 bg-canvas/85 backdrop-blur-xs">
                 <div className="w-12 h-12 rounded-xl bg-panel text-ink-3 flex items-center justify-center mb-3 border border-line">
                   <Filter className="w-6 h-6" />
@@ -1129,7 +1147,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                 maxZoom={2.0}
                 fitView
               >
-                <AutoFitView trigger={fitTrigger + filteredNodes.length + (selectedNodeId ? 1 : 0)} />
+                <AutoFitView trigger={fitTrigger + cappedNodes.length + (selectedNodeId ? 1 : 0)} />
 
                 <Controls
                   className="!m-3 !bg-surface !border !border-line !rounded-md !shadow-1 !overflow-hidden [&>button]:!border-b [&>button]:!border-line [&>button]:!w-9 [&>button]:!h-9"
