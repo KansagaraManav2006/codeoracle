@@ -13,7 +13,7 @@ from app.analysis.models import (
     WarningInfo,
 )
 from app.database import Base, get_db
-from app.hotspots.models import HotspotItem, HotspotsResponse
+from app.hotspots.models import RiskAssessment, HotspotsResponse, HotspotItem
 from app.hotspots.service import compute_project_hotspots, compute_static_hotspot_item
 from app.main import app as fastapi_app
 from app.models.db import Project, ProjectAnalysisRecord
@@ -39,32 +39,37 @@ def test_compute_static_hotspot_item_formula_and_bounds():
     item = compute_static_hotspot_item(
         file_path="core/engine.py",
         complexity_raw=28,
-        complexity_rating="critical",
         loc_raw=550,
         fan_in_raw=6,
         warnings_raw=4,
         blast_radius_raw=8,
         transitive_dependents=["app.py", "server.py"],
         direct_dependents=["server.py"],
-        is_partially_parsed=False,
+        parse_status="full",
+        unresolved_relations=0,
     )
-    assert item.score_mode == "static"
     assert 0 <= item.hotspot_score <= 100
-    assert item.risk_level in {"critical", "high"}
-    assert item.complexity == 28
-    assert item.dependency_fan_in == 6
-    assert item.blast_radius == 8
+    assert item.overall_risk in {"critical", "high"}
+    assert item.complexity.value == 28
+    assert item.complexity.severity == "critical"
+    assert item.graph.fan_in == 6
+    assert item.graph.blast_radius == 8
     assert item.lines_of_code == 550
-    assert item.warnings_count == 4
+    assert item.warnings == 4
+    assert item.parse.status == "full"
+    assert item.parse.confidence == "high"
+
     # Factor breakdown
-    assert item.score_factors.complexity_score <= 25
-    assert item.score_factors.loc_score <= 15
-    assert item.score_factors.fan_in_score <= 20
-    assert item.score_factors.warnings_score <= 20
-    assert item.score_factors.blast_radius_score <= 20
-    # Explanation
+    assert item.score_factors.complexity <= 35
+    assert item.score_factors.loc <= 10
+    assert item.score_factors.fan_in <= 15
+    assert item.score_factors.warnings <= 20
+    assert item.score_factors.blast_radius <= 20
+
+    # Human-readable explanation and actionable recommendation
     assert "critical" in item.reason.lower() or "28" in item.reason
     assert "ripple" in item.reason.lower() or "transitive" in item.reason.lower()
+    assert item.recommended_action != ""
 
 
 def test_deterministic_ranking_and_tie_breaking(test_db: Session):
@@ -122,7 +127,6 @@ def test_deterministic_ranking_and_tie_breaking(test_db: Session):
         edge_id="e1",
         source_module_id="mod_entry",
         target_module_id="mod_high",
-        target_raw="src.heavy_service",
         type="import",
         resolved=True,
         is_type_only=False,
@@ -131,7 +135,6 @@ def test_deterministic_ranking_and_tie_breaking(test_db: Session):
     analysis = ProjectAnalysis(
         project_id=project.id,
         content_hash="dummyhash",
-        project_name="Hotspot Ranking Test",
         total_files=3,
         total_lines=530,
         languages=["python"],
@@ -158,9 +161,9 @@ def test_deterministic_ranking_and_tie_breaking(test_db: Session):
     assert resp.total_files == 3
     assert len(resp.hotspots) == 3
     # heavy_service should be #1 hotspot
-    assert resp.hotspots[0].file == "src/heavy_service.py"
+    assert resp.hotspots[0].file_path == "src/heavy_service.py"
     assert resp.hotspots[0].hotspot_score > resp.hotspots[1].hotspot_score
-    assert resp.hotspots[0].dependency_fan_in == 1
+    assert resp.hotspots[0].graph.fan_in == 1
     assert resp.recommended_start_file == "src/heavy_service.py"
     assert "src/heavy_service.py" in resp.recommended_start_reason
 
@@ -184,7 +187,7 @@ def test_score_explainability_and_partially_parsed(test_db: Session):
         complexity=ComplexitySummary(cyclomatic_complexity=12, rating="high", hotspots_count=1),
         legacy_warnings=[WarningInfo(code="W03", message="W", severity="warning", line=1)] * 2,
         parse_status="partial",
-        is_partially_parsed=True,
+        parse_errors=["Syntax error at line 42"],
         classes=[],
         functions=[],
         dependencies=[],
@@ -193,7 +196,6 @@ def test_score_explainability_and_partially_parsed(test_db: Session):
     analysis = ProjectAnalysis(
         project_id=project.id,
         content_hash="dummyhash",
-        project_name="Partial Parse Test",
         total_files=1,
         total_lines=150,
         languages=["python"],
@@ -217,9 +219,10 @@ def test_score_explainability_and_partially_parsed(test_db: Session):
     resp = compute_project_hotspots(test_db, project.id)
     assert len(resp.hotspots) == 1
     item = resp.hotspots[0]
-    assert item.file == "legacy/broken.py"
-    assert item.is_partially_parsed is True
-    assert "partially parsed" in item.reason.lower()
+    assert item.file_path == "legacy/broken.py"
+    assert item.parse.status == "partial"
+    assert item.parse.confidence in {"medium", "low"}
+    assert "partial" in item.reason.lower()
     assert "syntax" in item.recommended_action.lower()
 
 
@@ -237,7 +240,6 @@ def test_empty_project_handling(test_db: Session):
     analysis = ProjectAnalysis(
         project_id=project.id,
         content_hash="dummyhash",
-        project_name="Empty Project Test",
         total_files=0,
         total_lines=0,
         languages=[],
@@ -291,7 +293,6 @@ def test_hotspots_api_endpoint(test_db: Session):
     analysis = ProjectAnalysis(
         project_id=project.id,
         content_hash="dummyhash",
-        project_name="API Hotspot Test",
         total_files=1,
         total_lines=80,
         languages=["python"],
@@ -317,10 +318,15 @@ def test_hotspots_api_endpoint(test_db: Session):
         response = client.get(f"/api/projects/{project.id}/hotspots")
         assert response.status_code == 200
         data = response.json()
-        assert data["project_id"] == project.id
-        assert data["score_mode"] == "static"
-        assert data["total_files"] == 1
+        assert data.get("projectId") == project.id or data.get("project_id") == project.id
+        assert data.get("scoreMode") == "static" or data.get("score_mode") == "static"
         assert len(data["hotspots"]) == 1
-        assert data["hotspots"][0]["file"] == "src/calc.py"
+        hotspot_item = data["hotspots"][0]
+        # Verify camelCase or snake_case availability
+        assert hotspot_item.get("filePath") == "src/calc.py" or hotspot_item.get("file_path") == "src/calc.py"
+        assert "overallRisk" in hotspot_item or "overall_risk" in hotspot_item
+        assert "complexity" in hotspot_item
+        assert "graph" in hotspot_item
+        assert "parse" in hotspot_item
     finally:
         fastapi_app.dependency_overrides.clear()

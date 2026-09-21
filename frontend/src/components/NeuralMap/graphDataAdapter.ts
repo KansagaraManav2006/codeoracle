@@ -30,16 +30,17 @@ export function buildNeuralGraphData(graph: GraphResponse, hotspots: HotspotItem
     outgoing.set(e.source, (outgoing.get(e.source) || 0) + 1);
   }
   const cycles = new Set(graph.cycles.flat());
-  const risks = new Map(hotspots.map(h => [h.file.replace(/\\/g, '/'), h]));
+  const risks = new Map(hotspots.map(h => [(h.filePath || h.file || '').replace(/\\/g, '/'), h]));
   return { links, nodes: internal.map(n => {
     const fanIn = incoming.get(n.id) || 0;
     const fanOut = outgoing.get(n.id) || 0;
     const hotspot = risks.get(n.label.replace(/\\/g, '/'));
     return {
       id: n.id, label: n.label, language: n.language.toLowerCase(), loc: n.line_count,
-      riskLevel: hotspot?.risk_level || (cycles.has(n.id) ? 'critical' : n.complexity_rating),
+      riskLevel: hotspot?.overallRisk || hotspot?.risk_level || (cycles.has(n.id) ? 'critical' : n.complexity_rating),
       fanIn, fanOut, isEntryPoint: n.is_entry_point || graph.entry_point_ids.includes(n.id),
       inCycle: cycles.has(n.id), hotspot,
+
       // Connectivity alone drives size: radius = 6 + degree * 1.5, clamped to 6–22px.
       radius: Math.max(6, Math.min(22, 6 + (fanIn + fanOut) * 1.5)),
     };

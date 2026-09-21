@@ -128,41 +128,103 @@ export interface HotspotFactors {
   blast_radius_score: number;
 }
 
-export interface HotspotItem {
-  file: string;
-  hotspot_score: number;
-  score_mode: 'static' | string;
-  complexity: number;
-  complexity_rating: string;
-  lines_of_code: number;
-  dependency_fan_in: number;
-  warnings_count: number;
-  blast_radius: number;
-  transitive_dependents: string[];
-  direct_dependents: string[];
-  is_partially_parsed?: boolean;
-  risk_level: 'critical' | 'high' | 'medium' | 'low';
-  reason: string;
-  recommended_action: string;
-  score_factors: HotspotFactors;
+export type RiskSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+export interface ComplexityValue {
+  value: number;
+  severity: RiskSeverity;
 }
 
+export interface GraphMetrics {
+  fanIn: number;
+  blastRadius: number;
+  unresolvedRelations: number;
+}
+
+export interface ParseMetrics {
+  status: 'full' | 'partial' | 'fallback';
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface ScoreFactors {
+  complexity: number;
+  warnings: number;
+  fanIn: number;
+  blastRadius: number;
+  loc: number;
+}
+
+export interface RiskAssessment {
+  filePath: string;
+  hotspotScore: number;
+  overallRisk: RiskSeverity;
+  complexity: ComplexityValue;
+  warnings: number;
+  graph: GraphMetrics;
+  parse: ParseMetrics;
+  scoreFactors: ScoreFactors;
+  linesOfCode: number;
+  transitiveDependents?: string[];
+  directDependents?: string[];
+  reason: string;
+  recommendedAction: string;
+
+  // Compatibility aliases
+  file?: string;
+  risk_level?: RiskSeverity;
+  blast_radius?: number;
+  dependency_fan_in?: number;
+  lines_of_code?: number;
+  score_mode?: string;
+  is_partially_parsed?: boolean;
+  hotspot_score?: number;
+  score_factors?: any;
+  warnings_count?: number;
+  recommended_action?: string;
+}
+
+
+// HotspotItem alias for cross-page compatibility
+export type HotspotItem = RiskAssessment;
+
 export interface HotspotsResponse {
-  project_id: string;
-  project_name: string;
-  score_mode: 'static' | string;
-  total_files: number;
-  hotspots: HotspotItem[];
-  recommended_start_file?: string | null;
-  recommended_start_reason?: string | null;
+  projectId: string;
+  projectName: string;
+  scoreMode: 'static' | string;
+  totalFiles: number;
+  hotspots: RiskAssessment[];
+  recommendedStartFile?: string | null;
+  recommendedStartReason?: string | null;
   summary: {
+    highestScore?: number;
+    criticalCount?: number;
+    highCount?: number;
+    mediumCount?: number;
+    lowCount?: number;
+    totalEvaluated?: number;
+    fullParseCount?: number;
+    partialParseCount?: number;
+    fallbackParseCount?: number;
+    highConfidenceCount?: number;
+    scoringEngine?: string;
+    // Compatibility fields
     highest_score?: number;
     critical_count?: number;
     high_count?: number;
+    medium_count?: number;
+    low_count?: number;
     total_evaluated?: number;
     scoring_engine?: string;
   };
+  // Compatibility fields
+  project_id?: string;
+  project_name?: string;
+  score_mode?: string;
+  total_files?: number;
+  recommended_start_file?: string | null;
+  recommended_start_reason?: string | null;
 }
+
 
 export type IngestionMode = 'zip' | 'github';
 

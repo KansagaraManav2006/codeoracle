@@ -240,7 +240,7 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
     const sel = selectedFile.relative_path.toLowerCase();
     return (
       hotspots.find((h) => {
-        const hFile = h.file.toLowerCase();
+        const hFile = (h.filePath || h.file || '').toLowerCase();
         return hFile === sel || hFile.endsWith(sel) || sel.endsWith(hFile);
       }) || null
     );
@@ -252,7 +252,8 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
     const hasBreaking = selectedFile.warnings.some((w) => w.breaking_change);
     const warnCount = selectedFile.warnings.length;
     const changeCount = selectedFile.changes.length;
-    const isCriticalHotspot = relatedHotspot?.risk_level === 'critical';
+    const hotspotRisk = relatedHotspot?.overallRisk || relatedHotspot?.risk_level;
+    const isCriticalHotspot = hotspotRisk === 'critical';
 
     if (hasBreaking || isCriticalHotspot) {
       return {
@@ -260,10 +261,11 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
         label: 'CRITICAL RISK',
         reason: hasBreaking
           ? 'Breaking change possible: runtime iterator or object semantics altered (e.g. iteritems returns items view in Python 3). Requires strict regression testing.'
-          : `High-risk architecture hotspot (${relatedHotspot?.hotspot_score}/100) undergoing modernization. Extensive characterization tests required.`,
+          : `High-risk architecture hotspot (${relatedHotspot?.hotspotScore ?? relatedHotspot?.hotspot_score ?? 0}/100) undergoing modernization. Extensive characterization tests required.`,
       };
     }
-    if (warnCount >= 2 || changeCount >= 3 || relatedHotspot?.risk_level === 'high') {
+    if (warnCount >= 2 || changeCount >= 3 || hotspotRisk === 'high') {
+
       return {
         level: 'high',
         label: 'HIGH RISK',

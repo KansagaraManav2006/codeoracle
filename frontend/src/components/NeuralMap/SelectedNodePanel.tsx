@@ -24,7 +24,7 @@ export default function SelectedNodePanel({ node, onClose, onNavigate }: {
       <div className="flex justify-between items-center"><dt>Risk level</dt><dd><RiskBadge level={node.riskLevel} size="sm" /></dd></div>
       <div className="flex justify-between"><dt>Fan-in / fan-out</dt><dd>{node.fanIn} / {node.fanOut}</dd></div>
     </dl>
-    {node.hotspot && <p className="text-xs text-ink-2">Hotspot {node.hotspot.hotspot_score}/100 · {node.hotspot.reason}</p>}
+    {node.hotspot && <p className="text-xs text-ink-2">Hotspot {node.hotspot.hotspotScore ?? node.hotspot.hotspot_score ?? 0}/100 · {node.hotspot.reason}</p>}
     <div className="space-y-2">{actions.map(([tab, label]) => <Button key={tab} variant="outline" size="sm" className="w-full justify-center" onClick={() => onNavigate(tab, node.label)}>{label}</Button>)}</div>
   </aside>;
 }

@@ -1,48 +1,57 @@
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
+def to_camel(string: str) -> str:
+    parts = string.split('_')
+    return parts[0] + ''.join(word.capitalize() for word in parts[1:])
 
-class HotspotFactors(BaseModel):
-    """Component factor raw metrics and sub-scores (0-100 total sum)."""
-    complexity_raw: int = 0
-    complexity_score: int = 0
-    loc_raw: int = 0
-    loc_score: int = 0
-    fan_in_raw: int = 0
-    fan_in_score: int = 0
-    warnings_raw: int = 0
-    warnings_score: int = 0
-    blast_radius_raw: int = 0
-    blast_radius_score: int = 0
+class CamelModel(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
+class ComplexityValue(CamelModel):
+    value: int
+    severity: str
 
-class HotspotItem(BaseModel):
-    """Represents a single file ranked in the Hotspots analysis."""
-    file: str
-    hotspot_score: int = Field(..., ge=0, le=100)
-    score_mode: str = "static"
-    complexity: int
-    complexity_rating: str
-    lines_of_code: int
-    dependency_fan_in: int
-    warnings_count: int
+class GraphMetrics(CamelModel):
+    fan_in: int
     blast_radius: int
+    unresolved_relations: int
+
+class ParseMetrics(CamelModel):
+    status: str
+    confidence: str
+
+class ScoreFactors(CamelModel):
+    complexity: int
+    warnings: int
+    fan_in: int
+    blast_radius: int
+    loc: int
+
+class RiskAssessment(CamelModel):
+    file_path: str
+    hotspot_score: int
+    overall_risk: str
+    complexity: ComplexityValue
+    warnings: int
+    graph: GraphMetrics
+    parse: ParseMetrics
+    score_factors: ScoreFactors
+    lines_of_code: int
     transitive_dependents: List[str] = Field(default_factory=list)
     direct_dependents: List[str] = Field(default_factory=list)
-    is_partially_parsed: bool = False
-    risk_level: str = "medium"
     reason: str
     recommended_action: str
-    score_factors: HotspotFactors
 
+# Alias for backwards compatibility
+HotspotItem = RiskAssessment
 
-class HotspotsResponse(BaseModel):
-    """Response payload for project hotspots ranking."""
+class HotspotsResponse(CamelModel):
     project_id: str
     project_name: str
     score_mode: str = "static"
     total_files: int
-    hotspots: List[HotspotItem] = Field(default_factory=list)
+    hotspots: List[RiskAssessment] = Field(default_factory=list)
     recommended_start_file: Optional[str] = None
     recommended_start_reason: Optional[str] = None
     summary: Dict[str, Any] = Field(default_factory=dict)

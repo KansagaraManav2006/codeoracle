@@ -440,30 +440,41 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
     if (architecture?.recommended_target) {
       return architecture.recommended_target;
     }
-    if (hotspots?.recommended_start_file && hotspots.hotspots) {
-      const match = hotspots.hotspots.find((h) => h.file === hotspots.recommended_start_file) || hotspots.hotspots[0];
-      const highestComp = [...hotspots.hotspots].sort((a, b) => b.complexity - a.complexity)[0];
+    const recFile = hotspots?.recommendedStartFile || hotspots?.recommended_start_file;
+    if (recFile && hotspots.hotspots) {
+      const match = hotspots.hotspots.find((h) => (h.filePath || h.file) === recFile) || hotspots.hotspots[0];
+      const getComp = (h: any) => typeof h.complexity === 'object' ? h.complexity?.value ?? 0 : h.complexity ?? 0;
+      const highestComp = [...hotspots.hotspots].sort((a, b) => getComp(b) - getComp(a))[0];
       if (match) {
+        const filePath = match.filePath || match.file || '';
+        const hotspotScore = match.hotspotScore ?? match.hotspot_score ?? 0;
+        const compScore = match.scoreFactors?.complexity ?? match.score_factors?.complexity_score ?? 0;
+        const warnScore = match.scoreFactors?.warnings ?? match.score_factors?.warnings_score ?? 0;
+        const fanScore = match.scoreFactors?.fanIn ?? match.score_factors?.fan_in_score ?? 0;
+        const blastScore = match.scoreFactors?.blastRadius ?? match.score_factors?.blast_radius_score ?? 0;
+        const locScore = match.scoreFactors?.loc ?? match.score_factors?.loc_score ?? 0;
         return {
-          path: match.file,
-          hotspot_score: match.hotspot_score,
+          path: filePath,
+          hotspot_score: hotspotScore,
           factors: {
-            complexity: match.score_factors.complexity_score,
-            warnings: match.score_factors.warnings_score,
-            fan_in: match.score_factors.fan_in_score,
-            blast_radius: match.score_factors.blast_radius_score,
-            loc: match.score_factors.loc_score,
-            hotspot_score: match.hotspot_score,
+            complexity: compScore,
+            warnings: warnScore,
+            fan_in: fanScore,
+            blast_radius: blastScore,
+            loc: locScore,
+            hotspot_score: hotspotScore,
           },
           reason:
+            hotspots.recommendedStartReason ||
             hotspots.recommended_start_reason ||
             match.reason ||
             'Carries the highest concentration of complexity, incoming callers, and downstream ripple risk.',
-          highest_complexity_file: highestComp?.file || match.file,
-          highest_complexity_score: highestComp?.complexity || match.complexity,
+          highest_complexity_file: highestComp?.filePath || highestComp?.file || filePath,
+          highest_complexity_score: getComp(highestComp) || getComp(match),
         };
       }
     }
+
     return null;
   }, [architecture, hotspots]);
 

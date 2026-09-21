@@ -225,11 +225,12 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
     const target = activeFile.target_relative_path.toLowerCase();
     return (
       hotspots.find((h) => {
-        const hFile = h.file.toLowerCase();
+        const hFile = (h.filePath || h.file || '').toLowerCase();
         return hFile === target || hFile.endsWith(target) || target.endsWith(hFile);
       }) || null
     );
   }, [activeFile, hotspots]);
+
 
   // Match related refactor proposal
   const relatedRefactor = useMemo(() => {
@@ -806,22 +807,24 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
                       <Flame className="w-3.5 h-3.5 text-amber-strong" />
                       Related Hotspot Risk
                     </span>
-                    {relatedHotspot ? (
-                      <StatusTag
-                        status={
-                          relatedHotspot.risk_level === 'critical'
-                            ? 'critical'
-                            : relatedHotspot.risk_level === 'high'
-                            ? 'complexity-high'
-                            : relatedHotspot.risk_level === 'medium'
-                            ? 'complexity-medium'
-                            : 'complexity-low'
-                        }
-                        label={`${relatedHotspot.risk_level.toUpperCase()} (${relatedHotspot.hotspot_score}/100)`}
-                      />
-                    ) : (
-                      <span className="text-[10px] text-ink-3 font-semibold">Low / Clean</span>
-                    )}
+                    <div>
+                      {relatedHotspot ? (
+                        <StatusTag
+                          status={
+                            (relatedHotspot.overallRisk || relatedHotspot.risk_level) === 'critical'
+                              ? 'critical'
+                              : (relatedHotspot.overallRisk || relatedHotspot.risk_level) === 'high'
+                              ? 'complexity-high'
+                              : (relatedHotspot.overallRisk || relatedHotspot.risk_level) === 'medium'
+                              ? 'complexity-medium'
+                              : 'complexity-low'
+                          }
+                          label={`RISK: ${(relatedHotspot.overallRisk || relatedHotspot.risk_level || 'LOW').toUpperCase()} (${relatedHotspot.hotspotScore ?? relatedHotspot.hotspot_score ?? 0}/100)`}
+                        />
+                      ) : (
+                        <span className="text-[10px] text-ink-3 font-semibold">Low / Clean</span>
+                      )}
+                    </div>
                   </div>
 
                   {relatedHotspot ? (
@@ -831,7 +834,7 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
                       </p>
                       <div className="flex items-center justify-between text-[11px] font-mono text-ink-3 pt-1 border-t border-line/60">
                         <span>
-                          {relatedHotspot.lines_of_code} LOC · Complexity {relatedHotspot.complexity} · {relatedHotspot.dependency_fan_in} callers
+                          {relatedHotspot.linesOfCode ?? relatedHotspot.lines_of_code ?? 0} LOC · Complexity {relatedHotspot.complexity?.value ?? 0} ({relatedHotspot.complexity?.severity?.toUpperCase() ?? 'LOW'}) · {relatedHotspot.graph?.fanIn ?? relatedHotspot.dependency_fan_in ?? 0} callers
                         </span>
                         {onNavigateTab && (
                           <button
