@@ -60,17 +60,16 @@ def resolve_database_url(
     target_file_path.parent.mkdir(parents=True, exist_ok=True)
 
     posix_path = target_file_path.as_posix()
-    if not posix_path.startswith("/"):
-        posix_path = f"/{posix_path}"
-
-    return f"sqlite://{posix_path}"
+    if posix_path.startswith("/"):
+        return f"sqlite:///{posix_path}"
+    return f"sqlite:///{posix_path}"
 
 
 def _sqlite_file_path(database_url: str) -> Optional[Path]:
     """Return a platform-correct filesystem path for a file-backed SQLite URL."""
     if not database_url.startswith("sqlite") or database_url == "sqlite:///:memory:":
         return None
-    raw_path = database_url.replace("sqlite:///", "", 1).replace("sqlite://", "", 1)
+    raw_path = database_url.replace("sqlite:////", "/", 1).replace("sqlite:///", "", 1).replace("sqlite://", "", 1)
     if len(raw_path) > 2 and raw_path[0] == "/" and raw_path[2] == ":":
         raw_path = raw_path[1:]
     return Path(raw_path).resolve()
@@ -156,14 +155,12 @@ def get_db_diagnostics() -> dict:
     resolved_path_str: Optional[str] = None
 
     if is_sqlite and FINAL_DATABASE_URL != "sqlite:///:memory:":
-        raw_path = FINAL_DATABASE_URL.replace("sqlite:///", "").replace("sqlite://", "")
-        if len(raw_path) > 2 and raw_path[0] == "/" and raw_path[2] == ":":
-            raw_path = raw_path[1:]
-        p = Path(raw_path)
-        resolved_path_str = str(p.resolve())
-        db_file_exists = p.exists()
-        if db_file_exists:
-            db_file_size_bytes = p.stat().st_size
+        p = _sqlite_file_path(FINAL_DATABASE_URL)
+        if p is not None:
+            resolved_path_str = str(p)
+            db_file_exists = p.exists()
+            if db_file_exists:
+                db_file_size_bytes = p.stat().st_size
 
     try:
         with engine.connect() as conn:

@@ -190,12 +190,12 @@ export const ProjectNavBar: React.FC<ProjectNavBarProps> = ({
                 className={`relative flex items-center gap-2 h-8 sm:h-9 px-3 sm:px-3.5 rounded-pill font-sans text-xs font-semibold whitespace-nowrap snap-start transition-[background-color,border-color,transform,box-shadow] duration-fast ${
                   isActive
                     ? 'bg-ink text-white shadow-xs border border-transparent'
-                    : 'bg-surface text-ink-2 hover:text-ink border border-line shadow-xs hover:border-line-strong hover:-translate-y-[1px]'
+                    : 'bg-surface text-ink-2 hover:text-ink border border-line shadow-xs hover:border-line-strong hover:shadow-1 hover:-translate-y-[1px]'
                 } focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo`}
               >
                 <Icon
                   className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${
-                    isActive ? 'text-amber-on-dark' : 'text-ink-3'
+                    isActive ? 'text-white' : 'text-ink-3'
                   }`}
                   strokeWidth={1.75}
                 />

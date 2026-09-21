@@ -77,6 +77,8 @@ export const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
     return result;
   }, [files, fileSearch, selectedLanguageFilter]);
 
+  const distributionColors = ['bg-indigo', 'bg-slate', 'bg-teal', 'bg-indigo/70', 'bg-slate/70'];
+
   return (
     <div className="w-full space-y-5 animate-[fade-down_150ms_ease-out]">
       {/* Hero Project Card (from User's Screenshot) */}
@@ -88,13 +90,13 @@ export const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
           {/* Left Column: Repository Identity, Source & Lede */}
           <div className="space-y-3.5 max-w-3xl">
             {/* Breadcrumb & Source Badge */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-sans font-bold text-xs text-ink-3">CodeOracle</span>
-              <span className="text-ink-4 font-mono select-none" aria-hidden="true">/</span>
-              <span className="font-mono font-bold text-xs text-ink truncate max-w-[280px]">
+            <div className="flex items-center gap-1.5 flex-wrap text-ink-4">
+              <span className="font-sans font-medium uppercase tracking-wider text-[10px] text-ink-4">CodeOracle</span>
+              <span className="text-ink-4/50 font-mono text-[10px] select-none" aria-hidden="true">/</span>
+              <span className="font-mono font-medium text-[10px] text-ink-4 truncate max-w-[280px]">
                 {project.display_name}
               </span>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-pill bg-track text-ink-2 font-mono text-[10px] font-bold border border-line uppercase tracking-wide">
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-panel text-ink-4 font-mono text-[9px] font-semibold border border-line uppercase tracking-wider">
                 {sourceLabel(project.source_type)}
               </span>
             </div>
@@ -155,8 +157,8 @@ export const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
           {/* Right Column: Three Key Metric Cards from User's Screenshot */}
           <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3 gap-3 shrink-0">
             {/* Total Files Card */}
-            <div className="bg-tile border border-line rounded-xl p-3.5 sm:p-4 flex items-center gap-3.5 shadow-xs">
-              <div className="w-10 h-10 rounded-lg bg-surface border border-line flex items-center justify-center text-ink-3 shrink-0 shadow-xs">
+            <div className="bg-surface border border-line rounded-xl p-3.5 sm:p-4 flex items-center gap-3.5 shadow-xs">
+              <div className="w-10 h-10 rounded-lg bg-panel border border-line flex items-center justify-center text-ink-3 shrink-0 shadow-xs">
                 <FileText className="w-5 h-5" strokeWidth={1.75} />
               </div>
               <div>
@@ -170,8 +172,8 @@ export const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
             </div>
 
             {/* Code Lines Card */}
-            <div className="bg-tile border border-line rounded-xl p-3.5 sm:p-4 flex items-center gap-3.5 shadow-xs">
-              <div className="w-10 h-10 rounded-lg bg-surface border border-line flex items-center justify-center text-ink-3 shrink-0 shadow-xs">
+            <div className="bg-surface border border-line rounded-xl p-3.5 sm:p-4 flex items-center gap-3.5 shadow-xs">
+              <div className="w-10 h-10 rounded-lg bg-panel border border-line flex items-center justify-center text-ink-3 shrink-0 shadow-xs">
                 <Hash className="w-5 h-5" strokeWidth={1.75} />
               </div>
               <div>
@@ -185,8 +187,8 @@ export const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
             </div>
 
             {/* Analysis Engine Card */}
-            <div className="bg-teal-surface border border-teal/20 rounded-xl p-3.5 sm:p-4 flex items-center gap-3.5 shadow-xs">
-              <div className="w-10 h-10 rounded-lg bg-surface border border-teal/30 flex items-center justify-center text-teal-strong shrink-0 shadow-xs">
+            <div className="bg-surface border border-line rounded-xl p-3.5 sm:p-4 flex items-center gap-3.5 shadow-xs">
+              <div className="w-10 h-10 rounded-lg bg-teal-surface border border-teal/30 flex items-center justify-center text-teal-strong shrink-0 shadow-xs">
                 <CheckCircle2 className="w-5 h-5" strokeWidth={1.75} />
               </div>
               <div>
@@ -203,8 +205,8 @@ export const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
 
         {/* Language Breakdown Ribbon */}
         {languageStats.length > 0 && (
-          <div className="mt-6 pt-5 border-t border-line/70">
-            <div className="flex items-center justify-between mb-2">
+          <div className="mt-6 pt-5 border-t border-line/70 space-y-3">
+            <div className="flex items-center justify-between">
               <span className="font-sans font-bold text-xs uppercase tracking-wider text-ink flex items-center gap-1.5">
                 <Code2 className="w-3.5 h-3.5 text-indigo" />
                 Detected Code Distribution
@@ -214,21 +216,14 @@ export const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
               </span>
             </div>
 
-            {/* Stacked Progress Bar */}
-            <div className="w-full h-2.5 rounded-full bg-track overflow-hidden flex border border-line/60">
+            {/* Stacked Progress Bar with generous vertical breathing room */}
+            <div className="w-full h-2.5 rounded-full bg-track overflow-hidden flex border border-line/60 my-1">
               {languageStats.map((item, idx) => {
-                const colors = [
-                  'bg-indigo',
-                  'bg-teal',
-                  'bg-amber',
-                  'bg-blue-500',
-                  'bg-purple-500',
-                ];
                 return (
                   <div
                     key={item.language}
                     style={{ width: `${item.percentage}%` }}
-                    className={`${colors[idx % colors.length]} h-full transition-all`}
+                    className={`${distributionColors[idx % distributionColors.length]} h-full transition-all`}
                     title={`${item.language}: ${item.percentage}% (${formatNumber(item.lines)} lines)`}
                   />
                 );
@@ -236,10 +231,10 @@ export const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
             </div>
 
             {/* Legend */}
-            <div className="flex flex-wrap items-center gap-3 sm:gap-4 mt-2.5 text-xs">
-              {languageStats.map((item) => (
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs pt-0.5">
+              {languageStats.map((item, idx) => (
                 <div key={item.language} className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-indigo" />
+                  <span className={`w-2 h-2 rounded-full ${distributionColors[idx % distributionColors.length]}`} />
                   <span className="font-semibold text-ink">{item.language}:</span>
                   <span className="font-mono text-ink-3">{formatNumber(item.lines)} lines</span>
                   <span className="text-[10px] text-ink-4">({item.percentage}%)</span>
@@ -343,16 +338,13 @@ export const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
                   </span>
                 </div>
 
-                <div className="flex items-center gap-3 shrink-0">
-                  <LanguageTag language={file.language} />
-                  <span className="font-mono text-[11px] text-ink-3">
+                <div className="grid grid-cols-[auto_5.5rem] sm:grid-cols-[6.5rem_5.5rem_4.5rem] items-center gap-x-4 shrink-0 text-right">
+                  <LanguageTag language={file.language} className="justify-self-end" />
+                  <span className="font-mono text-[11px] text-ink-3 tabular-nums whitespace-nowrap">
                     {formatNumber(file.line_count)} lines
                   </span>
-                  <span className="font-mono text-[11px] text-ink-4 hidden sm:inline">
+                  <span className="font-mono text-[11px] text-ink-4 tabular-nums whitespace-nowrap hidden sm:inline">
                     {formatBytes(file.size_bytes)}
-                  </span>
-                  <span className="text-[10px] text-indigo font-bold opacity-0 group-hover:opacity-100 transition-opacity hidden md:inline">
-                    Focus File →
                   </span>
                 </div>
               </div>
@@ -388,7 +380,7 @@ export const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
         </div>
 
         <div className="p-4 rounded-xl border border-line bg-surface shadow-xs flex items-start gap-3">
-          <div className="w-8 h-8 rounded-lg bg-amber-surface text-amber-strong flex items-center justify-center shrink-0 border border-amber/20">
+          <div className="w-8 h-8 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
             <Layers className="w-4 h-4" />
           </div>
           <div>

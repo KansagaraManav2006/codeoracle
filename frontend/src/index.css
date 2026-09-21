@@ -5,74 +5,82 @@
 :root {
   color-scheme: light;
 
-  /* Warm neutrals */
-  --canvas:        #F8F4EE;
-  --surface:       #FFFDFC;
-  --panel:         #F0EAE3;
-  --track:         #ECE7DE;
-  --tile:          #F5F2EC;
-  --well:          #EDE6DA;
-  --graph-bg:      #E7E0D3;
-  --graph-dot:     #B9B2A2;
-  --gauge-track:   rgba(25, 23, 21, 0.08);
-  --line:          #E5DFDA;
-  --line-strong:   #8F887C;
+  /* Neutral foundation — shared by the page canvas and cards. */
+  --neutral:       #F8FAFC;
+  --canvas:        #F8FAFC;
+  --surface:       #FFFFFF;
+  --panel:         #F1F5F9;
+  --track:         #E2E8F0;
+  --tile:          #F8FAFC;
+  --well:          #F1F5F9;
+  --graph-bg:      #F8FAFC;
+  --graph-dot:     #CBD5E1;
+  --gauge-track:   rgba(15, 23, 42, 0.08);
+  --line:          #E2E8F0;
+  --line-strong:   #94A3B8;
 
-  /* Text */
-  --ink:           #191715;
-  --ink-2:         #3D3935;
-  --ink-3:         #6B655E;
-  --ink-4:         #8A847C;   /* large text / decorative only */
+  /* Text — slate-black scale */
+  --ink:           #0F172A;
+  --ink-2:         #334155;
+  --ink-3:         #64748B;
+  --ink-4:         #94A3B8;   /* large text / decorative / metadata */
   --ink-inverse:   #FFFFFF;
 
   /* Header */
-  --header-bg:     #191715;
-  --header-line:   #453C1D;
-  --header-muted:  #918F8D;
+  --header-bg:     #0F172A;
+  --header-line:   #1E293B;
+  --header-muted:  #94A3B8;
 
-  /* Indigo */
-  --indigo:            #4D50D7;
-  --indigo-press:      #3E41B8;
-  --indigo-deep:       #383AA7;
-  --indigo-text:       #43469E;
-  --indigo-surface:    #EAE9FB;
-  --indigo-on-dark:    #ACAEE4;
-  --indigo-badge-text: #BEC2FF;
+  /* Deep-blue interactive system (keeps the legacy indigo utility aliases). */
+  --interactive:        #1D4ED8;
+  --interactive-press:  #1E40AF;
+  --interactive-deep:   #1E3A8A;
+  --interactive-text:   #1D4ED8;
+  --interactive-surface:#EFF6FF;
+  --interactive-on-dark:#DBEAFE;
+  --interactive-badge-text: #DBEAFE;
+  --indigo:            var(--interactive);
+  --indigo-press:      var(--interactive-press);
+  --indigo-deep:       var(--interactive-deep);
+  --indigo-text:       var(--interactive-text);
+  --indigo-surface:    var(--interactive-surface);
+  --indigo-on-dark:    var(--indigo-on-dark);
+  --indigo-badge-text: var(--interactive-badge-text);
 
-  /* Teal */
-  --teal:          #378C7B;
-  --teal-strong:   #2F7A6B;
-  --teal-surface:  #DFF0EA;
-  --teal-text:     #2A5A4F;
-  --teal-on-dark:  #5EB896;
+  /* Teal / Success */
+  --teal:          #0D9488;
+  --teal-strong:   #0F766E;
+  --teal-surface:  #F0FDF4;
+  --teal-text:     #166534;
+  --teal-on-dark:  #4ADE80;
 
-  /* Amber */
-  --amber:            #B7822A;   /* large numbers, dots */
-  --amber-strong:     #A9761F;   /* gauge, values on tinted tiles */
-  --amber-surface:    #F6E8CD;
-  --amber-text:       #7A5A1E;
-  --amber-line:       #D8B274;
-  --amber-on-dark:    #FBD16D;
-  --amber-warn-bg:    #403219;
-  --amber-warn-text:  #E1C97E;
+  /* Amber / Warning (reserved strictly for high-signal highlights & warnings) */
+  --amber:            #D97706;
+  --amber-strong:     #B45309;
+  --amber-surface:    #FEF3C7;
+  --amber-text:       #92400E;
+  --amber-line:       #FCD34D;
+  --amber-on-dark:    #FDE68A;
+  --amber-warn-bg:    #451A03;
+  --amber-warn-text:  #FDE68A;
 
-  /* Red */
-  --red:           #C1625D;
-  --red-strong:    #A33F39;
-  --red-text:      #A33F39;
-  --red-surface:   #F7E5E2;
-  --red-wash:      #FAF4F2;
-  --red-line:      #EBCBC7;
+  /* Red / Danger */
+  --red:           #DC2626;
+  --red-strong:    #B91C1C;
+  --red-text:      #991B1B;
+  --red-surface:   #FEF2F2;
+  --red-wash:      #FFF5F5;
+  --red-line:      #FECACA;
 
   /* Slate */
-  --slate:         #637F93;
-  --slate-surface: #E5EDF1;
-  --slate-text:    #46606F;
+  --slate:         #64748B;
+  --slate-surface: #F1F5F9;
+  --slate-text:    #475569;
 
   /* Languages */
-  --lang-python:     #4D50D7;
-  --lang-javascript: #B7822A;
-  --lang-typescript: #7862DE;
+  --lang-python:     var(--interactive);
+  --lang-javascript: #46606F;
+  --lang-typescript: #637F93;
   --lang-external:   #637F93;
   --lang-entry:      #408B81;
   --ts-surface:      #EFEBFC;
@@ -104,7 +112,7 @@
   --sh-3:      0 12px 32px rgba(25, 23, 21, 0.12);
   --sh-4:      0 24px 64px rgba(25, 23, 21, 0.18);
   --sh-shell:  0 8px 40px rgba(25, 23, 21, 0.06);
-  --sh-indigo: 0 6px 16px -4px rgba(77, 80, 215, 0.45);
+  --sh-indigo: 0 6px 16px -4px rgba(29, 78, 216, 0.32);
 
   /* Motion */
   --dur-instant: 100ms;

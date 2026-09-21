@@ -132,13 +132,13 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
               onKeyDown={(e) => handleKeyDown(e, idx)}
               className={`relative flex items-center gap-2 h-9 sm:h-10 px-3.5 sm:px-4 rounded-pill font-sans text-xs sm:text-sm font-semibold whitespace-nowrap snap-start transition-[background-color,border-color,transform,box-shadow] duration-fast ${
                 isActive
-                  ? 'bg-ink text-white shadow-none border border-transparent'
-                  : 'bg-surface text-ink border border-line shadow-1 hover:border-line-strong hover:-translate-y-[1px]'
+                  ? 'bg-ink text-white shadow-xs border border-transparent'
+                  : 'bg-surface text-ink-2 hover:text-ink border border-line shadow-xs hover:border-line-strong hover:shadow-1 hover:-translate-y-[1px]'
               } focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo focus-visible:outline-offset-2`}
             >
               <Icon
                 className={`w-4 h-4 sm:w-[18px] sm:h-[18px] shrink-0 ${
-                  isActive ? 'text-amber-on-dark' : 'text-ink'
+                  isActive ? 'text-white' : 'text-ink-3'
                 }`}
                 strokeWidth={1.75}
               />

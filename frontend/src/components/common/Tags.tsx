@@ -15,39 +15,39 @@ export const LanguageTag: React.FC<LanguageTagProps> = ({
 }) => {
   const norm = (language || '').toLowerCase();
 
-  let tagClass = 'bg-slate-surface text-slate-text';
+  let tagClass = 'bg-slate-surface text-slate-text border border-slate/20';
   let dotColor = 'var(--slate)';
   let displayName = language.toUpperCase();
 
   if (norm.includes('python') || norm === 'py') {
-    tagClass = 'bg-indigo-surface text-indigo-text';
-    dotColor = 'var(--indigo)';
+    tagClass = 'bg-indigo-surface text-indigo-text border border-indigo/30';
+    dotColor = 'var(--interactive)';
     displayName = 'PYTHON';
   } else if (norm.includes('javascript') || norm === 'js' || norm === 'jsx') {
-    tagClass = 'bg-amber-surface text-amber-text';
-    dotColor = 'var(--amber)';
+    tagClass = 'bg-slate-surface text-slate-text border border-slate/20';
+    dotColor = 'var(--slate)';
     displayName = 'JAVASCRIPT';
   } else if (norm.includes('typescript') || norm === 'ts' || norm === 'tsx') {
-    tagClass = 'bg-[#EFEBFC] text-[#4E3FA8]';
-    dotColor = '#7862DE';
+    tagClass = 'bg-slate-surface text-slate-text border border-slate/20';
+    dotColor = 'var(--slate)';
     displayName = 'TYPESCRIPT';
   } else if (norm.includes('external')) {
-    tagClass = 'bg-slate-surface text-slate-text';
+    tagClass = 'bg-slate-surface text-slate-text border border-slate/20';
     dotColor = 'var(--slate)';
     displayName = 'EXTERNAL';
   } else if (norm.includes('entry')) {
-    tagClass = 'bg-teal-surface text-teal-text';
+    tagClass = 'bg-teal-surface text-teal-text border border-teal/25';
     dotColor = 'var(--teal)';
     displayName = 'ENTRY POINT';
   }
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 h-[22px] px-2 rounded-pill font-sans text-[11px] font-bold tracking-[0.04em] uppercase select-none ${tagClass} ${className}`}
+      className={`inline-flex items-center gap-1.5 h-[20px] px-2 rounded-md font-sans text-[10px] font-bold tracking-[0.05em] uppercase select-none ${tagClass} ${className}`}
     >
       {showDot && (
         <span
-          className="w-2 h-2 rounded-full shrink-0"
+          className="w-1.5 h-1.5 rounded-full shrink-0"
           style={{ backgroundColor: dotColor }}
           aria-hidden="true"
         />
