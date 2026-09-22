@@ -19,6 +19,7 @@ import {
 import { ChangeImpact, TabType } from '../../types';
 import { truncateMiddle, getRiskLevelStyle } from '../../utils/formatters';
 import Button from './Button';
+import ImpactRippleGraphic from '../migration/ImpactRippleGraphic';
 
 export interface ChangeImpactViewProps {
   projectId?: string | null;
@@ -225,14 +226,31 @@ export const ChangeImpactView: React.FC<ChangeImpactViewProps> = ({
             <h3 className="font-mono font-bold text-sm sm:text-base text-ink break-all">
               {impact.relative_path}
             </h3>
-            <span className={`text-[11px] px-2 py-0.5 rounded-pill uppercase tracking-wider ${riskStyle.badgeClass}`}>
-              {riskStyle.label}
+            <span className={`text-[11px] px-2 py-0.5 rounded-pill font-mono font-bold uppercase tracking-wider ${riskStyle.badgeClass}`}>
+              RISK: {riskStyle.label} {impact.hotspot_score !== undefined ? `· ${impact.hotspot_score}/100` : ''}
             </span>
+            {impact.complexity_severity && (
+              <span className={`text-[11px] px-2 py-0.5 rounded-pill font-mono font-bold uppercase tracking-wider ${
+                impact.complexity_severity === 'critical'
+                  ? 'bg-red-surface text-red-strong border border-red-line'
+                  : impact.complexity_severity === 'high'
+                  ? 'bg-amber-surface text-amber-strong border border-amber/30'
+                  : 'bg-tile text-ink-2 border border-line'
+              }`}>
+                COMPLEXITY: {impact.complexity_severity.toUpperCase()}
+              </span>
+            )}
             {impact.wave_title && (
               <span className="text-[11px] px-2.5 py-0.5 rounded-pill bg-indigo-surface text-indigo font-bold font-mono border border-indigo/20">
                 WAVE {impact.wave || 1}
               </span>
             )}
+            <span className="text-[11px] px-2 py-0.5 rounded-pill bg-tile border border-line text-ink-3 font-mono font-bold uppercase">
+              GRAPH: {impact.graph_confidence?.toUpperCase() || 'MEDIUM'}
+            </span>
+            <span className="text-[11px] px-2 py-0.5 rounded-pill bg-tile border border-line text-ink-3 font-mono font-bold uppercase">
+              CHANGE CONF: {impact.change_confidence?.toUpperCase() || 'MEDIUM'}
+            </span>
             {hasCycles ? (
               <span className="text-[11px] px-2 py-0.5 rounded-pill bg-red-surface text-red-strong font-bold font-sans border border-red-line flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3" /> CYCLE PARTICIPANT
@@ -245,6 +263,9 @@ export const ChangeImpactView: React.FC<ChangeImpactViewProps> = ({
           </div>
           <p className="text-xs text-ink-3 mt-1">
             Static AST blast-radius assessment &bull; Maximum propagation depth: <strong className="text-ink">{depth} {depth === 1 ? 'hop' : 'hops'}</strong>
+            {impact.wave_eligibility_reason && (
+              <span className="block mt-1 font-sans text-ink-2">{impact.wave_eligibility_reason}</span>
+            )}
           </p>
         </div>
 
@@ -313,6 +334,12 @@ export const ChangeImpactView: React.FC<ChangeImpactViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Impact Ripple Graphic */}
+      <ImpactRippleGraphic
+        impact={impact}
+        onSelectFile={onSelectFile}
+      />
 
       {/* Recommended Action Callout Banner */}
       {impact.recommended_action && (

@@ -152,6 +152,12 @@ def test_migration_plan_api_and_download():
     assert "text/markdown" in download.headers["content-type"]
     assert "attachment" in download.headers["content-disposition"]
 
+    download_json = client.get("/api/projects/proj_migration/migration-plan/download-json")
+    assert download_json.status_code == 200
+    assert "application/json" in download_json.headers["content-type"]
+    assert "attachment" in download_json.headers["content-disposition"]
+    assert download_json.json()["readiness_score"] >= 0
+
 
 def test_regression_no_project_test_record():
     db = TestingSessionLocal()
@@ -366,4 +372,96 @@ def test_get_module_change_impact_and_endpoint():
     assert data["dependency_depth"] == 1
     assert "app.py" in data["transitive_dependents"]
     assert len(data["risk_evidence"]) >= 3
+
+
+def test_page8_canonical_readiness_model_and_dimensions():
+    db = TestingSessionLocal()
+    plan = build_migration_plan(db, "proj_migration")
+    db.close()
+
+    # Readiness assessment object
+    assert plan.readiness is not None
+    assert plan.readiness.overall_score == plan.readiness_score
+    assert plan.readiness.full_ast_coverage_pct == 100.0
+    assert plan.readiness.parser_readiness_score == 100
+    assert plan.readiness.threshold_label in (
+        "90–100: High Readiness",
+        "80–89: Strong Readiness",
+        "60–79: Ready With Care",
+    )
+    assert plan.readiness.why_score is not None
+    assert len(plan.readiness.why_score.strengths) >= 1
+
+    # Check dimensions have formula, evidence, and breakdown
+    parsing = plan.readiness.dimensions["analysis"]
+    assert parsing.formula != ""
+    assert len(parsing.evidence) >= 1
+    assert len(parsing.breakdown) >= 3
+
+    dep_safety = plan.readiness.dimensions["coupling"]
+    assert "Resolved internal edges:" in dep_safety.evidence[0]
+    assert dep_safety.formula != ""
+
+
+def test_page8_strict_migration_waves_and_zero_cycles():
+    db = TestingSessionLocal()
+    plan = build_migration_plan(db, "proj_migration")
+    db.close()
+
+    # Wave 0: Protect
+    w0 = next(w for w in plan.waves if w.wave == 0)
+    assert w0.status == "required"
+    assert len(w0.files) >= 1
+
+    # Wave 1: Leaves (must have blast radius 0)
+    w1 = next(w for w in plan.waves if w.wave == 1)
+    for f in w1.files:
+        impact = next(i for i in plan.impacts if i.relative_path == f)
+        assert impact.blast_radius == 0
+        assert len(impact.direct_dependents) == 0
+
+    # Wave 2: Cycles (project has 0 cycles => not_required)
+    w2 = next(w for w in plan.waves if w.wave == 2)
+    assert w2.status == "not_required"
+    assert len(w2.files) == 0
+    assert "no dependency cycles" in w2.strategy.lower()
+
+    # Wave 4: Entry points (only true runtime root app.py)
+    w4 = next(w for w in plan.waves if w.wave == 4)
+    assert "app.py" in w4.files
+    assert "helper.py" not in w4.files
+
+
+def test_page8_canonical_risk_and_blockers():
+    from app.hotspots.service import calculate_hotspot_score, get_risk_level
+
+    db = TestingSessionLocal()
+    plan = build_migration_plan(db, "proj_migration")
+    db.close()
+
+    core = next(i for i in plan.impacts if i.relative_path == "core.py")
+    expected_score, _ = calculate_hotspot_score(
+        complexity_raw=18,
+        loc_raw=60,
+        fan_in_raw=2,
+        warnings_raw=1,
+        blast_radius_raw=2,
+    )
+    expected_risk = get_risk_level(expected_score)
+    assert core.hotspot_score == expected_score
+    assert core.risk_level == expected_risk
+    assert core.complexity_severity == "high"
+
+    # Global blockers vs file blockers
+    assert plan.global_blockers is not None
+    assert any(b.blocker_type == "global" for b in plan.global_blockers)
+    if plan.file_blockers:
+        assert all(b.blocker_type == "file" for b in plan.file_blockers)
+        # Verify primary blocker is core.py rather than helper.py
+        assert plan.file_blockers[0].target_file == "core.py"
+
+    # Next best action
+    assert plan.next_best_action is not None
+    assert plan.next_best_action.action != ""
+
 

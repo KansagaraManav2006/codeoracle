@@ -90,6 +90,24 @@ def download_migration_plan(project_id: str, db: Session = Depends(get_db)) -> P
     )
 
 
+@router.get("/projects/{project_id}/migration-plan/download-json", response_class=Response)
+def download_migration_plan_json(project_id: str, db: Session = Depends(get_db)) -> Response:
+    """Download the migration plan as structured JSON."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    try:
+        plan = build_migration_plan(db, project_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    json_content = plan.model_dump_json(indent=2)
+    return Response(
+        content=json_content,
+        media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{_download_name(project.display_name)}-migration-plan.json"'},
+    )
+
+
 @router.get("/projects/{project_id}/impact", response_model=ChangeImpact)
 def get_project_change_impact(
     project_id: str,

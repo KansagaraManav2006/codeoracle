@@ -228,13 +228,24 @@ export interface HotspotsResponse {
 
 export type IngestionMode = 'zip' | 'github';
 
-export interface ReadinessCategory {
+export interface DimensionBreakdownItem {
+  label: string;
+  value: string;
+}
+
+export interface ReadinessDimension {
   key: string;
   label: string;
   score: number;
   status: string;
   reason: string;
+  formula?: string;
+  evidence?: string[];
+  confidence?: 'high' | 'medium' | 'low';
+  breakdown?: DimensionBreakdownItem[];
 }
+
+export type ReadinessCategory = ReadinessDimension;
 
 export interface ChecklistItem {
   id: string;
@@ -249,28 +260,84 @@ export interface ScoreBlocker {
   label: string;
   current_score: number;
   target_file?: string | null;
+  blocker_type?: 'global' | 'file';
   blocker_reason: string;
   unblocking_action: string;
+  priority_score?: number;
+  risk_level?: string;
+}
+
+export interface ProtectionStatus {
+  generated_tests: number;
+  relevant_tests: number;
+  syntax_valid: number;
+  runtime_verified: number;
+  execution_status?: 'not_run' | 'passed' | 'failed' | 'unmeasured';
+  coverage_percentage?: number | null;
+  summary_label?: string;
+}
+
+export interface ModernizationSummary {
+  findings: number;
+  candidates: number;
+  autofix_eligible: number;
+  generated_diffs: number;
+  verified_changes: number;
+  deterministic_changes_generated: number;
+}
+
+export interface NextBestAction {
+  action: string;
+  target_file?: string | null;
+  reason: string;
+  action_type?: 'protect' | 'resolve_deps' | 'modernize' | 'review' | string;
+}
+
+export interface WhyScore {
+  strengths: string[];
+  needs_attention: string[];
+}
+
+export interface ReadinessAssessment {
+  overall_score: number;
+  overall_label: string;
+  threshold_label: string;
+  confidence: 'high' | 'medium' | 'low';
+  confidence_reasons: string[];
+  full_ast_coverage_pct: number;
+  parser_readiness_score: number;
+  why_score: WhyScore;
+  next_best_action: NextBestAction;
+  dimensions: Record<string, ReadinessDimension>;
+  global_blockers: ScoreBlocker[];
+  file_blockers: ScoreBlocker[];
 }
 
 export interface ChangeImpact {
   module_id: string;
   relative_path: string;
   risk_level: 'low' | 'medium' | 'high' | 'critical';
+  hotspot_score?: number;
+  complexity_severity?: 'low' | 'medium' | 'high' | 'critical';
+  architecture_role?: string;
   blast_radius: number;
   direct_blast_radius?: number;
   transitive_blast_radius?: number;
   dependency_depth: number;
   wave?: number;
   wave_title?: string;
+  wave_eligibility_reason?: string;
   is_cycle_participant?: boolean;
   is_score_blocker?: boolean;
+  graph_confidence?: 'high' | 'medium' | 'low';
+  change_confidence?: 'high' | 'medium' | 'low';
   direct_dependents: string[];
   transitive_dependents: string[];
   direct_dependencies: string[];
   affected_entry_points: string[];
   cycles?: string[][];
   suggested_tests: string[];
+  protection_status?: ProtectionStatus;
   reasons: string[];
   risk_evidence?: string[];
   recommended_action?: string;
@@ -291,10 +358,14 @@ export interface MigrationWave {
   title: string;
   goal: string;
   strategy: string;
+  status?: 'required' | 'not_required' | 'blocked';
+  confidence?: 'high' | 'medium' | 'low';
+  dependencies?: number[];
   risk_level: 'low' | 'medium' | 'high' | 'critical' | string;
   files: string[];
   total_direct_dependents: number;
   total_transitive_blast_radius: number;
+  protection_readiness_pct?: number;
   affected_entry_points: string[];
   suggested_test_order: string[];
   checklist: ChecklistItem[];
@@ -304,10 +375,22 @@ export interface MigrationPlanResponse {
   project_id: string;
   readiness_score: number;
   readiness_label: string;
+  readiness_confidence?: 'high' | 'medium' | 'low';
+  full_ast_coverage_pct?: number;
+  parser_readiness_score?: number;
+  plan_confidence?: 'high' | 'medium' | 'low';
+  plan_confidence_warning?: string | null;
   executive_summary: string;
   first_action_summary?: string;
+  next_best_action?: NextBestAction;
+  why_score?: WhyScore;
+  readiness?: ReadinessAssessment;
   categories: ReadinessCategory[];
   score_blockers?: ScoreBlocker[];
+  global_blockers?: ScoreBlocker[];
+  file_blockers?: ScoreBlocker[];
+  protection_status?: ProtectionStatus;
+  modernization_summary?: ModernizationSummary;
   top_priorities: ChangeImpact[];
   impacts: ChangeImpact[];
   phases: MigrationPhase[];

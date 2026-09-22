@@ -145,12 +145,11 @@ def test_wave_partitioning_and_order(wave_test_db):
     assert 3 in wave_by_num, "Wave 3 (Intermediate Services) must exist"
     assert 4 in wave_by_num, "Wave 4 (Entry Points) must exist"
 
-    # Wave 1: leaf and isolated files
+    # Wave 1: leaf and isolated files (blast radius == 0)
     w1 = wave_by_num[1]
     assert "standalone.py" in w1.files
-    assert "leaf_util.py" in w1.files
     assert w1.risk_level == "low"
-    assert "zero downstream regression risk" in w1.strategy.lower() or "safe" in w1.strategy.lower()
+    assert "low estimated downstream impact" in w1.strategy.lower() or "safe" in w1.strategy.lower()
 
     # Wave 2: cycle participants
     w2 = wave_by_num[2]
@@ -158,9 +157,10 @@ def test_wave_partitioning_and_order(wave_test_db):
     assert "cycle_b.py" in w2.files
     assert w2.risk_level == "high"
 
-    # Wave 3: intermediate services
+    # Wave 3: intermediate services and files with callers (e.g. leaf_util called by service.py)
     w3 = wave_by_num[3]
     assert "service.py" in w3.files
+    assert "leaf_util.py" in w3.files
 
     # Wave 4: entry points
     w4 = wave_by_num[4]
