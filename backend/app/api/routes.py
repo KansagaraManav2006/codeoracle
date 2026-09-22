@@ -1,3 +1,4 @@
+import json
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -983,9 +984,15 @@ def get_project_tests(
 @router.get("/projects/{project_id}/tests/download")
 def download_project_tests(
     project_id: str,
+    scope: str = Query(default="all"),
+    test_id: Optional[str] = Query(default=None),
+    target_path: Optional[str] = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    """Downloads a ZIP archive containing all syntax-valid generated unit test files and README."""
+    """Downloads a ZIP archive containing generated unit test files, manifest.json, and README.
+    
+    Supports scopes: 'all', 'protected' (only contract tests), and 'selected'.
+    """
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
@@ -1003,20 +1010,56 @@ def download_project_tests(
 
     test_result = ProjectTestResult.model_validate(rec.test_data)
 
+    # Filter files based on requested scope
+    if scope == "protected":
+        files_to_pack = [
+            tf for tf in test_result.test_files
+            if tf.syntax_valid and tf.download_eligible and not tf.is_import_only
+        ]
+    elif scope == "selected" and (test_id or target_path):
+        norm_target = (target_path or "").replace("\\", "/").lower()
+        files_to_pack = [
+            tf for tf in test_result.test_files
+            if tf.syntax_valid and tf.download_eligible and (
+                (test_id and tf.test_id == test_id)
+                or (norm_target and tf.target_relative_path.replace("\\", "/").lower() == norm_target)
+                or (norm_target and tf.safe_test_path.replace("\\", "/").lower().endswith(norm_target))
+            )
+        ]
+        if not files_to_pack:
+            # Fallback to active target
+            files_to_pack = [tf for tf in test_result.test_files if tf.syntax_valid and tf.download_eligible][:1]
+    else:
+        files_to_pack = [tf for tf in test_result.test_files if tf.syntax_valid and tf.download_eligible]
+
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for tf in test_result.test_files:
-            if tf.syntax_valid and tf.download_eligible:
-                zf.writestr(tf.safe_test_path, tf.code)
+        for tf in files_to_pack:
+            zf.writestr(tf.safe_test_path, tf.code)
+
+        # Write manifest.json
+        manifest_data = dict(test_result.manifest) if test_result.manifest else {}
+        manifest_data.update({
+            "generated": len(files_to_pack),
+            "sourceProtected": len(test_result.protected_files),
+            "unprotected": len(test_result.unprotected_files),
+            "totalSourceFiles": test_result.target_source_files,
+            "runtimeExecuted": bool(test_result.is_measured or any(t.execution_status == "passed" for t in test_result.test_files)),
+            "frameworks": test_result.frameworks,
+            "downloadScope": scope,
+        })
+        zf.writestr("manifest.json", json.dumps(manifest_data, indent=2))
 
         # Write README.md
         readme_text = f"""# CodeOracle Auto-Generated Test Suite
 
 Project ID: {project_id}
 Generated At: {test_result.generated_at}
+Download Scope: {scope.upper()} ({len(files_to_pack)} files)
 Frameworks: {', '.join(test_result.frameworks)}
 Total Tests: {test_result.total_generated_tests}
-Overall Line Coverage: {test_result.overall_line_coverage if test_result.overall_line_coverage is not None else 'Not measured'}%
+Source Modules Protected: {len(test_result.protected_files)} / {test_result.target_source_files}
+Overall Line Coverage: {test_result.overall_line_coverage if test_result.overall_line_coverage is not None else 'Not measured (safety locked)'}%
 
 ## How to Run Tests Locally
 
@@ -1030,12 +1073,12 @@ Overall Line Coverage: {test_result.overall_line_coverage if test_result.overall
 2. Run test suite: `npx vitest run`
 
 ## Security & Safety Notice
-{test_result.execution_warning or 'Subprocess isolation reduces risk but is not a complete hostile-code sandbox.'}
+{test_result.execution_warning or 'Subprocess isolation reduces risk but is not a complete hostile-code sandbox. Runtime execution was locked during generation.'}
 """
         zf.writestr("README.md", readme_text)
 
     buf.seek(0)
-    filename = f"codeoracle_tests_{project_id}.zip"
+    filename = f"codeoracle_tests_{project_id}_{scope}.zip"
     return StreamingResponse(
         buf,
         media_type="application/zip",

@@ -11,7 +11,7 @@ from app.analysis.service import run_analysis_for_project
 from app.config import settings
 from app.database import SessionLocal
 from app.ingestion.service import get_workspace_dir
-from app.models.db import Job, JobState, Project, ProjectAnalysisRecord, ProjectTestRecord
+from app.models.db import Job, JobState, Project, ProjectAnalysisRecord, ProjectTestRecord, ProjectRefactorRecord
 from app.testgen.javascript_generator import generate_javascript_unit_tests
 from app.testgen.models import GeneratedTestFile, ProjectTestResult, TEST_GENERATOR_VERSION
 from app.testgen.python_generator import generate_python_unit_tests
@@ -224,6 +224,133 @@ def run_test_generation_for_project(
         for cat in tf.test_categories:
             category_counts[cat] = category_counts.get(cat, 0) + 1
 
+    # Strength counts
+    strength_counts = {
+        "syntax": sum(1 for tf in test_files if tf.strength_level == "L1" or tf.test_strength == "syntax"),
+        "import": sum(1 for tf in test_files if tf.strength_level == "L2" or tf.test_strength == "import" or tf.is_import_only),
+        "contract": sum(1 for tf in test_files if tf.strength_level == "L3" or tf.test_strength == "contract"),
+        "behavior": sum(1 for tf in test_files if tf.strength_level == "L4" or tf.test_strength == "behavior"),
+        "integration": sum(1 for tf in test_files if tf.strength_level == "L5" or tf.test_strength == "integration"),
+    }
+
+    # Archetype framework coverage
+    archetype_totals: Dict[str, int] = {"react": 0, "fastapi": 0, "service": 0, "ml": 0, "generic": 0}
+    archetype_protected: Dict[str, int] = {"react": 0, "fastapi": 0, "service": 0, "ml": 0, "generic": 0}
+
+    tf_archetype_by_target = {tf.target_relative_path: tf.framework_archetype for tf in test_files}
+
+    for m in analysis.modules:
+        arch = tf_archetype_by_target.get(m.relative_path)
+        if not arch:
+            rel_lower = m.relative_path.lower()
+            if rel_lower.endswith((".tsx", ".jsx")) or "component" in rel_lower:
+                arch = "react"
+            elif "router" in rel_lower or "api" in rel_lower or "endpoint" in rel_lower:
+                arch = "fastapi"
+            elif any(k in rel_lower for k in ("anomaly", "forecast", "model", "predict")):
+                arch = "ml"
+            elif "service" in rel_lower:
+                arch = "service"
+            else:
+                arch = "generic"
+        archetype_totals[arch] = archetype_totals.get(arch, 0) + 1
+        if m.relative_path in protected_set:
+            archetype_protected[arch] = archetype_protected.get(arch, 0) + 1
+
+    framework_coverage = {
+        arch: {
+            "total": archetype_totals[arch],
+            "protected": archetype_protected[arch],
+            "unprotected": archetype_totals[arch] - archetype_protected[arch],
+            "percentage": round((archetype_protected[arch] / max(1, archetype_totals[arch])) * 100, 1),
+        }
+        for arch in ("react", "fastapi", "service", "ml", "generic")
+        if archetype_totals.get(arch, 0) > 0
+    }
+
+    # Refactor proposals lookup for planned changes
+    refactor_rec = db.query(ProjectRefactorRecord).filter(ProjectRefactorRecord.project_id == project_id).first()
+    changed_files_set = set()
+    if refactor_rec and refactor_rec.refactor_data:
+        for rf in refactor_rec.refactor_data.get("files", []):
+            if rf.get("changed"):
+                changed_files_set.add(rf.get("relative_path", "").replace("\\", "/").lower())
+
+    # Build prioritized unprotected modules queue
+    unprotected_modules_detail: List[Dict[str, Any]] = []
+    for m in analysis.modules:
+        if m.relative_path in protected_set:
+            continue
+
+        norm_path = m.relative_path.replace("\\", "/").lower()
+        has_planned_changes = norm_path in changed_files_set
+        caller_count = sum(1 for e in analysis.dependency_edges if e.target_module_id == m.module_id)
+        complexity_val = m.complexity.cyclomatic_complexity if m.complexity else 0
+        risk_score = min(100, int(complexity_val * 2 + caller_count * 5))
+        risk_level = "critical" if risk_score > 70 else ("high" if risk_score > 40 else ("medium" if risk_score > 15 else "low"))
+        is_modernization_candidate = has_planned_changes or len(m.legacy_warnings) > 0
+
+        # Assign P0, P1, P2
+        if has_planned_changes and (risk_level in ("critical", "high") or caller_count > 3):
+            priority = "P0"
+            priority_label = "P0 — Protect before modification"
+        elif is_modernization_candidate or risk_level in ("medium", "high", "critical") or caller_count > 1:
+            priority = "P1"
+            priority_label = "P1 — Recommended"
+        else:
+            priority = "P2"
+            priority_label = "P2 — Optional / low risk"
+
+        # Explicit failure/skip reason
+        if is_non_testable_module(m):
+            if norm_path.endswith((".d.ts", "types.ts", "models.ts", "interfaces.ts")):
+                reason = "Type-only definitions (.d.ts / types.ts) without runtime callable implementations"
+            elif "config" in norm_path:
+                reason = "Static configuration file; no business logic functions"
+            elif "index." in norm_path:
+                reason = "Barrel re-export file with no standalone function or class declarations"
+            elif norm_path.endswith("__init__.py"):
+                reason = "Package initialization module with no direct exportable functions"
+            else:
+                reason = "Non-testable static module"
+        elif m.parse_status == "failed":
+            reason = "Parser syntax error or unsupported dynamic AST grammar"
+        elif len(m.functions) == 0 and len(m.classes) == 0:
+            reason = "No callable functions or class contracts identified"
+        else:
+            reason = "Module marked for characterization expansion"
+
+        unprotected_modules_detail.append({
+            "path": m.relative_path,
+            "reason": reason,
+            "risk_score": risk_score,
+            "risk_level": risk_level,
+            "blast_radius": caller_count,
+            "is_modernization_candidate": is_modernization_candidate,
+            "has_planned_changes": has_planned_changes,
+            "priority": priority,
+            "priority_label": priority_label,
+            "caller_count": caller_count,
+            "loc": m.end_line - m.start_line + 1 if m.end_line >= m.start_line else 0,
+        })
+
+    # Sort unprotected queue: P0 first, then P1, then P2, ordered by risk_score desc
+    priority_weights = {"P0": 0, "P1": 1, "P2": 2}
+    unprotected_modules_detail.sort(key=lambda u: (priority_weights.get(u["priority"], 3), -u["risk_score"], -u["blast_radius"]))
+
+    # Test manifest
+    manifest = {
+        "generated": len(test_files),
+        "sourceProtected": len(protected_files),
+        "unprotected": len(unprotected_files),
+        "totalModules": len(analysis.modules),
+        "coveragePercentage": round((len(protected_files) / max(1, len(analysis.modules))) * 100, 1),
+        "runtimeExecuted": bool(is_measured or any(tf.execution_status == "passed" for tf in test_files)),
+        "frameworks": sorted(list(frameworks)),
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
+        "generatorVersion": TEST_GENERATOR_VERSION,
+    }
+
     result = ProjectTestResult(
         project_id=project_id,
         generation_version=TEST_GENERATOR_VERSION,
@@ -249,6 +376,10 @@ def run_test_generation_for_project(
         unprotected_files=unprotected_files,
         category_counts=category_counts,
         is_measured=is_measured,
+        strength_counts=strength_counts,
+        framework_coverage=framework_coverage,
+        unprotected_modules_detail=unprotected_modules_detail,
+        manifest=manifest,
     )
 
     # Persist in DB

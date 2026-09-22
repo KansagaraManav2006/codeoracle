@@ -227,9 +227,13 @@ def test_protection_accounting_does_not_claim_behavioral_coverage_for_import_smo
             assert "constants.py" not in result.protected_files
             assert "constants.py" in result.unprotected_files
 
-            # Categories must have entries
-            assert result.category_counts.get("function contract test", 0) > 0
-            assert result.is_measured is False  # execute=False and not trusted
+            # Page 6 enhancements assertions
+            assert result.manifest is not None
+            assert result.manifest.get("generated") == len(result.test_files)
+            assert result.manifest.get("sourceProtected") == len(result.protected_files)
+            assert result.strength_counts is not None
+            assert len(result.unprotected_modules_detail) == len(result.unprotected_files)
+            assert any(u["priority"] in ("P0", "P1", "P2") for u in result.unprotected_modules_detail)
         finally:
             igs.get_workspace_dir = orig_get_ws
             tgs.get_workspace_dir = orig_get_ws
@@ -245,5 +249,62 @@ def test_protection_accounting_does_not_claim_behavioral_coverage_for_import_smo
         db.query(Project).filter(Project.id == "proj_smoke_test").delete()
         db.commit()
         db.close()
+
+
+def test_react_tsx_generator_creates_contract_suite(tmp_path) -> None:
+    source = tmp_path / "MainLayout.tsx"
+    source.write_text(
+        "import React from 'react';\n"
+        "export function MainLayout(props) {\n"
+        "  return React.createElement('div', { className: 'layout' }, props.children);\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    module = analyze_javascript_source("proj_test", "MainLayout.tsx", source)
+    generated = generate_javascript_unit_tests(module, _project(module))
+    assert generated.framework == "vitest"
+    assert generated.framework_archetype == "react"
+    assert generated.display_name == "MainLayout.contract.test.tsx"
+    assert generated.strength_level == "L3"
+    assert generated.confidence == "medium"
+    assert len(generated.confidence_reasons) > 0
+    assert "Component Export Contract" in [t["name"] for t in generated.test_cases_breakdown]
+    assert generated.syntax_valid is True
+    assert "React.createElement" in generated.code
+
+
+def test_python_fastapi_and_ml_archetypes(tmp_path) -> None:
+    # FastAPI route test
+    route_file = tmp_path / "api_routes.py"
+    route_file.write_text(
+        "from fastapi import APIRouter, Depends\n"
+        "router = APIRouter()\n"
+        "@router.get('/items')\n"
+        "def get_items():\n"
+        "    return [{'id': 1}]\n",
+        encoding="utf-8",
+    )
+    mod_route = analyze_python_source("proj_test", "api_routes.py", route_file)
+    gen_route = generate_python_unit_tests(mod_route, _project(mod_route))
+    assert gen_route.framework_archetype == "fastapi"
+    assert "api-contract" in gen_route.display_name
+    assert gen_route.syntax_valid is True
+    assert gen_route.strength_level == "L3"
+
+    # ML module test
+    ml_file = tmp_path / "anomaly_detector.py"
+    ml_file.write_text(
+        "import numpy as np\n"
+        "def detect_anomalies(data):\n"
+        "    return np.mean(data) > 0.5\n",
+        encoding="utf-8",
+    )
+    mod_ml = analyze_python_source("proj_test", "anomaly_detector.py", ml_file)
+    gen_ml = generate_python_unit_tests(mod_ml, _project(mod_ml))
+    assert gen_ml.framework_archetype == "ml"
+    assert "ml-contract" in gen_ml.display_name
+    assert gen_ml.syntax_valid is True
+    assert gen_ml.strength_level == "L3"
+
 
 

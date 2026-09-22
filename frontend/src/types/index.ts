@@ -708,12 +708,62 @@ export interface ArchitectureOverview {
 
 // --- Generated Test Interfaces ---
 
+export type TestStrength = 'syntax' | 'import' | 'contract' | 'behavior' | 'integration';
+export type StrengthLevel = 'L1' | 'L2' | 'L3' | 'L4' | 'L5';
+export type ProtectionConfidence = 'high' | 'medium' | 'low';
+export type FrameworkArchetype = 'react' | 'fastapi' | 'service' | 'ml' | 'generic';
+
+export interface TestCaseBreakdown {
+  name: string;
+  category: string;
+  strength: string;
+  description: string;
+}
+
+export interface WhyGeneratedInfo {
+  finding: string;
+  protection_goal: string;
+  detected_exports?: string[];
+  detected_dependencies?: string[];
+  generated_assertions?: string[];
+  limitations?: string;
+}
+
+export interface UnprotectedModuleDetail {
+  path: string;
+  reason: string;
+  risk_score: number;
+  risk_level: 'critical' | 'high' | 'medium' | 'low';
+  blast_radius: number;
+  is_modernization_candidate: boolean;
+  has_planned_changes: boolean;
+  priority: 'P0' | 'P1' | 'P2';
+  priority_label: string;
+  caller_count: number;
+  loc?: number;
+}
+
+export interface TestManifest {
+  generated: number;
+  sourceProtected: number;
+  unprotected: number;
+  totalModules?: number;
+  totalSourceFiles?: number;
+  coveragePercentage?: number;
+  runtimeExecuted: boolean;
+  frameworks: string[];
+  generatedAt?: string;
+  generatorVersion?: string;
+  downloadScope?: string;
+}
+
 export interface GeneratedTestFile {
   test_id: string;
   target_relative_path: string;
   language: 'python' | 'javascript';
   framework: 'pytest' | 'vitest';
   safe_test_path: string;
+  display_name?: string;
   code: string;
   generation_strategy: string;
   test_category: string;
@@ -730,6 +780,13 @@ export interface GeneratedTestFile {
   covered_lines: number[];
   uncovered_lines: number[];
   warnings: string[];
+  test_strength?: TestStrength;
+  strength_level?: StrengthLevel;
+  confidence?: ProtectionConfidence;
+  confidence_reasons?: string[];
+  framework_archetype?: FrameworkArchetype;
+  why_generated?: WhyGeneratedInfo;
+  test_cases_breakdown?: TestCaseBreakdown[];
 }
 
 export interface ProjectTestResult {
@@ -756,6 +813,10 @@ export interface ProjectTestResult {
   unprotected_files?: string[];
   category_counts?: Record<string, number>;
   is_measured?: boolean;
+  strength_counts?: Record<string, number>;
+  framework_coverage?: Record<string, { total: number; protected: number; unprotected: number; percentage: number }>;
+  unprotected_modules_detail?: UnprotectedModuleDetail[];
+  manifest?: TestManifest;
 }
 
 // --- Refactor Proposal Interfaces ---

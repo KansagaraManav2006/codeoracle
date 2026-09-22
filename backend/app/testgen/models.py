@@ -11,6 +11,7 @@ class GeneratedTestFile(BaseModel):
     language: str  # "python" | "javascript"
     framework: str  # "pytest" | "vitest"
     safe_test_path: str
+    display_name: str = ""
     code: str
     generation_strategy: str
     test_category: str = "function contract test"
@@ -28,6 +29,14 @@ class GeneratedTestFile(BaseModel):
     uncovered_lines: List[int] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
     download_eligible: bool = True
+    # Page 6 enhancements
+    test_strength: str = "contract"  # "syntax" | "import" | "contract" | "behavior" | "integration"
+    strength_level: str = "L3"  # "L1" | "L2" | "L3" | "L4" | "L5"
+    confidence: str = "medium"  # "high" | "medium" | "low"
+    confidence_reasons: List[str] = Field(default_factory=list)
+    framework_archetype: str = "generic"  # "react" | "fastapi" | "service" | "ml" | "generic"
+    why_generated: Dict[str, Any] = Field(default_factory=dict)
+    test_cases_breakdown: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class ProjectTestResult(BaseModel):
@@ -55,8 +64,14 @@ class ProjectTestResult(BaseModel):
     unprotected_files: List[str] = Field(default_factory=list)
     category_counts: Dict[str, int] = Field(default_factory=dict)
     is_measured: bool = False
+    # Page 6 enhancements
+    strength_counts: Dict[str, int] = Field(default_factory=dict)
+    framework_coverage: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    unprotected_modules_detail: List[Dict[str, Any]] = Field(default_factory=list)
+    manifest: Dict[str, Any] = Field(default_factory=dict)
 
 
 class GenerateTestsRequest(BaseModel):
     execute: bool = False
     force: bool = False
+
