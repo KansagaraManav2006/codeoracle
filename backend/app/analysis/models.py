@@ -197,11 +197,15 @@ class DependencyEdge(BaseModel):
     edge_id: str
     source_module_id: str
     target_module_id: str  # resolved module_id or external package name
-    type: str  # import, require, inheritance, call
+    type: str = "import"  # import, require, inheritance, call
+    kind: str = "runtime_import"  # runtime_import, type_only_import, dynamic_import, require, re_export, unknown
+    confidence: str = "high"  # high, medium, low
+    raw_import: Optional[str] = None
     resolved: bool = False
     source_line: int = 1
     is_type_only: bool = False
     is_dynamic: bool = False
+
 
 
 class ProjectExplanation(BaseModel):

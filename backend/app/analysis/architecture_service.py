@@ -173,48 +173,11 @@ def build_architecture_overview(
 
     # 2. Canonical Dependency Graph Summary
     graph_res: GraphResponse = build_project_dependency_graph(analysis=analysis, level="module", include_external=False)
-    cycles_count = len(graph_res.cycles)
+    cycles_count = graph_res.summary.cycles
 
-    # Check unresolved dependencies count
-    resolved_edges = [e for e in analysis.dependency_edges if e.resolved]
-    unresolved_edges = [e for e in analysis.dependency_edges if not e.resolved]
-
-    runtime_edges = sum(1 for e in resolved_edges if not getattr(e, "is_type_only", False))
-    type_only_edges = sum(1 for e in resolved_edges if getattr(e, "is_type_only", False))
-    dynamic_edges = sum(1 for e in resolved_edges if getattr(e, "is_dynamic", False))
-
-    # Categorize unresolved relationships
-    ts_alias_list = []
-    py_rel_list = []
-    dynamic_list = []
-    generated_list = []
-    syntax_list = []
-    external_list = []
-
-    modules_by_id = {m.module_id: m for m in analysis.modules}
-
-    for e in unresolved_edges:
-        target = e.target_module_id
-        src_mod = modules_by_id.get(e.source_module_id)
-        src_path = src_mod.relative_path if src_mod else ""
-
-        if getattr(e, "is_dynamic", False) or "import(" in target:
-            dynamic_list.append(f"{src_path} -> {target}")
-        elif target.startswith(("@/", "~/", "#/")):
-            ts_alias_list.append(f"{src_path} -> {target}")
-        elif any(tok in target.lower() for tok in ("generated", ".generated.", "_pb2")):
-            generated_list.append(f"{src_path} -> {target}")
-        elif src_mod and src_mod.parse_status in ("partial", "failed", "unsupported"):
-            syntax_list.append(f"{src_path} -> {target}")
-        elif target.startswith(".") or target.startswith("app.") or (src_mod and src_mod.language == "python" and "/" not in target and "." in target and not any(p in target for p in ("os.", "sys.", "json.", "math.", "re.", "typing."))):
-            py_rel_list.append(f"{src_path} -> {target}")
-        else:
-            external_list.append(f"{src_path} -> {target}")
-
-    # Canonical coupling metrics
-    # Internal unresolved imports are those that look like internal references (ts alias, python relative, dynamic, generated, syntax)
-    internal_unresolved_count = len(ts_alias_list) + len(py_rel_list) + len(dynamic_list) + len(generated_list) + len(syntax_list)
-    external_ref_count = len(external_list)
+    # Canonical coupling metrics from single canonical graph summary
+    internal_unresolved_count = graph_res.summary.unresolved_imports
+    external_ref_count = graph_res.summary.external_edges
 
     # Cycle wording rule: Clean hierarchical DAG ONLY if 100% full AST and 0 unresolved
     if full_ast_pct == 100.0 and internal_unresolved_count == 0 and cycles_count == 0:
@@ -245,17 +208,24 @@ def build_architecture_overview(
     )
 
     graph_summary = DependencyGraphSummary(
-        node_count=total_files,
-        resolved_edges=len(resolved_edges),
-        runtime_edges=runtime_edges,
-        type_only_edges=type_only_edges,
-        dynamic_edges=dynamic_edges,
-        unresolved_imports=internal_unresolved_count,
+        node_count=graph_res.summary.total_modules or total_files,
+        resolved_edges=graph_res.summary.resolved_edges,
+        runtime_edges=graph_res.summary.runtime_edges,
+        type_only_edges=graph_res.summary.type_only_edges,
+        dynamic_edges=graph_res.summary.dynamic_edges,
+        unresolved_imports=graph_res.summary.unresolved_imports,
         external_references=external_ref_count,
         cycle_count=cycles_count,
-        orphan_count=graph_res.summary.orphan_count,
-        isolated_modules_count=graph_res.summary.orphan_count,
+        orphan_count=graph_res.summary.standalone_modules,
+        isolated_modules_count=graph_res.summary.standalone_modules,
     )
+
+    # Group unresolved diagnostics from graph_res.unresolved
+    ts_alias_examples = [f"{u.source_path} -> {u.raw_import}" for u in graph_res.unresolved if u.reason_key == "ts_alias"]
+    py_rel_examples = [f"{u.source_path} -> {u.raw_import}" for u in graph_res.unresolved if u.reason_key == "python_relative"]
+    dyn_examples = [f"{u.source_path} -> {u.raw_import}" for u in graph_res.unresolved if u.reason_key == "dynamic_import"]
+    gen_examples = [f"{u.source_path} -> {u.raw_import}" for u in graph_res.unresolved if u.reason_key == "generated"]
+    syntax_examples = [f"{u.source_path} -> {u.raw_import}" for u in graph_res.unresolved if u.reason_key == "syntax_error"]
 
     unresolved_diagnostics = UnresolvedDiagnosticsSummary(
         total_unresolved=internal_unresolved_count,
@@ -263,40 +233,41 @@ def build_architecture_overview(
             UnresolvedDiagnosticGroup(
                 key="ts_alias",
                 label="TypeScript alias resolution",
-                count=len(ts_alias_list),
+                count=len(ts_alias_examples),
                 description="Imports using `@/*` or path mapping requiring `tsconfig.json` baseUrl resolution.",
-                examples=ts_alias_list[:5],
+                examples=ts_alias_examples[:5],
             ),
             UnresolvedDiagnosticGroup(
                 key="python_relative",
                 label="Python relative / project imports",
-                count=len(py_rel_list),
+                count=len(py_rel_examples),
                 description="Package imports like `app.*` or relative `.` imports needing repository root context.",
-                examples=py_rel_list[:5],
+                examples=py_rel_examples[:5],
             ),
             UnresolvedDiagnosticGroup(
                 key="dynamic_imports",
                 label="Dynamic imports",
-                count=len(dynamic_list),
+                count=len(dyn_examples),
                 description="Runtime-evaluated `import()` or dynamic `require()` calls resolved at execution.",
-                examples=dynamic_list[:5],
+                examples=dyn_examples[:5],
             ),
             UnresolvedDiagnosticGroup(
                 key="generated_modules",
                 label="Generated contracts",
-                count=len(generated_list),
+                count=len(gen_examples),
                 description="References to build-time OpenAPI or Protocol Buffer generated files.",
-                examples=generated_list[:5],
+                examples=gen_examples[:5],
             ),
             UnresolvedDiagnosticGroup(
                 key="unsupported_syntax",
                 label="Unsupported parser cases",
-                count=len(syntax_list),
+                count=len(syntax_examples),
                 description="Files containing complex syntax fallback where AST extraction was incomplete.",
-                examples=syntax_list[:5],
+                examples=syntax_examples[:5],
             ),
         ],
     )
+
 
     # 3. Categorized Entry Points
     entry_points_list: List[ArchitectureEntryPoint] = []

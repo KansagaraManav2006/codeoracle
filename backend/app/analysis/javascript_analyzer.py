@@ -137,6 +137,45 @@ class JavaScriptTreeSitterVisitor:
     def _handle_export_statement(self, node: Any, lineno: int) -> None:
         text = self._get_text(node)
         is_default = "default" in text
+        is_type_only = bool(re.match(r"^export\s+type\b", text.strip()))
+
+        # Check for re-export: export { ... } from "..." or export * from "..."
+        source_node = node.child_by_field_name("source") or next(
+            (c for c in node.children if c.type == "string"), None
+        )
+        if source_node:
+            source_mod = self._get_text(source_node).strip("'\"")
+            exported_syms = []
+            for child in node.children:
+                if child.type == "export_clause":
+                    clause_text = self._get_text(child)
+                    exported_syms.append(clause_text)
+                elif child.type == "*":
+                    exported_syms.append("*")
+            if not exported_syms:
+                exported_syms.append("*")
+
+            is_rel = source_mod.startswith(".")
+            self.imports.append(
+                ImportInfo(
+                    module_name=source_mod,
+                    imported_symbols=exported_syms,
+                    is_relative=is_rel,
+                    source_line=lineno,
+                    import_kind="re_export",
+                    is_type_only=is_type_only,
+                    is_dynamic=False,
+                )
+            )
+            for sym in exported_syms:
+                self.exports.append(
+                    ExportInfo(
+                        name=sym,
+                        kind="re_export",
+                        source_line=lineno,
+                    )
+                )
+            return
 
         for child in node.children:
             if child.type in ("function_declaration", "generator_function_declaration"):
@@ -166,6 +205,7 @@ class JavaScriptTreeSitterVisitor:
                         source_line=lineno,
                     )
                 )
+
 
     def _handle_variable_declaration(self, node: Any, lineno: int, is_export: bool = False) -> None:
         for child in node.children:

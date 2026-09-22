@@ -32,8 +32,15 @@ import {
   ChevronUp,
   X,
   Maximize2,
+  AlertTriangle,
+  CheckCircle2,
+  Copy,
+  Check,
 } from 'lucide-react';
-import { GraphResponse, TabType } from '../types';
+import {
+  GraphResponse,
+  TabType,
+} from '../types';
 import { truncateMiddle, formatNumber, getDownloadFileName } from '../utils/formatters';
 import Button from './common/Button';
 import StatTile from './common/StatTile';
@@ -57,13 +64,14 @@ type GraphFilterMode =
   | 'entry_points'
   | 'high_complexity'
   | 'cycles'
+  | 'unresolved'
   | 'upstream'
   | 'downstream';
 
 type GraphLayoutMode = 'architecture' | 'standard' | 'focus';
 type EdgeFilterType = 'all' | 'runtime' | 'require' | 'type';
 
-// Custom React Flow node component with enhanced readability and status badges
+// Custom React Flow node component with role-first presentation and relationship emphasis
 const GraphNodeComponent = ({ data }: any) => {
   const {
     node,
@@ -71,6 +79,7 @@ const GraphNodeComponent = ({ data }: any) => {
     isCycle,
     isEntryPoint,
     isExternal,
+    isUnresolved,
     isDimmed,
     inDegree = 0,
     outDegree = 0,
@@ -81,6 +90,8 @@ const GraphNodeComponent = ({ data }: any) => {
     containerClass = 'bg-red-surface/95 border-2 border-red-line shadow-xs ring-1 ring-red/30';
   } else if (isEntryPoint) {
     containerClass = 'bg-surface border border-line border-l-4 border-l-teal shadow-xs';
+  } else if (isUnresolved) {
+    containerClass = 'bg-amber-surface/20 border-2 border-dashed border-amber shadow-none';
   } else if (isExternal) {
     containerClass = 'bg-slate-surface/80 border border-dashed border-slate shadow-none';
   }
@@ -93,12 +104,17 @@ const GraphNodeComponent = ({ data }: any) => {
     containerClass += ' opacity-25 hover:opacity-100 transition-opacity';
   }
 
+  const roleLabel = (node.module_role || 'module').toUpperCase();
+  const entryKind = node.entry_point_kind
+    ? node.entry_point_kind.replace('_', ' ').toUpperCase()
+    : 'ENTRY';
+
   return (
     <div
       tabIndex={0}
       role="button"
-      aria-label={`Node ${node.label}, ${node.language}, ${node.line_count} lines`}
-      className={`w-[240px] p-2.5 rounded-lg transition-all select-none hover:shadow-2 hover:-translate-y-[1px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo ${containerClass}`}
+      aria-label={`Node ${node.label}, ${node.language}, ${inDegree} in, ${outDegree} out`}
+      className={`w-[250px] p-2.5 rounded-lg transition-all select-none hover:shadow-2 hover:-translate-y-[1px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo ${containerClass}`}
     >
       <Handle
         type="target"
@@ -112,50 +128,73 @@ const GraphNodeComponent = ({ data }: any) => {
           className="font-mono text-[12px] font-bold text-ink truncate flex-1"
           title={node.label}
         >
-          {truncateMiddle(node.label, 20)}
+          {truncateMiddle(node.label, 22)}
         </span>
         <LanguageTag language={node.language} />
       </div>
 
-      {/* Row 2: Metrics (Lines + Complexity chip) */}
-      <div className="flex items-center justify-between text-[11px] font-mono text-ink-3 mb-1.5">
-        <span>{formatNumber(node.line_count)} lines</span>
-        <span
-          className={`px-1.5 py-0.5 rounded text-[10px] font-sans font-bold tracking-wide uppercase ${
-            node.complexity_rating === 'critical'
-              ? 'bg-red-strong text-white'
-              : node.complexity_rating === 'high'
-              ? 'bg-amber-surface text-amber-text border border-amber-line'
-              : node.complexity_rating === 'medium'
-              ? 'bg-amber-surface/70 text-amber-text'
-              : 'bg-teal-surface/70 text-teal-text'
-          }`}
-        >
-          {node.complexity_rating}
-        </span>
-      </div>
-
-      {/* Row 3: Callers & Dependencies + Role pill */}
-      <div className="flex items-center justify-between pt-1.5 border-t border-line/60 text-[10px] font-mono text-ink-3">
-        <div className="flex items-center gap-2">
-          <span className="flex items-center gap-0.5 font-semibold" title={`${inDegree} incoming callers`}>
-            <ArrowDownLeft className="w-2.5 h-2.5 text-teal" />
-            <span className="text-teal-strong">{inDegree} in</span>
+      {/* Row 2: Role badge + Entry point / Status badges */}
+      <div className="flex items-center justify-between gap-1 mb-1.5 flex-wrap">
+        <div className="flex items-center gap-1">
+          <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-panel text-ink-2 border border-line">
+            {roleLabel}
           </span>
-          <span className="flex items-center gap-0.5 font-semibold" title={`${outDegree} outgoing dependencies`}>
-            <ArrowUpRight className="w-2.5 h-2.5 text-indigo" />
-            <span className="text-indigo-text">{outDegree} out</span>
-          </span>
+          {isEntryPoint && (
+            <span
+              className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-teal-surface text-teal-text border border-teal-line"
+              title={node.entry_point_evidence || 'Confirmed entry point'}
+            >
+              {entryKind}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-1">
           {isCycle && <StatusTag status="critical" label="LOOP" />}
-          {isEntryPoint && <StatusTag status="entry-point" label="ENTRY" />}
+          {isUnresolved && (
+            <span
+              className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-surface text-amber-text border border-amber-line flex items-center gap-0.5"
+              title={node.standalone_reason || 'Unresolved imports or partial AST parse'}
+            >
+              <AlertTriangle className="w-2.5 h-2.5" /> PARTIAL
+            </span>
+          )}
           {isExternal && (
             <span className="px-1 py-0.5 rounded text-[9px] font-mono bg-slate-surface text-slate-text border border-slate/30">
               EXT
             </span>
           )}
+        </div>
+      </div>
+
+      {/* Row 3: Primary Relationships (IN / OUT) + Risk & CC */}
+      <div className="flex items-center justify-between pt-1.5 border-t border-line/60 text-[10px] font-mono text-ink-3">
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-0.5 font-bold" title={`${inDegree} incoming callers`}>
+            <ArrowDownLeft className="w-2.5 h-2.5 text-teal" />
+            <span className="text-teal-strong">IN {inDegree}</span>
+          </span>
+          <span className="flex items-center gap-0.5 font-bold" title={`${outDegree} outgoing dependencies`}>
+            <ArrowUpRight className="w-2.5 h-2.5 text-indigo" />
+            <span className="text-indigo-text">OUT {outDegree}</span>
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <span
+            className={`px-1.5 py-0.2 rounded text-[9px] font-sans font-bold uppercase ${
+              node.complexity_rating === 'critical'
+                ? 'bg-red-strong text-white'
+                : node.complexity_rating === 'high'
+                ? 'bg-amber-surface text-amber-text border border-amber-line'
+                : node.complexity_rating === 'medium'
+                ? 'bg-amber-surface/70 text-amber-text'
+                : 'bg-teal-surface/70 text-teal-text'
+            }`}
+          >
+            {node.complexity_rating}
+          </span>
+          <span className="text-ink-4 text-[9px]">CC {node.complexity_score}</span>
         </div>
       </div>
 
@@ -207,10 +246,18 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
   const [includeExternal, setIncludeExternal] = useState(false);
   const [highlightCycles, setHighlightCycles] = useState(true);
 
-  // Selection & UI State
+  // Selection & Inspector State
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [legendOpen, setLegendOpen] = useState(true);
   const [fitTrigger, setFitTrigger] = useState(0);
+  const [showNeedsReviewModal, setShowNeedsReviewModal] = useState(false);
+  const [selectedDiagnosticKey, setSelectedDiagnosticKey] = useState<string>('all');
+  const [copiedPath, setCopiedPath] = useState(false);
+
+  // List View sorting state
+  const [sortField, setSortField] = useState<'label' | 'role' | 'in' | 'out' | 'unresolved' | 'status' | 'cc'>('cc');
+  const [sortAsc, setSortAsc] = useState(false);
 
   const { showToast } = useToast();
 
@@ -237,12 +284,11 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
   // Synchronize targetFile prop with selected node
   useEffect(() => {
     if (targetFile && graph) {
-      const match = graph.nodes.find(
-        (n) =>
-          n.label.toLowerCase() === targetFile.toLowerCase() ||
-          n.id === targetFile ||
-          n.label.endsWith(targetFile)
-      );
+      const norm = targetFile.replace(/\\/g, '/').toLowerCase();
+      const match = graph.nodes.find((n) => {
+        const itemNorm = n.label.replace(/\\/g, '/').toLowerCase();
+        return itemNorm === norm || n.id === targetFile || itemNorm.endsWith(norm);
+      });
       if (match) setSelectedNodeId(match.id);
     }
   }, [targetFile, graph]);
@@ -253,13 +299,20 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
     const outMap = new Map<string, number>();
     if (graph) {
       graph.nodes.forEach((n) => {
-        inMap.set(n.id, 0);
-        outMap.set(n.id, 0);
+        inMap.set(n.id, n.fan_in ?? 0);
+        outMap.set(n.id, n.fan_out ?? 0);
       });
-      graph.edges.forEach((e) => {
-        inMap.set(e.target, (inMap.get(e.target) || 0) + 1);
-        outMap.set(e.source, (outMap.get(e.source) || 0) + 1);
-      });
+      // If fan_in / fan_out weren't on nodes, calculate from edges
+      if (graph.nodes.length > 0 && graph.nodes[0].fan_in === undefined) {
+        graph.nodes.forEach((n) => {
+          inMap.set(n.id, 0);
+          outMap.set(n.id, 0);
+        });
+        graph.edges.forEach((e) => {
+          inMap.set(e.target, (inMap.get(e.target) || 0) + 1);
+          outMap.set(e.source, (outMap.get(e.source) || 0) + 1);
+        });
+      }
     }
     return { inDegreeMap: inMap, outDegreeMap: outMap };
   }, [graph]);
@@ -318,16 +371,70 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
     return set;
   }, [selectedNodeId, graph]);
 
+  // Advanced search query parser (e.g. "role:service", "entry:runtime", "unresolved:true", "lang:python")
+  const parsedSearch = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const tokens = q.split(/\s+/);
+    const textTokens: string[] = [];
+    let roleFilter: string | null = null;
+    let entryFilter: string | null = null;
+    let unresolvedOnly = false;
+    let langFilter: string | null = null;
+    let statusFilter: string | null = null;
+
+    tokens.forEach((tok) => {
+      if (tok.startsWith('role:')) {
+        roleFilter = tok.slice(5);
+      } else if (tok.startsWith('entry:')) {
+        entryFilter = tok.slice(6);
+      } else if (tok === 'unresolved:true' || tok === 'is:unresolved') {
+        unresolvedOnly = true;
+      } else if (tok.startsWith('lang:')) {
+        langFilter = tok.slice(5);
+      } else if (tok.startsWith('status:')) {
+        statusFilter = tok.slice(7);
+      } else if (tok) {
+        textTokens.push(tok);
+      }
+    });
+
+    return {
+      rawText: textTokens.join(' '),
+      roleFilter,
+      entryFilter,
+      unresolvedOnly,
+      langFilter,
+      statusFilter,
+    };
+  }, [searchQuery]);
+
   // Filtered nodes based on search, active filterMode, and external toggle
   const filteredNodes = useMemo(() => {
     if (!graph) return [];
     return graph.nodes.filter((n) => {
       if (!includeExternal && n.is_external) return false;
 
-      if (searchQuery.trim() && !n.label.toLowerCase().includes(searchQuery.toLowerCase())) {
+      // Advanced search tokens
+      if (parsedSearch.roleFilter && !(n.module_role || '').toLowerCase().includes(parsedSearch.roleFilter)) {
+        return false;
+      }
+      if (parsedSearch.entryFilter && !(n.entry_point_kind || '').toLowerCase().includes(parsedSearch.entryFilter)) {
+        return false;
+      }
+      if (parsedSearch.unresolvedOnly && !(n.unresolved_imports && n.unresolved_imports > 0) && n.standalone_status !== 'isolation_uncertain') {
+        return false;
+      }
+      if (parsedSearch.langFilter && !n.language.toLowerCase().includes(parsedSearch.langFilter)) {
+        return false;
+      }
+      if (parsedSearch.statusFilter && !(n.parse_status || '').toLowerCase().includes(parsedSearch.statusFilter)) {
+        return false;
+      }
+      if (parsedSearch.rawText && !n.label.toLowerCase().includes(parsedSearch.rawText)) {
         return false;
       }
 
+      // Filter modes
       if (filterMode === 'entry_points' && !n.is_entry_point) return false;
       if (
         filterMode === 'high_complexity' &&
@@ -338,6 +445,9 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
         return false;
       }
       if (filterMode === 'cycles' && !cycleNodeIds.has(n.id)) return false;
+      if (filterMode === 'unresolved' && !(n.unresolved_imports && n.unresolved_imports > 0) && n.standalone_status !== 'isolation_uncertain') {
+        return false;
+      }
       if (filterMode === 'upstream' && !upstreamNodeIds.has(n.id)) return false;
       if (filterMode === 'downstream' && !downstreamNodeIds.has(n.id)) return false;
 
@@ -351,7 +461,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
   }, [
     graph,
     includeExternal,
-    searchQuery,
+    parsedSearch,
     filterMode,
     graphLayout,
     selectedNodeId,
@@ -380,12 +490,13 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
     return graph.edges.filter((e) => {
       if (!filteredNodeIds.has(e.source) || !filteredNodeIds.has(e.target)) return false;
 
+      const edgeKind = e.kind || e.type;
       if (edgeFilter === 'runtime') {
-        if (e.type !== 'import' || e.is_type_only) return false;
+        if (edgeKind === 'type_only_import' || e.is_type_only) return false;
       } else if (edgeFilter === 'require') {
-        if (e.type !== 'require') return false;
+        if (edgeKind !== 'require' && e.type !== 'require') return false;
       } else if (edgeFilter === 'type') {
-        if (!e.is_type_only) return false;
+        if (edgeKind !== 'type_only_import' && !e.is_type_only) return false;
       }
 
       // If cycles only filter is active, only show cycle edges
@@ -397,7 +508,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
     });
   }, [graph, filteredNodeIds, edgeFilter, filterMode, cycleEdgePairs]);
 
-  // React Flow Nodes layout calculation
+  // React Flow Nodes layout calculation with Architecture Tier, Focus, or Grid
   const rfNodes: Node[] = useMemo(() => {
     if (cappedNodes.length === 0) return [];
 
@@ -421,13 +532,14 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
         nodesResult.push({
           id: n.id,
           type: 'custom',
-          position: { x: 50, y: idx * 135 + 80 },
+          position: { x: 50, y: idx * 140 + 80 },
           data: {
             node: n,
             isSelected: false,
             isCycle: cycleNodeIds.has(n.id) && highlightCycles,
             isEntryPoint: n.is_entry_point,
             isExternal: n.is_external,
+            isUnresolved: n.standalone_status === 'isolation_uncertain' || (n.unresolved_imports && n.unresolved_imports > 0),
             isDimmed: false,
             inDegree: inDegreeMap.get(n.id) || 0,
             outDegree: outDegreeMap.get(n.id) || 0,
@@ -440,13 +552,14 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
         nodesResult.push({
           id: focalNode.id,
           type: 'custom',
-          position: { x: 420, y: focalY },
+          position: { x: 430, y: focalY },
           data: {
             node: focalNode,
             isSelected: true,
             isCycle: cycleNodeIds.has(focalNode.id) && highlightCycles,
             isEntryPoint: focalNode.is_entry_point,
             isExternal: focalNode.is_external,
+            isUnresolved: focalNode.standalone_status === 'isolation_uncertain' || (focalNode.unresolved_imports && focalNode.unresolved_imports > 0),
             isDimmed: false,
             inDegree: inDegreeMap.get(focalNode.id) || 0,
             outDegree: outDegreeMap.get(focalNode.id) || 0,
@@ -459,13 +572,14 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
         nodesResult.push({
           id: n.id,
           type: 'custom',
-          position: { x: 790, y: idx * 135 + 80 },
+          position: { x: 810, y: idx * 140 + 80 },
           data: {
             node: n,
             isSelected: false,
             isCycle: cycleNodeIds.has(n.id) && highlightCycles,
             isEntryPoint: n.is_entry_point,
             isExternal: n.is_external,
+            isUnresolved: n.standalone_status === 'isolation_uncertain' || (n.unresolved_imports && n.unresolved_imports > 0),
             isDimmed: false,
             inDegree: inDegreeMap.get(n.id) || 0,
             outDegree: outDegreeMap.get(n.id) || 0,
@@ -479,7 +593,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
     // --- Mode 2: Architecture Overview Mode (Layered Tiers) ---
     if (graphLayout === 'architecture') {
       const tier0: typeof cappedNodes = []; // Entry points
-      const tier1: typeof cappedNodes = []; // Core domain & intermediate services
+      const tier1: typeof cappedNodes = []; // Core domain & services
       const tier2: typeof cappedNodes = []; // Leaf modules & utilities
       const tier3: typeof cappedNodes = []; // External packages
 
@@ -489,7 +603,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
         } else if (
           n.is_entry_point ||
           (graph?.entry_point_ids && graph.entry_point_ids.includes(n.id)) ||
-          (inDegreeMap.get(n.id) === 0 && (outDegreeMap.get(n.id) || 0) > 0)
+          n.entry_point_kind !== null
         ) {
           tier0.push(n);
         } else if ((outDegreeMap.get(n.id) || 0) === 0) {
@@ -500,8 +614,8 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
       });
 
       const nodesResult: Node[] = [];
-      const xSpacing = 280;
-      const ySubRowSpacing = 135;
+      const xSpacing = 290;
+      const ySubRowSpacing = 145;
       const tierGap = 90;
       const maxCols = 4;
 
@@ -532,6 +646,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
               isCycle: cycleNodeIds.has(n.id) && highlightCycles,
               isEntryPoint: n.is_entry_point,
               isExternal: n.is_external,
+              isUnresolved: n.standalone_status === 'isolation_uncertain' || (n.unresolved_imports && n.unresolved_imports > 0),
               isDimmed,
               inDegree: inDegreeMap.get(n.id) || 0,
               outDegree: outDegreeMap.get(n.id) || 0,
@@ -553,8 +668,8 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
 
     // --- Mode 3: Standard Grid Mode ---
     const cols = Math.max(2, Math.ceil(Math.sqrt(cappedNodes.length * 1.5)));
-    const nodeWidth = 280;
-    const nodeHeight = 145;
+    const nodeWidth = 290;
+    const nodeHeight = 150;
 
     return cappedNodes.map((n, idx) => {
       const col = idx % cols;
@@ -577,6 +692,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
           isCycle,
           isEntryPoint: n.is_entry_point,
           isExternal: n.is_external,
+          isUnresolved: n.standalone_status === 'isolation_uncertain' || (n.unresolved_imports && n.unresolved_imports > 0),
           isDimmed,
           inDegree: inDegreeMap.get(n.id) || 0,
           outDegree: outDegreeMap.get(n.id) || 0,
@@ -602,6 +718,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
       const isCycle = cycleEdgePairs.has(`${e.source}->${e.target}`) && highlightCycles;
       const isConnectedToSelected =
         Boolean(selectedNodeId) && (e.source === selectedNodeId || e.target === selectedNodeId);
+      const isEdgeSelected = selectedEdgeId === e.id;
 
       let stroke = 'rgba(29, 78, 216, 0.75)';
       let strokeWidth = 1.75;
@@ -610,21 +727,41 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
       let label: string | undefined = undefined;
       let markerColor = '#1D4ED8';
 
-      if (isCycle) {
+      const edgeKind = e.kind || e.type;
+
+      if (isEdgeSelected) {
+        stroke = '#4F46E5';
+        strokeWidth = 3;
+        opacity = 1;
+        markerColor = '#4F46E5';
+      } else if (isCycle) {
         stroke = '#DC2626';
         strokeWidth = 2.4;
         strokeDasharray = '5 5';
         opacity = 1;
         markerColor = '#DC2626';
-      } else if (e.is_type_only) {
-        stroke = '#60A5FA'; // Type-only import (light blue dashed)
+      } else if (edgeKind === 'type_only_import' || e.is_type_only) {
+        stroke = '#60A5FA';
         strokeWidth = 1.5;
         strokeDasharray = '4 4';
         label = 'type';
         markerColor = '#60A5FA';
         opacity = selectedNodeId ? (isConnectedToSelected ? 0.95 : 0.12) : 0.65;
-      } else if (e.type === 'require') {
-        stroke = '#0D9488'; // Dynamic require (teal)
+      } else if (edgeKind === 'dynamic_import' || e.is_dynamic) {
+        stroke = '#8B5CF6';
+        strokeWidth = 1.8;
+        strokeDasharray = '3 3';
+        label = 'dynamic';
+        markerColor = '#8B5CF6';
+        opacity = selectedNodeId ? (isConnectedToSelected ? 1 : 0.12) : 0.7;
+      } else if (edgeKind === 're_export') {
+        stroke = '#059669';
+        strokeWidth = 1.8;
+        label = 're-export';
+        markerColor = '#059669';
+        opacity = selectedNodeId ? (isConnectedToSelected ? 1 : 0.12) : 0.7;
+      } else if (edgeKind === 'require' || e.type === 'require') {
+        stroke = '#0D9488';
         strokeWidth = 1.75;
         markerColor = '#0D9488';
         label = 'require';
@@ -644,7 +781,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
         animated: isCycle,
         label,
         labelStyle: { fill: stroke, fontSize: 10, fontFamily: 'monospace', fontWeight: 600 },
-        style: { stroke, strokeWidth, strokeDasharray, opacity },
+        style: { stroke, strokeWidth, strokeDasharray, opacity, cursor: 'pointer' },
         markerEnd: {
           type: MarkerType.ArrowClosed,
           width: 14,
@@ -653,13 +790,27 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
         },
       };
     });
-  }, [filteredEdges, cycleEdgePairs, highlightCycles, selectedNodeId]);
+  }, [filteredEdges, cycleEdgePairs, highlightCycles, selectedNodeId, selectedEdgeId]);
 
   // Selected node data
   const selectedNodeData = useMemo(() => {
     if (!selectedNodeId || !graph) return null;
     return graph.nodes.find((n) => n.id === selectedNodeId) || null;
   }, [selectedNodeId, graph]);
+
+  // Selected edge data for edge inspector
+  const selectedEdgeData = useMemo(() => {
+    if (!selectedEdgeId || !graph) return null;
+    const edge = graph.edges.find((e) => e.id === selectedEdgeId);
+    if (!edge) return null;
+    const srcNode = graph.nodes.find((n) => n.id === edge.source);
+    const tgtNode = graph.nodes.find((n) => n.id === edge.target);
+    return {
+      edge,
+      sourceLabel: srcNode?.label || edge.source,
+      targetLabel: tgtNode?.label || edge.target,
+    };
+  }, [selectedEdgeId, graph]);
 
   // Incoming and outgoing edge breakdown
   const incomingEdges = useMemo(() => {
@@ -672,13 +823,11 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
     return graph.edges.filter((e) => e.source === selectedNodeId);
   }, [selectedNodeId, graph]);
 
-  const inRuntime = incomingEdges.filter((e) => !e.is_type_only && e.type !== 'require').length;
-  const inRequire = incomingEdges.filter((e) => e.type === 'require').length;
-  const inTypeOnly = incomingEdges.filter((e) => e.is_type_only).length;
-
-  const outRuntime = outgoingEdges.filter((e) => !e.is_type_only && e.type !== 'require').length;
-  const outRequire = outgoingEdges.filter((e) => e.type === 'require').length;
-  const outTypeOnly = outgoingEdges.filter((e) => e.is_type_only).length;
+  // Unresolved imports for selected node
+  const selectedNodeUnresolved = useMemo(() => {
+    if (!selectedNodeId || !graph?.unresolved) return [];
+    return graph.unresolved.filter((u) => u.source === selectedNodeId);
+  }, [selectedNodeId, graph]);
 
   const cyclesWithNode = useMemo(() => {
     if (!selectedNodeId || !graph) return [];
@@ -695,26 +844,62 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
     const isHighComplexity = selectedNodeData.complexity_rating === 'high';
 
     let level: 'critical' | 'high' | 'medium' | 'low' = 'low';
-    let reason = 'Isolated or standard utility with minimal blast radius.';
+    let reason = 'Standard modular component with isolated blast radius.';
 
     if (isPartCycle || isCritComplexity) {
       level = 'critical';
       reason = isPartCycle
-        ? `Part of ${cyclesWithNode.length} circular dependency loop(s); blocks clean decomposition.`
-        : 'Critical cyclomatic complexity requiring careful characterization testing.';
+        ? `Part of ${cyclesWithNode.length} circular dependency loop(s); tightly coupled.`
+        : 'Critical cyclomatic complexity requiring contract characterization.';
     } else if (isHighComplexity || inCount >= 4) {
       level = 'high';
       reason =
         inCount >= 4
-          ? `High blast radius with ${inCount} direct callers across the codebase.`
+          ? `High incoming caller coupling with ${inCount} dependents across the codebase.`
           : 'High cyclomatic complexity prone to regression bugs.';
     } else if (inCount >= 2 || outCount >= 4) {
       level = 'medium';
-      reason = 'Moderate fan-in/fan-out affecting adjacent modules.';
+      reason = 'Moderate coupling affecting adjacent architectural layers.';
     }
 
-    return { level, reason, blastRadius: inCount };
+    return { level, reason, blastRadius: selectedNodeData.blast_radius ?? inCount };
   }, [selectedNodeData, incomingEdges, outgoingEdges, cycleNodeIds, cyclesWithNode]);
+
+  // Sortable List View items
+  const sortedListNodes = useMemo(() => {
+    const list = [...filteredNodes];
+    list.sort((a, b) => {
+      let valA: any = 0;
+      let valB: any = 0;
+      if (sortField === 'label') {
+        valA = a.label.toLowerCase();
+        valB = b.label.toLowerCase();
+      } else if (sortField === 'role') {
+        valA = a.module_role || '';
+        valB = b.module_role || '';
+      } else if (sortField === 'in') {
+        valA = inDegreeMap.get(a.id) || 0;
+        valB = inDegreeMap.get(b.id) || 0;
+      } else if (sortField === 'out') {
+        valA = outDegreeMap.get(a.id) || 0;
+        valB = outDegreeMap.get(b.id) || 0;
+      } else if (sortField === 'unresolved') {
+        valA = a.unresolved_imports || 0;
+        valB = b.unresolved_imports || 0;
+      } else if (sortField === 'status') {
+        valA = a.parse_status || 'complete';
+        valB = b.parse_status || 'complete';
+      } else if (sortField === 'cc') {
+        valA = a.complexity_score || 0;
+        valB = b.complexity_score || 0;
+      }
+
+      if (valA < valB) return sortAsc ? -1 : 1;
+      if (valA > valB) return sortAsc ? 1 : -1;
+      return 0;
+    });
+    return list;
+  }, [filteredNodes, sortField, sortAsc, inDegreeMap, outDegreeMap]);
 
   // Handle export to Mermaid format
   const handleDownloadMermaid = () => {
@@ -746,13 +931,19 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
 
   const handleNodeClick = (_: any, node: any) => {
     setSelectedNodeId(node.id);
+    setSelectedEdgeId(null);
     const nodeLabel = (node.data as any)?.node?.label || node.id;
     onSelectFile?.(nodeLabel);
+  };
+
+  const handleEdgeClick = (_: any, edge: any) => {
+    setSelectedEdgeId(edge.id);
   };
 
   const handlePaneClick = () => {
     if (graphLayout !== 'focus') {
       setSelectedNodeId(null);
+      setSelectedEdgeId(null);
       if (filterMode === 'upstream' || filterMode === 'downstream') {
         setFilterMode('all');
       }
@@ -779,6 +970,13 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
       setGraphLayout('focus');
       setFitTrigger((v) => v + 1);
     }
+  };
+
+  const handleCopyPath = (path: string) => {
+    navigator.clipboard.writeText(path);
+    setCopiedPath(true);
+    setTimeout(() => setCopiedPath(false), 2000);
+    showToast('Copied file path to clipboard', 'info');
   };
 
   if (!projectId) return null;
@@ -808,8 +1006,13 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
     );
   }
 
-  const cycleCount = graph.summary.cycle_count || graph.cycles.length || 0;
-  const isLargeGraph = filteredNodes.length > 20 || graph.nodes.length > 25;
+  const cycleCount = graph.summary.cycles ?? graph.summary.cycle_count ?? graph.cycles.length ?? 0;
+  const totalInternalModules = graph.summary.total_modules ?? graph.nodes.filter((n) => !n.is_external).length;
+  const canonicalResolvedEdges = graph.summary.resolved_edges ?? graph.edges.filter((e) => e.resolved).length;
+  const unresolvedCount = graph.summary.unresolved_imports ?? (graph.unresolved ? graph.unresolved.length : 0);
+  const confirmedEntryPoints = graph.summary.entry_points ?? graph.summary.entry_point_count ?? 0;
+  const trueStandaloneCount = graph.summary.standalone_modules ?? graph.summary.orphan_count ?? 0;
+  const graphConfidence = graph.summary.graph_confidence || 'high';
 
   return (
     <div
@@ -818,7 +1021,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
       id="tabpanel-graph"
       aria-labelledby="tab-graph"
     >
-      {/* 1. Section Header Card */}
+      {/* 1. Section Header Card with Canonical Facts */}
       <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-line">
           <div className="flex items-center gap-3.5 min-w-0">
@@ -833,20 +1036,42 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                 <h2 className="font-display font-bold text-lg sm:text-[20px] text-ink leading-tight">
                   Code Relationships &amp; Architecture Map
                 </h2>
-                <StatusTag status="project-view" label="PROJECT VIEW" />
-                {cycleCount > 0 && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-pill bg-red-surface text-red-text font-sans text-[11px] font-bold tracking-[0.04em] uppercase border border-red-line">
-                    {cycleCount} DEPENDENCY {cycleCount === 1 ? 'LOOP' : 'LOOPS'}
-                  </span>
-                )}
+                <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-pill bg-indigo-surface text-indigo border border-indigo/20 uppercase tracking-wide">
+                  Canonical Dependency Graph
+                </span>
+
+                {/* Graph Confidence Badge */}
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-pill font-mono text-[10px] font-bold tracking-wide uppercase border ${
+                    graphConfidence === 'high'
+                      ? 'bg-teal-surface text-teal-text border-teal-line'
+                      : graphConfidence === 'medium'
+                      ? 'bg-amber-surface text-amber-text border-amber-line'
+                      : 'bg-amber-surface/70 text-amber-text border-amber-line'
+                  }`}
+                  title={graph.summary.graph_confidence_reason || 'Graph confidence score'}
+                >
+                  CONFIDENCE: {graphConfidence.toUpperCase()}
+                </span>
               </div>
               <p className="font-sans text-xs text-ink-3 mt-0.5">
-                Explore architectural dependencies, entry points, and verified runtime loops with type-only import separation.
+                Deterministic module coupling, semantic entry points, and verified cycles. Single canonical source of truth for blast radius and impact.
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+            {unresolvedCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowNeedsReviewModal(true)}
+                icon={<AlertTriangle className="w-3.5 h-3.5 text-amber" />}
+                className="border-amber-line bg-amber-surface/40 text-amber-text hover:bg-amber-surface"
+              >
+                Needs Review ({unresolvedCount})
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -858,38 +1083,67 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
           </div>
         </div>
 
-        {/* 6 Stat tiles */}
+        {/* 6 Canonical Stat tiles */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-5">
-          <StatTile label="Files shown" value={isGraphCapped ? `${formatNumber(cappedNodes.length)}/${formatNumber(filteredNodes.length)}` : formatNumber(filteredNodes.length)} color="ink" />
           <StatTile
-            label="Connections"
-            value={
-              filterMode !== 'all' || edgeFilter !== 'all' || searchQuery.trim() || selectedNodeId
-                ? `${formatNumber(filteredEdges.length)}/${formatNumber(graph.summary.resolved_edges ?? graph.summary.internal_edges ?? 19)}`
-                : formatNumber(graph.summary.resolved_edges ?? graph.summary.internal_edges ?? filteredEdges.length)
-            }
+            label="MODULES"
+            value={formatNumber(totalInternalModules)}
             color="ink"
           />
           <StatTile
-            label="Dependency loops"
+            label="RESOLVED EDGES"
+            value={formatNumber(canonicalResolvedEdges)}
+            color="ink"
+          />
+          <StatTile
+            label="UNRESOLVED IMPORTS"
+            value={formatNumber(unresolvedCount)}
+            color={unresolvedCount > 0 ? 'amber' : 'ink'}
+            onClick={unresolvedCount > 0 ? () => setShowNeedsReviewModal(true) : undefined}
+            title={unresolvedCount > 0 ? 'Click to inspect unresolved import diagnostics' : undefined}
+          />
+          <StatTile
+            label="DETECTED CYCLES"
             value={formatNumber(cycleCount)}
             color={cycleCount > 0 ? 'red' : 'ink'}
           />
           <StatTile
-            label="Standalone files"
-            value={formatNumber(graph.summary.orphan_count || 0)}
-            color="ink"
-          />
-          <StatTile
-            label="Entry points"
-            value={formatNumber(graph.summary.entry_point_count || 0)}
+            label="CONFIRMED ENTRY POINTS"
+            value={formatNumber(confirmedEntryPoints)}
             color="teal"
           />
           <StatTile
-            label="Needs review"
-            value={formatNumber(graph.summary.high_complexity_module_count || 0)}
-            color={(graph.summary.high_complexity_module_count || 0) > 0 ? 'amber' : 'ink'}
+            label="TRUE STANDALONE"
+            value={formatNumber(trueStandaloneCount)}
+            color="ink"
           />
+        </div>
+
+        {/* Confidence Context Banner */}
+        <div className="mt-3.5 pt-3 border-t border-line/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-ink-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-ink-2">Cycle Semantics:</span>
+            {cycleCount === 0 ? (
+              <span className="inline-flex items-center gap-1 text-teal-strong font-medium">
+                <CheckCircle2 className="w-3.5 h-3.5 text-teal" />
+                {unresolvedCount === 0 ? 'Clean hierarchical DAG' : '0 cycles detected in resolved graph'}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-red font-bold">
+                <AlertTriangle className="w-3.5 h-3.5 text-red" />
+                {cycleCount} dependency cycle(s) detected
+              </span>
+            )}
+            {graph.summary.cycle_confidence_warning && (
+              <span className="text-amber-text font-medium ml-1">
+                {graph.summary.cycle_confidence_warning}
+              </span>
+            )}
+          </div>
+
+          <div className="font-mono text-[10px] text-ink-4">
+            Canvas renders top {cappedNodes.length} of {filteredNodes.length} modules · Metrics use all {totalInternalModules} modules
+          </div>
         </div>
       </section>
 
@@ -901,9 +1155,9 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
             id="graph-search"
             value={searchQuery}
             onChange={setSearchQuery}
-            placeholder="Search files and modules…"
+            placeholder="Search path, role:service, entry:bootstrap, unresolved:true…"
             resultCount={{ current: filteredNodes.length, total: graph.nodes.length, unit: 'nodes' }}
-            className="w-full xl:w-72"
+            className="w-full xl:w-80"
           />
 
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -933,6 +1187,13 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                 onClick={() => setFilterMode('cycles')}
               />
             )}
+            {unresolvedCount > 0 && (
+              <FilterChip
+                label={`UNRESOLVED (${unresolvedCount})`}
+                active={filterMode === 'unresolved'}
+                onClick={() => setFilterMode('unresolved')}
+              />
+            )}
             <FilterChip
               label={selectedNodeId ? `UPSTREAM (${upstreamNodeIds.size - 1})` : 'UPSTREAM'}
               active={filterMode === 'upstream'}
@@ -958,7 +1219,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
           </div>
         </div>
 
-        {/* Row 2: Edge Controls + Layout Controls (Separated with distinct groups and dividers) */}
+        {/* Row 2: Edge Controls + Layout Controls */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-2.5 border-t border-line">
           {/* Edge Controls Group */}
           <div className="flex flex-wrap items-center gap-2">
@@ -996,7 +1257,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
           <div className="flex flex-wrap items-center gap-2 lg:pl-4 lg:border-l lg:border-line">
             <span className="text-xs font-bold text-ink-2 flex items-center gap-1 mr-1">
               <Layers className="w-3.5 h-3.5 text-indigo" />
-              View Mode:
+              Layout:
             </span>
             <div className="inline-flex rounded-md border border-line bg-panel p-0.5">
               <button
@@ -1010,7 +1271,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                     ? 'bg-surface text-indigo shadow-xs'
                     : 'text-ink-3 hover:text-ink'
                 }`}
-                title="Architecture Overview Layout (Layered Tiers)"
+                title="Architecture Layered Tiers"
               >
                 <Layers className="w-3.5 h-3.5" />
                 Overview
@@ -1039,7 +1300,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                     ? 'bg-surface text-indigo shadow-xs'
                     : 'text-ink-3 hover:text-ink'
                 }`}
-                title="Selected-Node Focus Mode (3-Column Neighborhood Pipeline)"
+                title="Selected-Node 1-Hop Focus Mode"
               >
                 <Eye className="w-3.5 h-3.5" />
                 Focus
@@ -1060,43 +1321,46 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
 
       {/* 3. Main Workspace: Graph Canvas vs List View */}
       {viewMode === 'graph' ? (
-        <div className={`grid grid-cols-1 ${selectedNodeData ? 'lg:grid-cols-[1fr_310px]' : 'lg:grid-cols-[1fr_220px]'} gap-4 items-start`}>
+        <div
+          className={`grid grid-cols-1 ${
+            selectedNodeData || selectedEdgeData ? 'lg:grid-cols-[1fr_320px]' : 'lg:grid-cols-[1fr_240px]'
+          } gap-4 items-start`}
+        >
           {/* React Flow Canvas Container */}
           <div className="relative w-full h-[580px] sm:h-[650px] rounded-lg border border-line overflow-hidden graph-dot-grid shadow-inner">
-            {/* Large Graph Info Banner */}
-            {isLargeGraph && (
-              <div className="absolute top-3 left-3 z-10 bg-surface/90 backdrop-blur-sm border border-line rounded-lg px-3 py-1.5 shadow-1 flex items-center gap-2.5 text-xs text-ink-2 max-w-lg">
-                <Info className="w-4 h-4 text-indigo shrink-0" />
-                <span className="truncate">
-                  {isGraphCapped ? (
-                    <>
-                      Showing top <strong>{cappedNodes.length}</strong> of <strong>{filteredNodes.length}</strong> nodes (by complexity).
-                      Use search or filters to focus, or switch to Architecture / Focus Mode.
-                    </>
-                  ) : (
-                    <>Showing <strong>{cappedNodes.length}</strong> modules. Tip: Switch to Architecture mode or click Focus Mode for streamlined inspection.</>
-                  )}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setFitTrigger((v) => v + 1)}
-                  className="font-bold text-indigo hover:underline shrink-0 flex items-center gap-1"
-                >
-                  <Maximize2 className="w-3 h-3" /> Fit
-                </button>
-              </div>
-            )}
+            {/* Top Canvas Status Notice */}
+            <div className="absolute top-3 left-3 z-10 bg-surface/90 backdrop-blur-sm border border-line rounded-lg px-3 py-1.5 shadow-1 flex items-center gap-2.5 text-xs text-ink-2 max-w-lg">
+              <Info className="w-4 h-4 text-indigo shrink-0" />
+              <span className="truncate">
+                {isGraphCapped ? (
+                  <>
+                    Showing top <strong>{cappedNodes.length}</strong> of <strong>{filteredNodes.length}</strong> nodes for performance. Graph metrics use all <strong>{totalInternalModules}</strong> modules.
+                  </>
+                ) : (
+                  <>
+                    Showing <strong>{cappedNodes.length}</strong> modules. All graph metrics reflect the canonical repository graph.
+                  </>
+                )}
+              </span>
+              <button
+                type="button"
+                onClick={() => setFitTrigger((v) => v + 1)}
+                className="font-bold text-indigo hover:underline shrink-0 flex items-center gap-1"
+              >
+                <Maximize2 className="w-3 h-3" /> Fit
+              </button>
+            </div>
 
             {/* Focus Mode Active Banner */}
             {graphLayout === 'focus' && selectedNodeData && (
-              <div className="absolute top-3 inset-x-3 z-10 bg-indigo-surface/95 backdrop-blur-sm border border-indigo/30 rounded-lg px-4 py-2 shadow-2 flex items-center justify-between gap-3 text-xs">
+              <div className="absolute top-12 inset-x-3 z-10 bg-indigo-surface/95 backdrop-blur-sm border border-indigo/30 rounded-lg px-4 py-2 shadow-2 flex items-center justify-between gap-3 text-xs">
                 <div className="flex items-center gap-2 min-w-0">
                   <Eye className="w-4 h-4 text-indigo shrink-0" />
                   <span className="font-bold text-indigo-text truncate">
                     Focus Mode: <span className="font-mono">{selectedNodeData.label}</span>
                   </span>
                   <span className="text-ink-3 hidden sm:inline">
-                    ({incomingEdges.length} direct callers, {outgoingEdges.length} direct dependencies)
+                    ({incomingEdges.length} callers, {outgoingEdges.length} dependencies)
                   </span>
                 </div>
                 <Button
@@ -1133,7 +1397,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                   onClick={() => {
                     setSearchQuery('');
                     setFilterMode('all');
-                    setIncludeExternal(true);
+                    setIncludeExternal(false);
                     setEdgeFilter('all');
                     setFitTrigger((v) => v + 1);
                   }}
@@ -1150,6 +1414,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                 edges={rfEdges}
                 nodeTypes={nodeTypes}
                 onNodeClick={handleNodeClick}
+                onEdgeClick={handleEdgeClick}
                 onPaneClick={handlePaneClick}
                 minZoom={0.15}
                 maxZoom={2.0}
@@ -1162,7 +1427,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                   showInteractive={false}
                 />
 
-                {/* Collapsible Edge-Type & Node Legend */}
+                {/* Collapsible Separated Legend */}
                 <Panel position="bottom-left" className="!m-3">
                   <div className="bg-surface/98 backdrop-blur-md border border-line-strong/60 rounded-lg p-3 shadow-lg max-w-md text-xs">
                     <div className="flex items-center justify-between gap-3 pb-1.5 border-b border-line/60 mb-2">
@@ -1181,10 +1446,10 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
 
                     {legendOpen ? (
                       <div className="space-y-2">
-                        {/* Node Types */}
+                        {/* 1. Node Role */}
                         <div>
                           <span className="text-[10px] font-bold text-ink-3 uppercase tracking-wider block mb-1">
-                            Nodes
+                            Node Role
                           </span>
                           <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-ink-2 font-sans">
                             <span className="flex items-center gap-1.5">
@@ -1196,41 +1461,46 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                               Internal Module
                             </span>
                             <span className="flex items-center gap-1.5">
-                              <span className="w-2.5 h-2.5 rounded-xs bg-amber-surface border border-amber-line" />
-                              High Complexity
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                              <span className="w-2.5 h-2.5 rounded-xs bg-red-surface/95 border-2 border-red-line ring-1 ring-red/30" />
-                              Cycle Member
-                            </span>
-                            <span className="flex items-center gap-1.5 col-span-2">
                               <span className="w-2.5 h-2.5 rounded-xs bg-slate-surface border border-dashed border-slate" />
                               External Package
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-xs bg-amber-surface/50 border border-dashed border-amber" />
+                              Partial / Unresolved
                             </span>
                           </div>
                         </div>
 
-                        {/* Edge Types */}
+                        {/* 2. Risk Level */}
                         <div className="pt-1.5 border-t border-line/50">
                           <span className="text-[10px] font-bold text-ink-3 uppercase tracking-wider block mb-1">
-                            Edges (Dependencies)
+                            Risk Level
                           </span>
                           <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-ink-2 font-sans">
                             <span className="flex items-center gap-1.5">
-                              <span className="w-3 h-0.5 bg-indigo" />
-                              Runtime Import
+                              <span className="w-2.5 h-2.5 rounded-xs bg-amber-surface border border-amber-line" />
+                              High Complexity
                             </span>
                             <span className="flex items-center gap-1.5">
-                              <span className="w-3 h-0.5 bg-teal" />
-                              Dynamic Require
+                              <span className="w-2.5 h-2.5 rounded-xs bg-red-strong" />
+                              Critical Risk
                             </span>
+                          </div>
+                        </div>
+
+                        {/* 3. Graph State */}
+                        <div className="pt-1.5 border-t border-line/50">
+                          <span className="text-[10px] font-bold text-ink-3 uppercase tracking-wider block mb-1">
+                            Graph State
+                          </span>
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-ink-2 font-sans">
                             <span className="flex items-center gap-1.5">
-                              <span className="w-3 h-0.5 border-t border-dashed border-blue-400" />
-                              Type-Only Import
+                              <span className="w-2.5 h-2.5 rounded-xs bg-red-surface/95 border-2 border-red-line ring-1 ring-red/30" />
+                              Cycle Member
                             </span>
                             <span className="flex items-center gap-1.5">
                               <span className="w-3 h-0.5 border-t-2 border-dashed border-red" />
-                              Cycle Loop
+                              Cycle Edge
                             </span>
                           </div>
                         </div>
@@ -1251,7 +1521,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                   </div>
                 </Panel>
 
-                {/* Minimap with semantic node color coding */}
+                {/* Minimap */}
                 <MiniMap
                   className="!m-3 hidden md:block !bg-surface !border !border-line !rounded-md !w-44 !h-32 shadow-1"
                   nodeColor={(node: any) => {
@@ -1273,18 +1543,19 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
             </ReactFlowProvider>
           </div>
 
-          {/* 4. Selected Node Risk Summary & Action Side Drawer */}
+          {/* 4. Side Drawer: Selected Node OR Selected Edge Inspector */}
           <div className="bg-surface border border-line rounded-lg p-5 shadow-1 min-h-[440px] flex flex-col justify-between">
             <div>
               <div className="pb-3 border-b border-line mb-4 flex items-center justify-between">
                 <span className="font-sans text-[11px] font-bold text-ink-2 uppercase tracking-wider block">
-                  SELECTED NODE
+                  {selectedEdgeData ? 'SELECTED RELATIONSHIP' : 'SELECTED NODE'}
                 </span>
-                {selectedNodeId && (
+                {(selectedNodeId || selectedEdgeId) && (
                   <button
                     type="button"
                     onClick={() => {
                       setSelectedNodeId(null);
+                      setSelectedEdgeId(null);
                       if (filterMode === 'upstream' || filterMode === 'downstream') setFilterMode('all');
                       if (graphLayout === 'focus') setGraphLayout('architecture');
                     }}
@@ -1295,22 +1566,128 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                 )}
               </div>
 
-              {selectedNodeData ? (
+              {/* Edge Inspection Card */}
+              {selectedEdgeData ? (
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between gap-1 text-[11px] text-ink-3 font-semibold mb-1">
+                      <span>Source Module:</span>
+                    </div>
+                    <div className="font-mono text-xs font-bold text-ink break-all bg-tile p-2 rounded border border-line">
+                      {selectedEdgeData.sourceLabel}
+                    </div>
+                  </div>
+
+                  <div className="text-center font-mono text-indigo font-bold text-sm">↓ imports ↓</div>
+
+                  <div>
+                    <div className="flex items-center justify-between gap-1 text-[11px] text-ink-3 font-semibold mb-1">
+                      <span>Target Module:</span>
+                    </div>
+                    <div className="font-mono text-xs font-bold text-ink break-all bg-tile p-2 rounded border border-line">
+                      {selectedEdgeData.targetLabel}
+                    </div>
+                  </div>
+
+                  <div className="bg-tile rounded-md p-3 border border-line text-xs space-y-2 font-mono">
+                    <div className="flex justify-between">
+                      <span className="text-ink-3">Relationship:</span>
+                      <span className="font-bold text-indigo-text">
+                        {(selectedEdgeData.edge.kind || selectedEdgeData.edge.type).replace('_', ' ').toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-ink-3">Confidence:</span>
+                      <span className="font-bold text-teal-strong">
+                        {(selectedEdgeData.edge.confidence || 'HIGH').toUpperCase()}
+                      </span>
+                    </div>
+                    {selectedEdgeData.edge.raw_import && (
+                      <div className="flex justify-between">
+                        <span className="text-ink-3">Raw Specifier:</span>
+                        <span className="font-bold text-ink break-all">{selectedEdgeData.edge.raw_import}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-ink-3">Source Line:</span>
+                      <span className="font-bold">Line {selectedEdgeData.edge.source_line}</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-line space-y-2">
+                    <Button
+                      variant="indigo"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedNodeId(selectedEdgeData.edge.target);
+                        setSelectedEdgeId(null);
+                      }}
+                      className="w-full justify-center text-xs"
+                    >
+                      Focus Target Module
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedNodeId(selectedEdgeData.edge.source);
+                        setSelectedEdgeId(null);
+                      }}
+                      className="w-full justify-center text-xs"
+                    >
+                      Focus Source Module
+                    </Button>
+                  </div>
+                </div>
+              ) : selectedNodeData ? (
                 <div className="space-y-4">
                   {/* File Label & Badges */}
                   <div>
-                    <div className="font-mono font-bold text-[13px] text-ink break-all">
-                      {selectedNodeData.label}
+                    <div className="flex items-start justify-between gap-1">
+                      <div className="font-mono font-bold text-[13px] text-ink break-all">
+                        {selectedNodeData.label}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyPath(selectedNodeData.label)}
+                        className="p-1 rounded text-ink-3 hover:text-ink hover:bg-tile"
+                        title="Copy relative file path"
+                      >
+                        {copiedPath ? <Check className="w-3.5 h-3.5 text-teal" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
                     </div>
+
                     <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                       <LanguageTag language={selectedNodeData.language} />
-                      {cycleNodeIds.has(selectedNodeData.id) && (
-                        <StatusTag status="critical" label="CRITICAL LOOP" />
-                      )}
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-panel text-ink-2 border border-line">
+                        ROLE: {(selectedNodeData.module_role || 'utility').toUpperCase()}
+                      </span>
                       {selectedNodeData.is_entry_point && (
-                        <StatusTag status="entry-point" label="ENTRY POINT" />
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-teal-surface text-teal-text border border-teal-line">
+                          {selectedNodeData.entry_point_kind
+                            ? selectedNodeData.entry_point_kind.replace('_', ' ').toUpperCase()
+                            : 'ENTRY POINT'}
+                        </span>
+                      )}
+                      {cycleNodeIds.has(selectedNodeData.id) && (
+                        <StatusTag status="critical" label="CYCLE LOOP" />
                       )}
                     </div>
+                  </div>
+
+                  {/* Parse Status & Entry Evidence */}
+                  <div className="bg-tile rounded-md p-2.5 border border-line text-xs space-y-1 text-ink-2">
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-ink-3">AST Parse:</span>
+                      <span className="font-bold text-ink uppercase">
+                        {selectedNodeData.parse_status || 'COMPLETE'} (HIGH)
+                      </span>
+                    </div>
+                    {selectedNodeData.entry_point_evidence && (
+                      <div className="text-[11px] text-teal-strong pt-1 border-t border-line/50">
+                        <strong>Evidence:</strong> {selectedNodeData.entry_point_evidence}
+                      </div>
+                    )}
                   </div>
 
                   {/* Selected-Node Risk Summary Card */}
@@ -1347,11 +1724,11 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                     </p>
                   </div>
 
-                  {/* Cycle Warning Breakdown if member of cycle */}
+                  {/* Cycle Warning Breakdown */}
                   {cyclesWithNode.length > 0 && (
                     <div className="p-3 rounded-md bg-red-surface border border-red-line text-xs space-y-1.5 text-red-text">
                       <div className="font-bold flex items-center gap-1">
-                        <span>Part of {cyclesWithNode.length} Circular Dependency Loop(s)</span>
+                        <span>Part of {cyclesWithNode.length} Circular Loop(s)</span>
                       </div>
                       <div className="space-y-1 font-mono text-[10px] bg-white/60 p-2 rounded border border-red-line/40">
                         {cyclesWithNode.map((cycle, i) => (
@@ -1361,36 +1738,41 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                           </div>
                         ))}
                       </div>
-                      <p className="text-[11px] opacity-90">
-                        Circular loops must be broken to enable isolated unit migration.
-                      </p>
                     </div>
                   )}
 
                   {/* Metric Breakdown */}
                   <div className="bg-tile rounded-md p-3 border border-line text-xs space-y-1.5 text-ink-2 font-mono">
                     <div className="flex justify-between">
-                      <span className="text-ink-3">Lines of Code:</span>
-                      <span className="font-bold">{formatNumber(selectedNodeData.line_count)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-ink-3">Complexity:</span>
+                      <span className="text-ink-3">LOC / Complexity:</span>
                       <span className="font-bold">
-                        {selectedNodeData.complexity_rating.toUpperCase()} (score {selectedNodeData.complexity_score})
+                        {formatNumber(selectedNodeData.line_count)} lines · CC {selectedNodeData.complexity_score}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-ink-3">Incoming Callers:</span>
                       <span className="font-bold text-teal-strong">
-                        {incomingEdges.length} ({inRuntime} run / {inRequire} req / {inTypeOnly} type)
+                        {incomingEdges.length} ({inDegreeMap.get(selectedNodeData.id) || 0} resolved)
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-ink-3">Dependencies:</span>
+                      <span className="text-ink-3">Outgoing Dependencies:</span>
                       <span className="font-bold text-indigo-text">
-                        {outgoingEdges.length} ({outRuntime} run / {outRequire} req / {outTypeOnly} type)
+                        {outgoingEdges.length} ({outDegreeMap.get(selectedNodeData.id) || 0} resolved)
                       </span>
                     </div>
+                    <div className="flex justify-between">
+                      <span className="text-ink-3">Blast Radius:</span>
+                      <span className="font-bold text-red">
+                        {selectedNodeData.blast_radius ?? incomingEdges.length} downstream callers
+                      </span>
+                    </div>
+                    {selectedNodeUnresolved.length > 0 && (
+                      <div className="flex justify-between text-amber-text pt-1 border-t border-line/60">
+                        <span>Unresolved Local Imports:</span>
+                        <span className="font-bold">{selectedNodeUnresolved.length}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Focus & Neighborhood Isolation Buttons */}
@@ -1402,7 +1784,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                       icon={<Eye className="w-3.5 h-3.5" />}
                       className="w-full justify-center text-xs"
                     >
-                      {graphLayout === 'focus' ? 'Exit Focus Mode' : 'Focus Mode (1-Hop Subgraph)'}
+                      {graphLayout === 'focus' ? 'Exit Focus Mode' : 'Focus 1-Hop Neighborhood'}
                     </Button>
 
                     <div className="grid grid-cols-2 gap-2">
@@ -1427,7 +1809,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                     </div>
                   </div>
 
-                  {/* Primary Action: What breaks if I change this? */}
+                  {/* Primary Actions */}
                   <div className="space-y-2 pt-2 border-t border-line">
                     <Button
                       variant="indigo"
@@ -1439,10 +1821,9 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                       icon={<Target className="w-3.5 h-3.5" strokeWidth={2} />}
                       className="w-full justify-center text-xs font-bold shadow-xs py-2"
                     >
-                      What breaks if I change this?
+                      Inspect Blast Radius &amp; Impact
                     </Button>
 
-                    {/* Secondary Cross-tab links */}
                     <div className="grid grid-cols-2 gap-1.5 pt-0.5">
                       <Button
                         variant="outline"
@@ -1478,7 +1859,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                   </div>
                   <h4 className="text-xs font-bold text-ink mb-1.5">No Node Selected</h4>
                   <p className="text-[11px] text-ink-3 font-sans leading-relaxed">
-                    Click any module on the canvas to inspect callers, runtime vs type dependencies, circular loops, and run Change-Impact analysis.
+                    Click any module node or relationship edge on the canvas to inspect incoming callers, outgoing dependencies, and characterization test hooks.
                   </p>
                 </div>
               )}
@@ -1486,29 +1867,86 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
           </div>
         </div>
       ) : (
-        /* Accessible List View Table */
+        /* 4. Accessible & Sortable List View Table */
         <div
           role="region"
           aria-label="Dependency graph data table"
           className="bg-surface border border-line rounded-lg overflow-x-auto shadow-1"
         >
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-panel text-ink-2 font-bold uppercase tracking-wider text-[11px] border-b border-line">
+            <thead className="bg-panel text-ink-2 font-bold uppercase tracking-wider text-[11px] border-b border-line select-none">
               <tr>
-                <th className="py-3 px-4">Module Path</th>
-                <th className="py-3 px-4">Language</th>
-                <th className="py-3 px-4 text-right">Lines</th>
-                <th className="py-3 px-4">Complexity</th>
-                <th className="py-3 px-4 text-center">In / Out</th>
-                <th className="py-3 px-4">Status</th>
+                <th
+                  className="py-3 px-4 cursor-pointer hover:bg-tile"
+                  onClick={() => {
+                    setSortField('label');
+                    setSortAsc((v) => !v);
+                  }}
+                >
+                  Module {sortField === 'label' && (sortAsc ? '↑' : '↓')}
+                </th>
+                <th
+                  className="py-3 px-4 cursor-pointer hover:bg-tile"
+                  onClick={() => {
+                    setSortField('role');
+                    setSortAsc((v) => !v);
+                  }}
+                >
+                  Role {sortField === 'role' && (sortAsc ? '↑' : '↓')}
+                </th>
+                <th
+                  className="py-3 px-4 text-center cursor-pointer hover:bg-tile"
+                  onClick={() => {
+                    setSortField('in');
+                    setSortAsc((v) => !v);
+                  }}
+                >
+                  Fan-In (Callers) {sortField === 'in' && (sortAsc ? '↑' : '↓')}
+                </th>
+                <th
+                  className="py-3 px-4 text-center cursor-pointer hover:bg-tile"
+                  onClick={() => {
+                    setSortField('out');
+                    setSortAsc((v) => !v);
+                  }}
+                >
+                  Fan-Out (Deps) {sortField === 'out' && (sortAsc ? '↑' : '↓')}
+                </th>
+                <th
+                  className="py-3 px-4 text-center cursor-pointer hover:bg-tile"
+                  onClick={() => {
+                    setSortField('unresolved');
+                    setSortAsc((v) => !v);
+                  }}
+                >
+                  Unresolved {sortField === 'unresolved' && (sortAsc ? '↑' : '↓')}
+                </th>
+                <th
+                  className="py-3 px-4 cursor-pointer hover:bg-tile"
+                  onClick={() => {
+                    setSortField('status');
+                    setSortAsc((v) => !v);
+                  }}
+                >
+                  Parse Status {sortField === 'status' && (sortAsc ? '↑' : '↓')}
+                </th>
+                <th
+                  className="py-3 px-4 cursor-pointer hover:bg-tile"
+                  onClick={() => {
+                    setSortField('cc');
+                    setSortAsc((v) => !v);
+                  }}
+                >
+                  Risk / CC {sortField === 'cc' && (sortAsc ? '↑' : '↓')}
+                </th>
                 <th className="py-3 px-4 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line/60 text-ink-2 font-mono">
-              {filteredNodes.map((n) => {
-                const isCycle = cycleNodeIds.has(n.id);
+              {sortedListNodes.map((n) => {
                 const inCount = inDegreeMap.get(n.id) || 0;
                 const outCount = outDegreeMap.get(n.id) || 0;
+                const unres = n.unresolved_imports || 0;
 
                 return (
                   <tr
@@ -1521,36 +1959,41 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                     }}
                   >
                     <td className="py-3 px-4 font-bold text-indigo-text">
-                      {truncateMiddle(n.label, 40)}
+                      <div className="flex items-center gap-1.5">
+                        <span>{truncateMiddle(n.label, 36)}</span>
+                        <LanguageTag language={n.language} />
+                      </div>
                     </td>
                     <td className="py-3 px-4">
-                      <LanguageTag language={n.language} />
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-panel text-ink-2 border border-line">
+                        {(n.module_role || 'utility').toUpperCase()}
+                      </span>
                     </td>
-                    <td className="py-3 px-4 text-right num">
-                      {formatNumber(n.line_count)}
+                    <td className="py-3 px-4 text-center">
+                      <span className="text-teal-strong font-bold">{inCount}</span>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <span className="text-indigo-text font-bold">{outCount}</span>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      {unres > 0 ? (
+                        <span className="text-amber font-bold">{unres}</span>
+                      ) : (
+                        <span className="text-ink-4">0</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 font-sans text-xs">
+                      {n.parse_status === 'complete' ? (
+                        <span className="text-teal-strong">Complete (Full AST)</span>
+                      ) : (
+                        <span className="text-amber-text font-bold uppercase">{n.parse_status || 'Partial'}</span>
+                      )}
                     </td>
                     <td className="py-3 px-4">
                       <StatusTag
                         status={`complexity-${n.complexity_rating.toLowerCase()}`}
-                        label={n.complexity_rating.toUpperCase()}
+                        label={`${n.complexity_rating.toUpperCase()} (${n.complexity_score})`}
                       />
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <span className="text-teal-strong">{inCount}</span> /{' '}
-                      <span className="text-indigo-text">{outCount}</span>
-                    </td>
-                    <td className="py-3 px-4 font-sans">
-                      {isCycle ? (
-                        <StatusTag status="critical" label="CYCLE MEMBER" />
-                      ) : n.is_entry_point ? (
-                        <StatusTag status="entry-point" label="ENTRY POINT" />
-                      ) : n.is_external ? (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-surface text-slate-text border border-slate/30">
-                          EXTERNAL
-                        </span>
-                      ) : (
-                        <span className="text-ink-3 text-xs">Internal Module</span>
-                      )}
                     </td>
                     <td className="py-3 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
@@ -1573,6 +2016,130 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* 5. Needs Review Diagnostics Modal */}
+      {showNeedsReviewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-[fade-in_150ms_ease-out]">
+          <div className="bg-surface border border-line rounded-xl shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-line flex items-center justify-between bg-panel">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg bg-amber-surface text-amber flex items-center justify-center border border-amber-line">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-base text-ink">
+                    Unresolved Dependencies Diagnostics
+                  </h3>
+                  <p className="text-xs text-ink-3">
+                    {unresolvedCount} internal relationship(s) could not be confidently resolved to target files.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowNeedsReviewModal(false)}
+                className="p-1.5 rounded-md text-ink-3 hover:text-ink hover:bg-tile"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Diagnostic Categories Filter */}
+            <div className="p-4 border-b border-line bg-surface flex items-center gap-2 overflow-x-auto">
+              <button
+                type="button"
+                onClick={() => setSelectedDiagnosticKey('all')}
+                className={`px-3 py-1 rounded text-xs font-bold font-mono transition-colors ${
+                  selectedDiagnosticKey === 'all'
+                    ? 'bg-indigo text-white'
+                    : 'bg-panel text-ink-2 hover:bg-tile border border-line'
+                }`}
+              >
+                All ({unresolvedCount})
+              </button>
+              {graph.summary.unresolved_breakdown &&
+                Object.entries(graph.summary.unresolved_breakdown).map(([key, count]) => {
+                  const label =
+                    key === 'ts_alias'
+                      ? 'TS Aliases'
+                      : key === 'python_relative'
+                      ? 'Python Relative'
+                      : key === 'dynamic_import'
+                      ? 'Dynamic Imports'
+                      : key === 'generated'
+                      ? 'Generated Code'
+                      : key === 'syntax_error'
+                      ? 'Parse Fallback'
+                      : key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setSelectedDiagnosticKey(key)}
+                      className={`px-3 py-1 rounded text-xs font-bold font-mono transition-colors ${
+                        selectedDiagnosticKey === key
+                          ? 'bg-indigo text-white'
+                          : 'bg-panel text-ink-2 hover:bg-tile border border-line'
+                      }`}
+                    >
+                      {label} ({count})
+                    </button>
+                  );
+                })}
+            </div>
+
+            {/* Diagnostics Items List */}
+            <div className="p-5 overflow-y-auto space-y-3 flex-1">
+              {graph.unresolved && graph.unresolved.length > 0 ? (
+                graph.unresolved
+                  .filter((u) => selectedDiagnosticKey === 'all' || u.reason_key === selectedDiagnosticKey)
+                  .map((u, i) => (
+                    <div
+                      key={i}
+                      className="p-3.5 rounded-lg border border-line bg-tile hover:bg-surface transition-colors"
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
+                        <span className="font-mono text-xs font-bold text-indigo-text">
+                          {u.source_path} <span className="text-ink-4">line {u.line}</span>
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-amber-surface text-amber-text border border-amber-line">
+                          {u.reason_key.replace('_', ' ')}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 font-mono text-xs text-ink bg-surface p-2 rounded border border-line/60 break-all mb-1.5">
+                        <span className="text-ink-4">import:</span>
+                        <strong>{u.raw_import}</strong>
+                      </div>
+                      <p className="text-[11px] text-ink-3">
+                        {u.reason_label}
+                      </p>
+                    </div>
+                  ))
+              ) : (
+                <div className="text-center py-10 text-xs text-ink-3">
+                  No unresolved dependencies in this category.
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-line bg-panel flex items-center justify-between">
+              <span className="text-xs text-ink-3">
+                Resolving tsconfig paths or Python package roots improves full architecture confidence.
+              </span>
+              <Button
+                variant="indigo"
+                size="sm"
+                onClick={() => setShowNeedsReviewModal(false)}
+              >
+                Done
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

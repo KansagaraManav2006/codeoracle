@@ -476,6 +476,15 @@ export interface ProjectAnalysis {
 
 // --- Dependency Graph Interfaces ---
 
+export interface UnresolvedDependency {
+  source: string;
+  source_path: string;
+  raw_import: string;
+  reason_key: string;
+  reason_label: string;
+  line: number;
+}
+
 export interface GraphNodeData {
   id: string;
   label: string;
@@ -491,6 +500,17 @@ export interface GraphNodeData {
   symbol_count: number;
   module_id?: string | null;
   standalone_reason?: string | null;
+  standalone_status?: 'true_standalone' | 'isolation_uncertain' | 'unresolved' | 'connected';
+  entry_point_kind?: EntryPointKind | null;
+  entry_point_confidence?: 'high' | 'medium' | 'low' | null;
+  entry_point_evidence?: string | null;
+  module_role?: string | null;
+  fan_in?: number;
+  fan_out?: number;
+  resolved_imports?: number;
+  unresolved_imports?: number;
+  blast_radius?: number;
+  is_cycle?: boolean;
 }
 
 export interface GraphEdgeData {
@@ -498,10 +518,14 @@ export interface GraphEdgeData {
   source: string;
   target: string;
   type: string;
+  kind?: 'runtime_import' | 'type_only_import' | 'dynamic_import' | 'require' | 're_export' | 'unknown';
+  confidence?: 'high' | 'medium' | 'low';
+  raw_import?: string | null;
   resolved: boolean;
   source_line: number;
   is_type_only?: boolean;
   is_dynamic?: boolean;
+  is_external?: boolean;
 }
 
 export interface MostConnectedModule {
@@ -514,16 +538,20 @@ export interface MostConnectedModule {
 
 export interface GraphSummary {
   total_nodes: number;
+  total_modules?: number;
   internal_nodes: number;
   external_nodes: number;
   total_edges: number;
   internal_edges: number;
   external_edges: number;
   cycle_count: number;
+  cycles?: number;
   runtime_cycle_count?: number;
   type_cycle_count?: number;
   orphan_count: number;
+  standalone_modules?: number;
   entry_point_count: number;
+  entry_points?: number;
   high_complexity_module_count: number;
   most_connected_modules: MostConnectedModule[];
   truncated_edges_count: number;
@@ -532,6 +560,10 @@ export interface GraphSummary {
   type_only_edges?: number;
   dynamic_edges?: number;
   unresolved_imports?: number;
+  graph_confidence?: 'high' | 'medium' | 'partial' | 'low';
+  graph_confidence_reason?: string | null;
+  cycle_confidence_warning?: string | null;
+  unresolved_breakdown?: Record<string, number>;
 }
 
 export interface GraphResponse {
@@ -539,6 +571,7 @@ export interface GraphResponse {
   level: 'module' | 'symbol';
   nodes: GraphNodeData[];
   edges: GraphEdgeData[];
+  unresolved?: UnresolvedDependency[];
   cycles: string[][];
   entry_point_ids: string[];
   orphan_module_ids: string[];

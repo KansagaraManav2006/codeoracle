@@ -1,9 +1,17 @@
 import logging
-from typing import Dict, List, Optional, Set, Tuple
-from app.analysis.graph_models import GraphEdge, GraphNode, GraphResponse, GraphSummary
-from app.analysis.models import ModuleAnalysis, ProjectAnalysis
-
+from collections import defaultdict, deque
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+from app.analysis.dependency_resolver import classify_unresolved_import
+from app.analysis.graph_models import (
+    GraphEdge,
+    GraphNode,
+    GraphResponse,
+    GraphSummary,
+    UnresolvedDependency,
+)
+from app.analysis.models import ModuleAnalysis, ProjectAnalysis
 
 logger = logging.getLogger(__name__)
 
@@ -13,13 +21,104 @@ MAX_DRILLDOWN_CALL_EDGES = 50
 def _classify_standalone_reason(rel_path: str) -> str:
     lower = rel_path.lower().replace("\\", "/")
     fname = Path(lower).name
-    if any(tok in fname for tok in ("config", "setup.py", "webpack", "vite", "tsconfig", "tailwind")):
+    if any(tok in fname for tok in ("config", "setup.py", "webpack", "vite", "tsconfig", "tailwind", "settings")):
         return "Configuration / build file"
     if any(tok in lower for tok in ("test", "spec", "benchmark")):
         return "Test suite / benchmark"
     if fname in ("cli.py", "cli.ts", "cli.js", "run.py", "server.py", "main.py", "manage.py"):
         return "Standalone script / CLI"
     return "Isolated / unreferenced module"
+
+
+def _classify_module_role(rel_path: str, mod: Optional[ModuleAnalysis] = None) -> str:
+    """Infers architecture role for module."""
+    lower = rel_path.lower().replace("\\", "/")
+    fname = Path(lower).name
+
+    if any(tok in lower for tok in ("/test/", "/tests/", "_test.", ".spec.", ".test.")):
+        return "test"
+    if any(tok in fname for tok in ("config", "vite", "webpack", "tsconfig", "tailwind", "settings")):
+        return "config"
+    if any(tok in lower for tok in ("/api/", "/routes/", "/endpoints/", "/controllers/", "routes.py")):
+        return "api"
+    if any(tok in lower for tok in ("/services/", "/service/", "/usecase/")):
+        return "service"
+    if any(tok in lower for tok in ("/repository/", "/repositories/", "/dao/", "/persistence/")):
+        return "repository"
+    if any(tok in lower for tok in ("/models/", "/domain/", "/entities/", "/schemas/")):
+        return "domain"
+    if any(tok in lower for tok in ("/ml/", "/models_ai/", "train.py", "predict.py")):
+        return "ml"
+    if any(tok in lower for tok in ("/scripts/", "seed.py", "migrate.py", "cli.py")):
+        return "script"
+    if any(tok in lower for tok in ("/components/", "/views/", "/pages/", "/ui/")) or lower.endswith((".tsx", ".jsx")):
+        return "ui"
+    if any(tok in lower for tok in ("/utils/", "/helpers/", "/common/", "/lib/")):
+        return "utility"
+
+    if mod and mod.classes:
+        return "domain"
+    return "utility"
+
+
+def _classify_semantic_entry_point(
+    rel_path: str, mod: ModuleAnalysis
+) -> Tuple[bool, Optional[str], Optional[str], Optional[str]]:
+    """
+    Semantically classifies whether a module is a confirmed entry point.
+    Returns: (is_entry_point, kind, confidence, evidence)
+    Kinds: APP_RUNTIME, FRONTEND_BOOTSTRAP, WORKER, CLI, SCRIPT, ML_TRAINING, ROUTE_ROOT, CONFIG, UNKNOWN
+    """
+    lower = rel_path.lower().replace("\\", "/")
+    fname = Path(lower).name
+
+    # Check for frontend bootstrap
+    if fname in ("main.tsx", "main.jsx", "index.tsx", "index.jsx") and any(
+        dir_name in lower for dir_name in ("src", "frontend", "client", "app")
+    ):
+        has_createroot = any(call.target_name in ("createRoot", "render") for call in getattr(mod, "calls", []))
+        evidence = "React createRoot() DOM bootstrap" if has_createroot else "Frontend client bootstrap entry point"
+        return True, "frontend_bootstrap", "high", evidence
+
+    # Check for backend web runtime
+    if fname in ("main.py", "server.py", "app.py", "wsgi.py", "asgi.py"):
+        has_framework = any(
+            c.target_name in ("FastAPI", "Flask", "express", "listen", "run") for c in getattr(mod, "calls", [])
+        )
+        evidence = "Application framework server instance" if has_framework else "Backend runtime entry point"
+        return True, "app_runtime", "high", evidence
+
+    # Check for background worker
+    if any(tok in fname for tok in ("worker", "tasks", "consumer", "celery")):
+        return True, "worker", "high", "Background worker / task queue consumer"
+
+    # Check for CLI
+    if any(tok in fname for tok in ("cli.py", "cli.ts", "manage.py")):
+        return True, "cli", "high", "Command-line interface execution root"
+
+    # Check for ML training
+    if any(tok in fname for tok in ("train.py", "eval.py", "evaluate.py")) or (
+        "/ml/" in lower and fname in ("run.py", "pipeline.py")
+    ):
+        return True, "ml_training", "high", "Machine learning training / evaluation pipeline"
+
+    # Check for Standalone scripts
+    if any(tok in fname for tok in ("seed.py", "migrate.py", "setup.py")) or "/scripts/" in lower:
+        return True, "script", "high" if "/scripts/" in lower else "medium", "Standalone database seed / migration script"
+
+    # Check for Route / Layout Root
+    if fname in ("app.tsx", "app.jsx", "mainlayout.tsx", "router.tsx", "routes.tsx"):
+        return True, "route_root", "medium", "Top-level application router or primary layout root"
+
+    # Check for Build / Config file
+    if any(tok in fname for tok in ("vite.config", "webpack.config", "tsconfig", "tailwind.config", "settings.py")):
+        return True, "config", "high", "Project build or runtime environment configuration"
+
+    # Check for if __name__ == '__main__' AST flag
+    if getattr(mod, "is_entry_point", False):
+        return True, "script", "high", "Contains 'if __name__ == \"__main__\"' execution block"
+
+    return False, None, None, None
 
 
 def _is_reexport_pair(src_path: str, tgt_path: str) -> bool:
@@ -51,12 +150,6 @@ def find_directed_cycles(nodes_set: Set[str], edges_list: List[Tuple[str, str]])
     for n in adj:
         adj[n].sort()
 
-    # A single graph-wide DFS only reports back edges.  It misses a valid cycle
-    # when that cycle shares a prefix with another one (for example A-B-A and
-    # A-C-B-A). Enumerate simple paths from each possible smallest node instead;
-    # the ordering constraint prevents duplicate rotations while retaining all
-    # elementary cycles. The graph is bounded by the caller's parsed module
-    # set, and the result is still deduplicated below.
     raw_cycles: List[List[str]] = []
     for start in sorted(nodes_set):
         path = [start]
@@ -75,7 +168,6 @@ def find_directed_cycles(nodes_set: Set[str], edges_list: List[Tuple[str, str]])
 
         walk(start)
 
-    # Canonicalize cycles: rotate each cycle so smallest node ID comes first.
     canonical_cycles: Set[Tuple[str, ...]] = set()
     for cycle in raw_cycles:
         node_body = cycle[:-1]
@@ -97,21 +189,24 @@ def build_project_dependency_graph(
     include_external: bool = False,
 ) -> GraphResponse:
     """
-    Builds a deterministic dependency graph response from cached ProjectAnalysis.
-    Supports module-level graph and single-module symbol drill-down.
+    Builds a canonical, deterministic dependency graph response from cached ProjectAnalysis.
+    Guarantees exact invariant:
+      sum(node.fan_out) == resolved_edges == sum(node.fan_in) == len(edges) (for internal graph).
     """
     if level == "symbol" and module_id:
         return build_symbol_drilldown_graph(analysis, module_id, edge_types_filter)
 
-    # Module-level Graph
+    # 1. Map Modules & Build Internal Nodes
+    modules_by_id: Dict[str, ModuleAnalysis] = {m.module_id: m for m in analysis.modules}
+    internal_module_ids = set(modules_by_id.keys())
     nodes_map: Dict[str, GraphNode] = {}
-    edges: List[GraphEdge] = []
-    truncated_edges_count = 0
 
-    # 1. Build Internal Module Nodes
     for mod in analysis.modules:
         sym_count = len(mod.classes) + len(mod.functions) + len(mod.variables)
         warn_count = len(mod.legacy_warnings) + len(mod.parse_errors)
+
+        is_entry, entry_kind, entry_conf, entry_ev = _classify_semantic_entry_point(mod.relative_path, mod)
+        role = _classify_module_role(mod.relative_path, mod)
 
         node = GraphNode(
             id=mod.module_id,
@@ -123,27 +218,63 @@ def build_project_dependency_graph(
             complexity_score=mod.complexity.cyclomatic_complexity,
             complexity_rating=mod.complexity.rating,
             warning_count=warn_count,
-            is_entry_point=mod.is_entry_point,
+            is_entry_point=is_entry,
             is_external=False,
+            entry_point_kind=entry_kind,
+            entry_point_confidence=entry_conf,
+            entry_point_evidence=entry_ev,
+            module_role=role,
             symbol_count=sym_count,
         )
         nodes_map[mod.module_id] = node
 
-    # 2. Process Dependency Edges & External Nodes
+    # 2. Process Edges with Strict Internal/External & Resolved Checks
     allowed_types = set(edge_types_filter) if edge_types_filter else None
-    internal_module_ids = set(nodes_map.keys())
+    edges: List[GraphEdge] = []
+    unresolved_deps: List[UnresolvedDependency] = []
+    unresolved_by_source: Dict[str, int] = defaultdict(int)
+    resolved_by_source: Dict[str, int] = defaultdict(int)
 
     for edge in analysis.dependency_edges:
         if allowed_types and edge.type not in allowed_types:
             continue
 
         target_is_internal = edge.target_module_id in internal_module_ids
+        is_resolved_internal = edge.resolved and target_is_internal
 
-        if not target_is_internal:
+        if not is_resolved_internal:
+            # Unresolved or external reference
+            raw_target = getattr(edge, "raw_import", None) or edge.target_module_id
+            src_mod = modules_by_id.get(edge.source_module_id)
+            src_lang = src_mod.language if src_mod else "unknown"
+            src_path = src_mod.relative_path if src_mod else ""
+            src_parse = src_mod.parse_status if src_mod else "complete"
+
+            reason_key, reason_label = classify_unresolved_import(
+                raw_target=raw_target,
+                source_path=src_path,
+                source_lang=src_lang,
+                parse_status=src_parse,
+                is_dynamic=getattr(edge, "is_dynamic", False),
+            )
+
+            if reason_key != "external":
+                unresolved_by_source[edge.source_module_id] += 1
+                unresolved_deps.append(
+                    UnresolvedDependency(
+                        source=edge.source_module_id,
+                        source_path=src_path,
+                        raw_import=raw_target,
+                        reason_key=reason_key,
+                        reason_label=reason_label,
+                        line=edge.source_line,
+                    )
+                )
+
             if not include_external:
                 continue
 
-            # Create external package node
+            # In external view: create synthetic external package node
             ext_id = f"ext:{edge.target_module_id}"
             if ext_id not in nodes_map:
                 lang = "python" if "py" in edge.source_module_id else "javascript"
@@ -153,10 +284,24 @@ def build_project_dependency_graph(
                     language=lang,
                     kind="external",
                     is_external=True,
+                    module_role="external",
                 )
             target_node_id = ext_id
         else:
             target_node_id = edge.target_module_id
+            resolved_by_source[edge.source_module_id] += 1
+
+        raw_kind = getattr(edge, "kind", getattr(edge, "type", "runtime_import")) or "runtime_import"
+        is_type_only = getattr(edge, "is_type_only", False)
+        is_dynamic = getattr(edge, "is_dynamic", False)
+        if is_type_only:
+            edge_kind = "type_only_import"
+        elif is_dynamic or raw_kind == "dynamic_import":
+            edge_kind = "dynamic_import"
+        elif raw_kind in ("require", "re_export"):
+            edge_kind = raw_kind
+        else:
+            edge_kind = "runtime_import"
 
         edges.append(
             GraphEdge(
@@ -164,46 +309,57 @@ def build_project_dependency_graph(
                 source=edge.source_module_id,
                 target=target_node_id,
                 type=edge.type,
-                resolved=edge.resolved,
+                kind=edge_kind,
+                confidence=getattr(edge, "confidence", "high"),
+                raw_import=getattr(edge, "raw_import", None),
+                resolved=is_resolved_internal,
                 source_line=edge.source_line,
-                is_type_only=getattr(edge, "is_type_only", False),
-                is_dynamic=getattr(edge, "is_dynamic", False),
+                is_type_only=is_type_only,
+                is_dynamic=is_dynamic,
+                is_external=not target_is_internal,
             )
         )
 
     # Sort nodes and edges deterministically
     sorted_nodes = sorted(list(nodes_map.values()), key=lambda n: (n.is_external, n.label, n.id))
-    sorted_edges = sorted(edges, key=lambda e: (e.source, e.target, e.type, e.source_line))
+    sorted_edges = sorted(edges, key=lambda e: (e.source, e.target, e.kind, e.source_line))
+    sorted_unresolved = sorted(unresolved_deps, key=lambda u: (u.source_path, u.line, u.raw_import))
 
-    # 3. Calculate Degree & Orphans
+    # 3. Calculate Degree & Invariant Enforcement
     in_degree: Dict[str, int] = {n.id: 0 for n in sorted_nodes}
     out_degree: Dict[str, int] = {n.id: 0 for n in sorted_nodes}
 
+    # For internal directed graph: only internal edges contribute to internal fan-in/fan-out
     for e in sorted_edges:
-        if e.source in out_degree:
+        if not include_external or (e.source in internal_module_ids and e.target in internal_module_ids):
             out_degree[e.source] += 1
-        if e.target in in_degree:
             in_degree[e.target] += 1
 
-    orphan_module_ids = [
-        n.id for n in sorted_nodes
-        if not n.is_external and in_degree.get(n.id, 0) == 0 and out_degree.get(n.id, 0) == 0
-    ]
+    # Invariant checks for internal graph
+    internal_edges_count = sum(1 for e in sorted_edges if e.source in internal_module_ids and e.target in internal_module_ids)
+    assert sum(out_degree[m_id] for m_id in internal_module_ids) == internal_edges_count, "out_degree sum mismatch"
+    assert sum(in_degree[m_id] for m_id in internal_module_ids) == internal_edges_count, "in_degree sum mismatch"
 
-    for n in sorted_nodes:
-        if n.id in orphan_module_ids:
-            n.standalone_reason = _classify_standalone_reason(n.label)
-        elif not n.is_external and not n.is_entry_point:
-            if in_degree.get(n.id, 0) == 0 and out_degree.get(n.id, 0) > 0:
-                reason = _classify_standalone_reason(n.label)
-                if reason not in ("Configuration / build file", "Test suite / benchmark"):
-                    n.is_entry_point = True
+    # 4. Transitive Blast Radius (Downstream Callers) via Reverse Graph BFS
+    dependents: Dict[str, Set[str]] = defaultdict(set)
+    for e in sorted_edges:
+        if e.source in internal_module_ids and e.target in internal_module_ids:
+            dependents[e.target].add(e.source)
 
-    entry_point_ids = [n.id for n in sorted_nodes if n.is_entry_point]
+    blast_radius_map: Dict[str, int] = {}
+    for m_id in internal_module_ids:
+        visited: Set[str] = set()
+        queue = deque([m_id])
+        while queue:
+            curr = queue.popleft()
+            for caller in dependents.get(curr, set()):
+                if caller not in visited and caller != m_id:
+                    visited.add(caller)
+                    queue.append(caller)
+        blast_radius_map[m_id] = len(visited)
 
-    # 4. Cycle Detection (Runtime Only, Filtering Re-exports)
+    # 5. Cycle Detection (Runtime Only, Filtering Re-exports)
     paths_by_id = {n.id: n.label for n in sorted_nodes}
-
     runtime_pairs = [
         (e.source, e.target) for e in sorted_edges
         if not nodes_map[e.source].is_external and e.target in internal_module_ids and not e.is_type_only
@@ -220,50 +376,120 @@ def build_project_dependency_graph(
     ]
     all_cycles = find_directed_cycles(internal_module_ids, all_pairs)
     type_cycle_count = max(0, len(all_cycles) - len(cycles))
+    cycle_nodes_set: Set[str] = {nid for c in cycles for nid in c}
 
-    # 5. Most Connected Modules
+    # 6. Apply Metrics & True Standalone Logic to Nodes
+    true_standalone_ids: List[str] = []
+    entry_point_ids: List[str] = []
+
+    for n in sorted_nodes:
+        if not n.is_external:
+            n.fan_in = in_degree.get(n.id, 0)
+            n.fan_out = out_degree.get(n.id, 0)
+            n.resolved_imports = resolved_by_source.get(n.id, 0)
+            n.unresolved_imports = unresolved_by_source.get(n.id, 0)
+            n.blast_radius = blast_radius_map.get(n.id, 0)
+            n.is_cycle = n.id in cycle_nodes_set
+
+            # Standalone Rule: A module is TRUE STANDALONE only when:
+            # fan_in == 0 and fan_out == 0 and unresolved_imports == 0 and parse_status == "complete"
+            if n.fan_in == 0 and n.fan_out == 0:
+                if n.unresolved_imports == 0 and n.parse_status == "complete":
+                    n.standalone_status = "true_standalone"
+                    n.standalone_reason = _classify_standalone_reason(n.label)
+                    true_standalone_ids.append(n.id)
+                else:
+                    n.standalone_status = "isolation_uncertain"
+                    n.standalone_reason = (
+                        f"Isolation uncertain: {n.unresolved_imports} unresolved import(s) "
+                        f"or {n.parse_status} AST parse"
+                    )
+            else:
+                n.standalone_status = "connected"
+
+            if n.is_entry_point:
+                entry_point_ids.append(n.id)
+
+    # 7. Unresolved Diagnostics Breakdown & Graph Confidence
+    breakdown: Dict[str, int] = defaultdict(int)
+    for u in sorted_unresolved:
+        breakdown[u.reason_key] += 1
+
+    total_files = len(analysis.modules)
+    fully_parsed = sum(1 for m in analysis.modules if m.parse_status == "complete")
+    full_ast_pct = round((fully_parsed / total_files * 100.0), 1) if total_files > 0 else 100.0
+
+    total_unresolved = len(sorted_unresolved)
+    if full_ast_pct >= 90.0 and total_unresolved == 0:
+        graph_confidence = "high"
+        graph_conf_reason = "100% full AST coverage and 0 unresolved relationships."
+    elif full_ast_pct >= 70.0 and total_unresolved <= 5:
+        graph_confidence = "medium"
+        graph_conf_reason = f"{full_ast_pct}% AST coverage with {total_unresolved} unresolved relationship(s)."
+    elif full_ast_pct >= 50.0 or total_unresolved > 5:
+        graph_confidence = "partial"
+        graph_conf_reason = f"Partial resolution: {total_unresolved} unresolved relationships and {full_ast_pct}% AST coverage."
+    else:
+        graph_confidence = "low"
+        graph_conf_reason = "Low AST coverage and high rate of unresolved imports."
+
+    cycle_confidence_warning = None
+    if total_unresolved > 0 and len(cycles) == 0:
+        cycle_confidence_warning = f"⚠ Cycle detection confidence reduced by {total_unresolved} unresolved relationships."
+
+    # 8. Most Connected Modules
     connected = []
     for n in sorted_nodes:
         if not n.is_external:
-            deg = in_degree.get(n.id, 0) + out_degree.get(n.id, 0)
-            connected.append({"module_id": n.id, "label": n.label, "total_degree": deg, "in_degree": in_degree.get(n.id, 0), "out_degree": out_degree.get(n.id, 0)})
-
+            deg = n.fan_in + n.fan_out
+            connected.append({
+                "module_id": n.id,
+                "label": n.label,
+                "total_degree": deg,
+                "in_degree": n.fan_in,
+                "out_degree": n.fan_out,
+            })
     connected.sort(key=lambda c: (-c["total_degree"], c["label"]))
     most_connected = connected[:5]
 
     # Summary
     internal_nodes_count = sum(1 for n in sorted_nodes if not n.is_external)
     external_nodes_count = sum(1 for n in sorted_nodes if n.is_external)
-    internal_edges_count = sum(1 for e in sorted_edges if e.target in internal_module_ids)
     external_edges_count = len(sorted_edges) - internal_edges_count
     high_comp_count = sum(1 for n in sorted_nodes if not n.is_external and n.complexity_rating in ("high", "critical"))
 
-    resolved_count = sum(1 for e in analysis.dependency_edges if e.resolved)
-    unresolved_count = len(analysis.dependency_edges) - resolved_count
-    runtime_count = sum(1 for e in sorted_edges if not getattr(e, "is_type_only", False))
-    type_only_count = sum(1 for e in sorted_edges if getattr(e, "is_type_only", False))
-    dynamic_count = sum(1 for e in sorted_edges if getattr(e, "is_dynamic", False))
+    runtime_count = sum(1 for e in sorted_edges if e.kind == "runtime_import")
+    type_only_count = sum(1 for e in sorted_edges if e.kind == "type_only_import" or e.is_type_only)
+    dynamic_count = sum(1 for e in sorted_edges if e.kind == "dynamic_import" or e.is_dynamic)
 
     summary = GraphSummary(
         total_nodes=len(sorted_nodes),
+        total_modules=internal_nodes_count,
         internal_nodes=internal_nodes_count,
         external_nodes=external_nodes_count,
         total_edges=len(sorted_edges),
         internal_edges=internal_edges_count,
         external_edges=external_edges_count,
-        resolved_edges=resolved_count,
+        resolved_edges=internal_edges_count,
         runtime_edges=runtime_count,
         type_only_edges=type_only_count,
         dynamic_edges=dynamic_count,
-        unresolved_imports=unresolved_count,
+        unresolved_imports=total_unresolved,
         cycle_count=len(cycles),
+        cycles=len(cycles),
         runtime_cycle_count=len(cycles),
         type_cycle_count=type_cycle_count,
-        orphan_count=len(orphan_module_ids),
+        orphan_count=len(true_standalone_ids),
+        standalone_modules=len(true_standalone_ids),
         entry_point_count=len(entry_point_ids),
+        entry_points=len(entry_point_ids),
         high_complexity_module_count=high_comp_count,
         most_connected_modules=most_connected,
         truncated_edges_count=0,
+        graph_confidence=graph_confidence,
+        graph_confidence_reason=graph_conf_reason,
+        cycle_confidence_warning=cycle_confidence_warning,
+        unresolved_breakdown=dict(breakdown),
     )
 
     return GraphResponse(
@@ -271,11 +497,13 @@ def build_project_dependency_graph(
         level="module",
         nodes=sorted_nodes,
         edges=sorted_edges,
+        unresolved=sorted_unresolved,
         cycles=cycles,
         entry_point_ids=entry_point_ids,
-        orphan_module_ids=orphan_module_ids,
+        orphan_module_ids=true_standalone_ids,
         summary=summary,
     )
+
 
 
 def build_symbol_drilldown_graph(
