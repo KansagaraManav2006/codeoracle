@@ -16,6 +16,29 @@ class RefactorWarning(BaseModel):
     breaking_change: bool = False
 
 
+class ModernizationRule(BaseModel):
+    id: str
+    name: str
+    language: str
+    category: str
+    deterministic: bool = True
+    requires_full_ast: bool = True
+    requires_protection: bool = True
+    description: str = ""
+    example_before: Optional[str] = None
+    example_after: Optional[str] = None
+
+
+class ModernizationState(BaseModel):
+    findings: int = 0
+    candidates: int = 0
+    autofix_eligible: int = 0
+    generated_diffs: int = 0
+    statically_validated: int = 0
+    runtime_verified: int = 0
+    human_approved: int = 0
+
+
 class RefactoredFile(BaseModel):
     relative_path: str
     language: str
@@ -27,6 +50,9 @@ class RefactoredFile(BaseModel):
     syntax_valid: bool = True
     syntax_error: Optional[str] = None
     changed: bool = False
+    applied_rule_ids: List[str] = Field(default_factory=list)
+    candidate_disposition: Optional[str] = None
+    candidate_type: Optional[str] = None
 
 
 class ProjectRefactorResult(BaseModel):
@@ -44,6 +70,8 @@ class ProjectRefactorResult(BaseModel):
     findings: List[Finding] = Field(default_factory=list)
     finding_funnel: FindingFunnel = Field(default_factory=FindingFunnel)
     verification: Optional[RefactorVerificationResult] = None
+    modernization_state: Optional[ModernizationState] = None
+    modernization_rules: List[ModernizationRule] = Field(default_factory=list)
 
 
 class GenerateRefactorRequest(BaseModel):

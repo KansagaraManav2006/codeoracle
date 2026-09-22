@@ -19,11 +19,148 @@ from app.analysis.service import build_analysis_findings, run_analysis_for_proje
 from app.models.db import Project, ProjectAnalysisRecord, ProjectFile, ProjectRefactorRecord
 from app.refactor.models import (
     REFACTOR_ENGINE_VERSION,
+    ModernizationRule,
+    ModernizationState,
     ProjectRefactorResult,
     RefactoredFile,
     RefactorWarning,
 )
 
+
+CANONICAL_MODERNIZATION_RULES: List[ModernizationRule] = [
+    ModernizationRule(
+        id="PY2_XRANGE",
+        name="Python 2 xrange to range",
+        language="python",
+        category="legacy_syntax",
+        deterministic=True,
+        requires_full_ast=True,
+        requires_protection=True,
+        description="Replaces legacy Python 2 xrange() generator with Python 3 range().",
+        example_before="for i in xrange(10):",
+        example_after="for i in range(10):",
+    ),
+    ModernizationRule(
+        id="PY2_ITERITEMS",
+        name="Dictionary iteritems to items",
+        language="python",
+        category="deprecated_api",
+        deterministic=True,
+        requires_full_ast=True,
+        requires_protection=True,
+        description="Replaces dict.iteritems() with dict.items(). Returns a view in Python 3.",
+        example_before="for k, v in d.iteritems():",
+        example_after="for k, v in d.items():",
+    ),
+    ModernizationRule(
+        id="PY2_ITERKEYS",
+        name="Dictionary iterkeys to keys",
+        language="python",
+        category="deprecated_api",
+        deterministic=True,
+        requires_full_ast=True,
+        requires_protection=True,
+        description="Replaces dict.iterkeys() with dict.keys().",
+        example_before="for k in d.iterkeys():",
+        example_after="for k in d.keys():",
+    ),
+    ModernizationRule(
+        id="PY2_ITERVALUES",
+        name="Dictionary itervalues to values",
+        language="python",
+        category="deprecated_api",
+        deterministic=True,
+        requires_full_ast=True,
+        requires_protection=True,
+        description="Replaces dict.itervalues() with dict.values().",
+        example_before="for v in d.itervalues():",
+        example_after="for v in d.values():",
+    ),
+    ModernizationRule(
+        id="PY2_RAW_INPUT",
+        name="Python 2 raw_input to input",
+        language="python",
+        category="legacy_syntax",
+        deterministic=True,
+        requires_full_ast=True,
+        requires_protection=True,
+        description="Replaces raw_input() with input().",
+        example_before="name = raw_input('Name: ')",
+        example_after="name = input('Name: ')",
+    ),
+    ModernizationRule(
+        id="PY2_BASESTRING",
+        name="Python 2 basestring to str",
+        language="python",
+        category="legacy_syntax",
+        deterministic=True,
+        requires_full_ast=True,
+        requires_protection=True,
+        description="Replaces basestring abstract type with str.",
+        example_before="isinstance(val, basestring)",
+        example_after="isinstance(val, str)",
+    ),
+    ModernizationRule(
+        id="PY2_UNICODE",
+        name="Python 2 unicode to str",
+        language="python",
+        category="legacy_syntax",
+        deterministic=True,
+        requires_full_ast=True,
+        requires_protection=True,
+        description="Replaces unicode() constructor with str().",
+        example_before="text = unicode(data)",
+        example_after="text = str(data)",
+    ),
+    ModernizationRule(
+        id="PY2_PRINT",
+        name="Python 2 print statement to function",
+        language="python",
+        category="legacy_syntax",
+        deterministic=True,
+        requires_full_ast=True,
+        requires_protection=True,
+        description="Converts legacy print statement to print() function call.",
+        example_before="print 'Hello world'",
+        example_after="print('Hello world')",
+    ),
+    ModernizationRule(
+        id="PY2_EXCEPT",
+        name="Python 2 except syntax to as",
+        language="python",
+        category="legacy_syntax",
+        deterministic=True,
+        requires_full_ast=True,
+        requires_protection=True,
+        description="Converts 'except Exception, e:' to 'except Exception as e:'.",
+        example_before="except ValueError, err:",
+        example_after="except ValueError as err:",
+    ),
+    ModernizationRule(
+        id="JS_VAR_DECLARATION",
+        name="JavaScript var to let/const",
+        language="javascript",
+        category="legacy_syntax",
+        deterministic=True,
+        requires_full_ast=False,
+        requires_protection=True,
+        description="Replaces function-scoped var declaration with block-scoped let declaration.",
+        example_before="var count = 0;",
+        example_after="let count = 0;",
+    ),
+    ModernizationRule(
+        id="JS_EQUALITY_REVIEW_REQUIRED",
+        name="JavaScript loose equality review",
+        language="javascript",
+        category="unsafe_pattern",
+        deterministic=False,
+        requires_full_ast=False,
+        requires_protection=True,
+        description="Identifies loose == / != comparisons that require manual review before strict === conversion.",
+        example_before="if (x == null)",
+        example_after="if (x === null || x === undefined) // manual review",
+    ),
+]
 
 Rule = Tuple[re.Pattern[str], str, str, str, bool]
 
@@ -282,6 +419,7 @@ def run_refactor_for_project(db: Session, project_id: str, force: bool = False) 
             original.splitlines(keepends=True), modern.splitlines(keepends=True),
             fromfile=f"a/{project_file.relative_path}", tofile=f"b/{project_file.relative_path}",
         ))
+        applied_rule_ids = [w.code for w in warnings if any(r.id == w.code for r in CANONICAL_MODERNIZATION_RULES)]
         results.append(RefactoredFile(
             relative_path=project_file.relative_path,
             language=project_file.language,
@@ -293,6 +431,9 @@ def run_refactor_for_project(db: Session, project_id: str, force: bool = False) 
             syntax_valid=valid,
             syntax_error=syntax_error,
             changed=original != modern,
+            applied_rule_ids=applied_rule_ids,
+            candidate_disposition="diff_ready" if original != modern else "manual_review",
+            candidate_type="Deterministic rule diff" if original != modern else None,
         ))
 
     changed_files = sum(item.changed for item in results)
@@ -302,6 +443,28 @@ def run_refactor_for_project(db: Session, project_id: str, force: bool = False) 
         _load_project_findings(db, project_id),
         {item.relative_path for item in results if item.changed},
     )
+    mod_findings = [f for f in findings if f.category == "modernization"]
+    candidates_count = len(mod_findings)
+    autofix_count = sum(f.autofixable for f in mod_findings)
+    statically_validated = sum(item.changed and item.syntax_valid for item in results)
+
+    # Verification status if pre-existing
+    runtime_verified = 0
+    if cached and cached.refactor_data.get("verification"):
+        verif = cached.refactor_data.get("verification")
+        if verif.get("verified"):
+            runtime_verified = changed_files
+
+    mod_state = ModernizationState(
+        findings=len(findings),
+        candidates=candidates_count,
+        autofix_eligible=autofix_count,
+        generated_diffs=changed_files,
+        statically_validated=statically_validated,
+        runtime_verified=runtime_verified,
+        human_approved=0,
+    )
+
     result = ProjectRefactorResult(
         project_id=project_id,
         generated_at=datetime.now(timezone.utc).isoformat(),
@@ -312,11 +475,15 @@ def run_refactor_for_project(db: Session, project_id: str, force: bool = False) 
         breaking_warning_count=breaking_count,
         # Static syntax checks and rule warnings cannot establish behavioral equivalence.
         safe_to_apply_automatically=False,
-        summary=(f"Prepared {total_changes} modernization rule group(s) across {changed_files} file(s). "
-                 "Review every diff and run the generated tests before merging." if changed_files else
-                 "No deterministic legacy patterns were found. The engine left all source files unchanged."),
+        summary=(
+            f"Prepared {total_changes} modernization rule group(s) across {changed_files} file(s). "
+            "Review every diff and run the generated tests before merging." if changed_files else
+            f"No deterministic autofix transformations available. {candidates_count} modernization candidates were detected, but none currently match a safe rule-based transformation."
+        ),
         findings=findings,
         finding_funnel=summarize_findings(findings),
+        modernization_state=mod_state,
+        modernization_rules=CANONICAL_MODERNIZATION_RULES,
     )
 
     if cached:

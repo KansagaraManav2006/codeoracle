@@ -9,6 +9,13 @@ interface RuleWarning {
   description: string;
 }
 
+interface DiffExplanation {
+  ruleId?: string;
+  ruleName?: string;
+  confidence?: 'high' | 'medium' | 'low' | string;
+  behaviorImpact?: string;
+}
+
 interface DiffViewerProps {
   filePath: string;
   diffCode: string;
@@ -17,7 +24,10 @@ interface DiffViewerProps {
   mode: DiffMode;
   onModeChange: (mode: DiffMode) => void;
   syntaxCheckPassed?: boolean;
+  syntaxCheckStatusText?: string;
   ruleWarning?: RuleWarning | null;
+  explanation?: DiffExplanation | null;
+  emptyMessage?: string;
   onCopy?: () => void;
   className?: string;
 }
@@ -30,12 +40,16 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
   mode,
   onModeChange,
   syntaxCheckPassed = true,
+  syntaxCheckStatusText,
   ruleWarning,
+  explanation,
+  emptyMessage,
   onCopy,
   className = '',
 }) => {
   const [copied, setCopied] = useState(false);
   const [liveAnnouncement, setLiveAnnouncement] = useState('');
+  const [collapseUnchanged, setCollapseUnchanged] = useState(false);
 
   const activeCode =
     mode === 'diff' ? diffCode : mode === 'original' ? originalCode : modernizedCode;
@@ -129,18 +143,32 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
           {syntaxCheckPassed && (
             <div className="text-[12px] text-teal-on-dark flex items-center gap-1 font-sans mt-0.5">
               <Check className="w-3.5 h-3.5" strokeWidth={2} />
-              <span>Syntax check passed</span>
+              <span>{syntaxCheckStatusText || 'AST syntax validation passed'}</span>
             </div>
           )}
         </div>
 
-        {/* Segmented control + Copy action */}
+        {/* Segmented control + Collapse toggle + Copy action */}
         <div className="flex items-center gap-2">
+          {mode === 'diff' && (
+            <button
+              type="button"
+              onClick={() => setCollapseUnchanged((v) => !v)}
+              className={`px-2 py-1 rounded text-[11px] font-sans font-medium transition-colors border ${
+                collapseUnchanged
+                  ? 'bg-indigo-deep text-indigo-badge-text border-indigo/40'
+                  : 'bg-transparent text-code-muted border-code-line hover:text-code-text'
+              }`}
+            >
+              {collapseUnchanged ? 'Expand all lines' : 'Focus changed lines'}
+            </button>
+          )}
+
           <DarkSegmentedControl<DiffMode>
             options={[
               { id: 'diff', label: 'Diff' },
               { id: 'original', label: 'Original' },
-              { id: 'modernized', label: 'Modernized' },
+              { id: 'modernized', label: 'Proposed' },
             ]}
             value={mode}
             onChange={onModeChange}
@@ -161,6 +189,31 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
           </button>
         </div>
       </header>
+
+      {/* Inline Rule Explanation Bar ("Why this change?") */}
+      {explanation && (
+        <div className="bg-indigo-deep/30 px-4 sm:px-5 py-2.5 border-b border-code-line flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
+          <div className="flex items-center gap-2 flex-wrap text-indigo-badge-text">
+            <span className="font-bold uppercase tracking-wider text-indigo-on-dark font-sans">
+              WHY THIS CHANGE?
+            </span>
+            <span>·</span>
+            <span className="bg-indigo-deep px-1.5 py-0.5 rounded text-indigo-on-dark">
+              Rule: {explanation.ruleId || explanation.ruleName || 'Modernization'}
+            </span>
+            {explanation.confidence && (
+              <span className="text-code-muted">
+                Confidence: <strong className="text-teal-on-dark capitalize">{explanation.confidence}</strong>
+              </span>
+            )}
+          </div>
+          {explanation.behaviorImpact && (
+            <span className="text-code-muted">
+              Behavior impact: <span className="text-indigo-on-dark">{explanation.behaviorImpact}</span>
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Rule / Warning bar */}
       {ruleWarning && (
@@ -188,7 +241,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
           </pre>
         ) : (
           <div className="p-12 text-center text-code-muted font-sans text-sm">
-            Select a file to view changes.
+            {emptyMessage || 'Select a modernization candidate to inspect diff.'}
           </div>
         )}
       </div>

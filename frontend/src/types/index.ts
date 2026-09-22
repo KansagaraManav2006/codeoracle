@@ -829,6 +829,62 @@ export interface RefactorWarning {
   breaking_change: boolean;
 }
 
+export type ModernizationState = {
+  findings: number;
+  candidates: number;
+  autofixEligible: number;
+  generatedDiffs: number;
+  staticallyValidated: number;
+  runtimeVerified: number;
+  humanApproved: number;
+};
+
+export type CandidateDisposition =
+  | 'manual_review'
+  | 'unsupported_transform'
+  | 'insufficient_parse_confidence'
+  | 'high_blast_radius'
+  | 'missing_protection'
+  | 'dynamic_behavior'
+  | 'already_modern'
+  | 'other';
+
+export type ModernizationCategory =
+  | 'legacy_syntax'
+  | 'deprecated_api'
+  | 'high_complexity'
+  | 'large_function'
+  | 'duplicate_logic'
+  | 'dependency_coupling'
+  | 'generated_code'
+  | 'unsafe_pattern'
+  | 'framework_modernization'
+  | 'typing_improvement';
+
+export interface ModernizationRule {
+  id: string;
+  name: string;
+  language: string;
+  category: string;
+  deterministic: boolean;
+  requiresFullAst: boolean;
+  requiresProtection: boolean;
+  description: string;
+  exampleBefore?: string;
+  exampleAfter?: string;
+}
+
+export type CandidateFileStatus =
+  | 'CLEAN'
+  | 'FINDINGS'
+  | 'CANDIDATE'
+  | 'MANUAL REVIEW'
+  | 'AUTOFIX ELIGIBLE'
+  | 'DIFF READY'
+  | 'STATIC VALID'
+  | 'RUNTIME VERIFIED'
+  | 'BLOCKED';
+
 export interface RefactoredFile {
   relative_path: string;
   language: 'python' | 'javascript';
@@ -840,6 +896,9 @@ export interface RefactoredFile {
   syntax_valid: boolean;
   syntax_error?: string | null;
   changed: boolean;
+  applied_rule_ids?: string[];
+  candidate_disposition?: CandidateDisposition;
+  candidate_type?: string;
 }
 
 export interface ProjectRefactorResult {
@@ -857,6 +916,8 @@ export interface ProjectRefactorResult {
   findings: Finding[];
   finding_funnel: FindingFunnel;
   verification?: RefactorVerificationResult | null;
+  modernization_state?: ModernizationState | null;
+  modernization_rules?: ModernizationRule[];
 }
 
 export interface TestExecutionComparison {
