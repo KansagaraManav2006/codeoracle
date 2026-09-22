@@ -92,7 +92,7 @@ export const StatusTag: React.FC<StatusTagProps> = ({ status, label, className =
     tagClass = 'bg-amber-surface text-amber-text border border-amber-line/40 font-bold';
     defaultLabel = label || (norm === 'medium' ? 'MEDIUM' : 'COMPLEXITY: MEDIUM');
   } else if (norm === 'low' || norm === 'complexity-low') {
-    tagClass = 'bg-slate-surface text-slate-text border border-slate/25 font-bold';
+    tagClass = 'bg-teal-surface text-teal-text border border-teal/25 font-bold';
     defaultLabel = label || (norm === 'low' ? 'LOW' : 'COMPLEXITY: LOW');
   } else if (norm === 'analyzed') {
     tagClass = 'bg-slate-surface text-slate-text border border-slate/25 font-bold';

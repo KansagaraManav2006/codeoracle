@@ -35,6 +35,10 @@ import SearchField from './common/SearchField';
 import { FilterChip } from './common/Chips';
 import { StatusTag } from './common/Tags';
 import { useToast } from './common/Toast';
+import LoadingState from './common/LoadingState';
+import Badge from './common/Badge';
+import Card from './common/Card';
+import PageHeader from './common/PageHeader';
 
 interface GeneratedTestsTabProps {
   projectId?: string | null;
@@ -292,19 +296,7 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
   if (!projectId) return null;
 
   if (loading && !result) {
-    return (
-      <div className="space-y-4 max-w-full">
-        <div className="skeleton h-24 w-full" />
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          <div className="skeleton h-24" />
-          <div className="skeleton h-24" />
-          <div className="skeleton h-24" />
-          <div className="skeleton h-24" />
-          <div className="skeleton h-24" />
-        </div>
-        <div className="skeleton h-[480px] w-full" />
-      </div>
-    );
+    return <LoadingState label="Loading generated characterization tests…" />;
   }
 
   const totalCases = result?.total_generated_tests || 0;
@@ -341,55 +333,42 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
       id="tabpanel-tests"
       aria-labelledby="tab-tests"
     >
-      {/* 1. Header Bar */}
-      <section className="bg-surface border border-line rounded-lg p-4 sm:p-5 shadow-1 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5 min-w-0">
-          <div
-            className="w-11 h-11 rounded-md bg-amber-surface text-amber-text flex items-center justify-center shrink-0 border border-amber/20"
-            aria-hidden="true"
-          >
-            <TestTube className="w-5 h-5 text-amber-strong" strokeWidth={1.75} />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="font-display font-bold text-lg sm:text-[20px] text-ink leading-tight">
-                Safety Tests &amp; Behavior Protection
-              </h2>
-              <span className="px-2 py-0.5 rounded-pill text-[10px] font-bold uppercase tracking-wider bg-tile border border-line text-ink-2">
-                Static AST Characterization
-              </span>
-            </div>
-            <p className="font-sans text-xs text-ink-3 mt-0.5">
-              Review-ready pytest and Vitest characterization suites generated to preserve legacy contracts and prevent regressions during modernization.
-            </p>
-          </div>
-        </div>
+      <PageHeader
+        icon={TestTube}
+        title="Generated Tests"
+        description="Review-ready pytest and Vitest characterization suites generated to preserve legacy contracts and prevent regressions during modernization."
+        badge={
+          <Badge tone="indigo" size="sm">
+            Characterization
+          </Badge>
+        }
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDownloadModalOpen(true)}
+              icon={<Download className="w-3.5 h-3.5" strokeWidth={1.75} />}
+            >
+              Download Tests
+            </Button>
 
-        <div className="flex items-center gap-2.5 shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setDownloadModalOpen(true)}
-            icon={<Download className="w-3.5 h-3.5" strokeWidth={1.75} />}
-          >
-            Download Tests
-          </Button>
-
-          <Button
-            variant="indigo"
-            size="sm"
-            onClick={handleRegenerate}
-            loading={regenerating}
-            loadingText="Regenerating…"
-            icon={<Play className="w-3.5 h-3.5" strokeWidth={1.75} />}
-          >
-            Regenerate Safety Tests
-          </Button>
-        </div>
-      </section>
+            <Button
+              variant="indigo"
+              size="sm"
+              onClick={handleRegenerate}
+              loading={regenerating}
+              loadingText="Regenerating…"
+              icon={<Play className="w-3.5 h-3.5" strokeWidth={1.75} />}
+            >
+              Regenerate Safety Tests
+            </Button>
+          </>
+        }
+      />
 
       {/* 2. Verification Ladder Bar (Static vs Runtime Clearly Delineated) */}
-      <section className="bg-surface border border-line rounded-lg p-3.5 sm:p-4 shadow-1">
+      <Card variant="secondary" padding="sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-line">
           <div>
             <span className="font-sans text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
@@ -453,7 +432,7 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
             <div className="text-[11px] font-mono text-ink-3 mt-0.5">Run Locally via ZIP</div>
           </div>
         </div>
-      </section>
+      </Card>
 
       {/* 3. Five KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -617,10 +596,10 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
       {/* 5. Master–Detail Layout: Test Explorer + Selected Test Header & Code Viewer */}
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 items-start w-full max-w-full min-w-0">
         {/* Left Column: Explorer Drawer */}
-        <div
-          role="region"
-          aria-label="Test Explorer"
-          className="bg-surface border border-line rounded-lg p-3 shadow-1 flex flex-col max-h-[820px] w-full min-w-0"
+        <Card
+          variant="secondary"
+          padding="sm"
+          className="flex flex-col max-h-[820px] w-full min-w-0"
         >
           {/* Sub-tab switcher: Tests vs Unprotected Queue */}
           <div className="grid grid-cols-2 gap-1 p-1 bg-track rounded-lg mb-2.5 shrink-0">
@@ -927,7 +906,7 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
               </div>
             )}
           </div>
-        </div>
+        </Card>
 
         {/* Right Column: Selected Test Header, Metadata, Why Generated, and Fixed Code Viewer */}
         <div className="space-y-4 min-w-0 w-full max-w-full">

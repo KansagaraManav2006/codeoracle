@@ -4,6 +4,7 @@ import { ProjectMetadataResponse } from '../types';
 import { sourceLabel } from '../utils/presentation';
 import RiskBadge from './common/RiskBadge';
 import Button from './common/Button';
+import Card from './common/Card';
 
 interface RecentProjectsSectionProps {
   onOpenProject: (projectId: string) => void;
@@ -62,7 +63,7 @@ export const RecentProjectsSection: React.FC<RecentProjectsSectionProps> = ({
   });
 
   return (
-    <div className="mx-auto max-w-4xl rounded-2xl border border-line bg-surface p-6 shadow-1 sm:p-8">
+    <Card variant="primary" padding="lg" className="w-full">
       <div className="flex flex-col gap-4 border-b border-line pb-5 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-surface text-indigo border border-indigo/20">
@@ -193,7 +194,7 @@ export const RecentProjectsSection: React.FC<RecentProjectsSectionProps> = ({
           ))}
         </div>
       )}
-    </div>
+    </Card>
   );
 };
 

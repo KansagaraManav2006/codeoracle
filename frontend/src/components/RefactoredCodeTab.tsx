@@ -38,6 +38,10 @@ import KpiCard from './common/KpiCard';
 import DiffViewer, { DiffMode } from './common/DiffViewer';
 import SearchField from './common/SearchField';
 import { useToast } from './common/Toast';
+import LoadingState from './common/LoadingState';
+import Badge from './common/Badge';
+import Card from './common/Card';
+import PageHeader from './common/PageHeader';
 import ModernizationPipeline from './modernization/ModernizationPipeline';
 import CandidateDispositionPanel, {
   DispositionCount,
@@ -761,17 +765,7 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
   if (!projectId) return null;
 
   if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="skeleton h-28 w-full" />
-        <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="skeleton h-24" />
-          ))}
-        </div>
-        <div className="skeleton h-[420px] w-full" />
-      </div>
-    );
+    return <LoadingState label="Loading modernization proposals…" />;
   }
 
   const verification = result?.verification;
@@ -807,31 +801,17 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
       id="tabpanel-refactor"
       aria-labelledby="tab-refactor"
     >
-      {/* 1. Header Bar */}
-      <section className="bg-surface border border-line rounded-lg p-4 sm:p-5 shadow-1 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5 min-w-0">
-          <div
-            className="w-11 h-11 rounded-md bg-teal-surface text-teal-strong flex items-center justify-center shrink-0 border border-teal/20"
-            aria-hidden="true"
-          >
-            <Wand2 className="w-5 h-5" strokeWidth={1.75} />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="font-display font-bold text-lg sm:text-[20px] text-ink leading-tight">
-                {trustedDemo ? 'Verified Modernization Loop' : 'Modernization Verification Pipeline'}
-              </h2>
-              <span className="px-2 py-0.5 rounded-pill font-mono text-[10px] font-bold uppercase tracking-wider bg-tile border border-line text-ink-3">
-                {trustedDemo ? 'Sandbox verified' : 'Static analysis active'}
-              </span>
-            </div>
-            <p className="font-sans text-xs text-ink-3 mt-0.5">
-              Review candidates, deterministic rule diffs, and verification pipeline before merging.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+      <PageHeader
+        icon={Wand2}
+        title="Refactored Code"
+        description="Review candidates, deterministic rule diffs, and verification pipeline before merging."
+        badge={
+          <Badge tone={trustedDemo ? 'green' : 'indigo'} size="sm">
+            {trustedDemo ? 'Sandbox verified' : 'Static analysis'}
+          </Badge>
+        }
+        actions={
+          <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
           <Button
             variant="outline"
             size="sm"
@@ -860,8 +840,9 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
           >
             Regenerate
           </Button>
-        </div>
-      </section>
+          </div>
+        }
+      />
 
       {/* 2. Six Canonical Summary KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-3.5">
@@ -1111,7 +1092,7 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
       {/* 6. Candidate Explorer with Filters + Search + Master–Detail Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4 items-start">
         {/* Left: Candidates & Files Explorer */}
-        <div className="bg-surface border border-line rounded-lg p-3 shadow-1 max-h-[780px] flex flex-col space-y-2.5">
+        <Card variant="secondary" padding="sm" className="max-h-[780px] flex flex-col space-y-2.5">
           <div className="px-1 pt-1 pb-2 border-b border-line space-y-2">
             <div className="flex items-center justify-between">
               <span className="font-sans text-[11px] font-bold uppercase tracking-[0.08em] text-ink-2 block">
@@ -1251,7 +1232,7 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
               })
             )}
           </div>
-        </div>
+        </Card>
 
         {/* Right: Selected Candidate Detail & Diff View */}
         <div className="space-y-4 min-w-0">

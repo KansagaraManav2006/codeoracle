@@ -18,6 +18,9 @@ import {
 } from 'lucide-react';
 import { IngestionMode } from '../types';
 import Button from './common/Button';
+import Badge from './common/Badge';
+import Card from './common/Card';
+import PageHeader from './common/PageHeader';
 import { formatBytes } from '../utils/formatters';
 
 import { normalizeGithubUrl, validateGithubUrl } from '../utils/github';
@@ -123,25 +126,33 @@ export const InputSection: React.FC<InputSectionProps> = ({
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto py-3 sm:py-6 flex flex-col items-center text-center">
-      {/* Badge */}
-      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-pill bg-indigo-surface border border-indigo/20 text-indigo text-xs font-bold uppercase tracking-wider mb-3.5 shadow-xs">
-        <Sparkles className="w-3.5 h-3.5" />
-        <span>Codebase Modernization Engine</span>
-      </div>
+    <div className="w-full max-w-workspace text-left space-y-5">
+      <PageHeader
+        icon={Upload}
+        title="Codebase Ingestion"
+        description="Upload a ZIP or connect a public GitHub repository. Analysis is read-only AST — Python (.py) and JavaScript (.js/.jsx)."
+        badge={
+          <Badge tone="indigo" size="sm">
+            Workspace
+          </Badge>
+        }
+        actions={
+          <div className="flex flex-wrap gap-1.5">
+            <Badge tone="amber" size="sm">
+              200 MB ZIP
+            </Badge>
+            <Badge tone="amber" size="sm">
+              100k lines
+            </Badge>
+            <Badge tone="indigo" size="sm">
+              .py / .js / .jsx
+            </Badge>
+          </div>
+        }
+      />
 
-      {/* Hero Title */}
-      <h1 className="font-display font-extrabold text-2xl sm:text-4xl text-ink tracking-tight leading-tight max-w-[620px]">
-        Understand legacy code before you change it.
-      </h1>
-
-      {/* Hero Subtitle */}
-      <p className="mt-2.5 text-xs sm:text-sm leading-relaxed text-ink-3 max-w-[540px] font-sans">
-        Deterministic dependency maps, explainable modernization readiness scores, and safe before-and-after proposals.
-      </p>
-
-      {/* Main Elevated Ingestion Card */}
-      <div className="w-full max-w-2xl mx-auto mt-6 bg-surface border border-line rounded-2xl shadow-xl overflow-hidden transition-all text-left">
+      {/* Main Ingestion Card */}
+      <Card variant="primary" padding="none" className="overflow-hidden">
         {/* Top Segmented Mode Selector */}
         <div className="grid grid-cols-2 border-b border-line bg-tile/50 p-1.5 gap-1.5">
           <button
@@ -480,10 +491,10 @@ export const InputSection: React.FC<InputSectionProps> = ({
             )}
           </form>
         </div>
-      </div>
+      </Card>
 
       {/* Built-in Demo Benchmark Cards */}
-      <div className="w-full max-w-2xl mx-auto mt-6 pt-5 border-t border-line/70 text-left">
+      <div className="w-full pt-1">
         <div className="flex items-center justify-between mb-3">
           <span className="text-xs font-bold uppercase tracking-wider text-ink flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-amber" />
@@ -499,15 +510,15 @@ export const InputSection: React.FC<InputSectionProps> = ({
             type="button"
             disabled={disabled}
             onClick={() => onLoadDemo('python_legacy')}
-            className="flex flex-col items-start p-3.5 rounded-xl bg-surface hover:bg-tile border border-line hover:border-line-strong transition-all shadow-xs text-left group cursor-pointer disabled:opacity-50"
+            className="flex flex-col items-start p-3.5 rounded-lg bg-surface hover:bg-tile border border-line hover:border-indigo/30 shadow-1 transition-all text-left group cursor-pointer disabled:opacity-50 card-interactive"
           >
             <div className="flex items-center justify-between w-full">
               <span className="text-xs font-bold text-ink group-hover:text-indigo transition-colors">
                 Python Legacy
               </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-track text-ink-2 font-bold border border-line">
+              <Badge tone="indigo" size="sm">
                 Py 2/3
-              </span>
+              </Badge>
             </div>
             <p className="text-[11px] text-ink-3 mt-1.5 leading-snug">
               Modernizes old Python 2 constructs to Python 3.12 with characterization tests.
@@ -518,15 +529,15 @@ export const InputSection: React.FC<InputSectionProps> = ({
             type="button"
             disabled={disabled}
             onClick={() => onLoadDemo('js_commonjs')}
-            className="flex flex-col items-start p-3.5 rounded-xl bg-surface hover:bg-tile border border-line hover:border-line-strong transition-all shadow-xs text-left group cursor-pointer disabled:opacity-50"
+            className="flex flex-col items-start p-3.5 rounded-lg bg-surface hover:bg-tile border border-line hover:border-indigo/30 shadow-1 transition-all text-left group cursor-pointer disabled:opacity-50 card-interactive"
           >
             <div className="flex items-center justify-between w-full">
               <span className="text-xs font-bold text-ink group-hover:text-indigo transition-colors">
                 JS CommonJS
               </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-track text-ink-2 font-bold border border-line">
+              <Badge tone="indigo" size="sm">
                 Node.js
-              </span>
+              </Badge>
             </div>
             <p className="text-[11px] text-ink-3 mt-1.5 leading-snug">
               CommonJS require/export migration to modern ES Modules and Vitest.
@@ -537,15 +548,15 @@ export const InputSection: React.FC<InputSectionProps> = ({
             type="button"
             disabled={disabled}
             onClick={() => onLoadDemo('legacy_retail')}
-            className="flex flex-col items-start p-3.5 rounded-xl bg-surface hover:bg-tile border border-line hover:border-line-strong transition-all shadow-xs text-left group cursor-pointer disabled:opacity-50"
+            className="flex flex-col items-start p-3.5 rounded-lg bg-surface hover:bg-tile border border-line hover:border-indigo/30 shadow-1 transition-all text-left group cursor-pointer disabled:opacity-50 card-interactive"
           >
             <div className="flex items-center justify-between w-full">
               <span className="text-xs font-bold text-ink group-hover:text-indigo transition-colors">
                 Full Retail Suite
               </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-track text-ink-2 font-bold border border-line">
+              <Badge tone="amber" size="sm">
                 Polyglot
-              </span>
+              </Badge>
             </div>
             <p className="text-[11px] text-ink-3 mt-1.5 leading-snug">
               Multi-tiered architecture with cross-language API contracts and test suite.
@@ -555,8 +566,8 @@ export const InputSection: React.FC<InputSectionProps> = ({
       </div>
 
       {/* Safety & Trust Pillars */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-6 pt-5 border-t border-line/80 w-full max-w-2xl text-left">
-        <div className="flex items-start gap-2.5 p-3 rounded-xl bg-surface/50 border border-line/60">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
+        <Card variant="secondary" padding="sm" className="flex items-start gap-2.5">
           <div className="w-7 h-7 rounded-md bg-teal-surface text-teal-strong flex items-center justify-center shrink-0 border border-teal/20">
             <Shield className="w-3.5 h-3.5" strokeWidth={1.75} />
           </div>
@@ -568,9 +579,9 @@ export const InputSection: React.FC<InputSectionProps> = ({
               Inspects AST syntax trees without executing arbitrary code.
             </p>
           </div>
-        </div>
+        </Card>
 
-        <div className="flex items-start gap-2.5 p-3 rounded-xl bg-surface/50 border border-line/60">
+        <Card variant="secondary" padding="sm" className="flex items-start gap-2.5">
           <div className="w-7 h-7 rounded-md bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
             <Lock className="w-3.5 h-3.5" strokeWidth={1.75} />
           </div>
@@ -582,9 +593,9 @@ export const InputSection: React.FC<InputSectionProps> = ({
               Characterization tests run safely in isolated disposable sandboxes.
             </p>
           </div>
-        </div>
+        </Card>
 
-        <div className="flex items-start gap-2.5 p-3 rounded-xl bg-surface/50 border border-line/60">
+        <Card variant="secondary" padding="sm" className="flex items-start gap-2.5">
           <div className="w-7 h-7 rounded-md bg-amber-surface text-amber-strong flex items-center justify-center shrink-0 border border-amber/20">
             <FileOutput className="w-3.5 h-3.5" strokeWidth={1.75} />
           </div>
@@ -596,7 +607,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
               Download Markdown architecture overviews and Mermaid diagrams.
             </p>
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );

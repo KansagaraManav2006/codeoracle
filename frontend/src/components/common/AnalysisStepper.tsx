@@ -148,7 +148,7 @@ export const AnalysisStepper: React.FC<AnalysisStepperProps> = ({
 
     return (
       <div
-        className={`max-w-[560px] w-full mx-auto bg-surface rounded-2xl border border-red-line shadow-shell p-6 sm:p-7 animate-[fade-down_150ms_ease-out] ${className}`}
+        className={`max-w-full w-full mx-auto bg-surface rounded-xl border border-red-line shadow-1 p-5 sm:p-6 animate-[fade-down_150ms_ease-out] ${className}`}
         role="alert"
         aria-live="assertive"
       >
@@ -159,7 +159,7 @@ export const AnalysisStepper: React.FC<AnalysisStepperProps> = ({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap justify-between">
               <h3 className="font-display font-bold text-lg text-ink">Repository fetch failed</h3>
-              <span className="font-mono text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-red-surface text-red-strong border border-red-line">
+              <span className="font-mono text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-pill bg-red-surface text-red-strong border border-red-line">
                 Error: {errorCode}
               </span>
             </div>
@@ -261,13 +261,13 @@ export const AnalysisStepper: React.FC<AnalysisStepperProps> = ({
   // Running Stepper UI
   return (
     <div
-      className={`max-w-[560px] w-full mx-auto bg-surface rounded-2xl border border-line shadow-shell p-6 sm:p-7 ${className}`}
+      className={`max-w-full w-full mx-auto bg-surface rounded-xl border border-line shadow-1 p-5 sm:p-6 ${className}`}
     >
       <div className="mb-5 border-b border-line pb-4">
         <div className="flex items-center justify-between gap-2">
           <h3 className="font-display font-bold text-lg text-ink">Analyzing Codebase</h3>
           {progressPercentage !== undefined && progressPercentage > 0 && (
-            <span className="text-xs font-mono font-bold text-indigo bg-indigo-surface px-2 py-0.5 rounded-md border border-indigo/20">
+            <span className="text-xs font-mono font-bold text-amber-text bg-amber-surface px-2 py-0.5 rounded-pill border border-amber/35">
               {progressPercentage}%
             </span>
           )}
@@ -279,7 +279,7 @@ export const AnalysisStepper: React.FC<AnalysisStepperProps> = ({
         {/* Live Progress Bar */}
         <div className="w-full bg-track rounded-full h-2 overflow-hidden mt-3.5 border border-line/60">
           <div
-            className="h-full bg-gradient-to-r from-indigo to-teal rounded-full transition-all duration-500 ease-out"
+            className="h-full bg-indigo rounded-full transition-all duration-500 ease-out"
             style={{
               width: `${
                 progressPercentage && progressPercentage > 0

@@ -79,7 +79,7 @@ export const KpiCard: React.FC<KpiCardProps> = ({
     <Tag
       onClick={onClick}
       aria-pressed={variant === 'selected' ? true : undefined}
-      className={`relative flex flex-col justify-between p-4 sm:p-5 rounded-lg text-left transition-all duration-fast ${
+      className={`relative flex flex-col justify-between p-4 sm:p-5 rounded-xl text-left transition-all duration-fast ${
         style.card
       } ${
         isClickable

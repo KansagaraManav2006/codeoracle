@@ -34,7 +34,7 @@ export const StatTile: React.FC<StatTileProps> = ({
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={onClick ? (e) => (e.key === 'Enter' || e.key === ' ') && onClick() : undefined}
-      className={`bg-tile border border-line rounded-md p-3 sm:py-3 sm:px-4 flex flex-col justify-between ${
+      className={`bg-tile border border-line rounded-lg p-3 sm:py-3 sm:px-4 flex flex-col justify-between ${
         onClick ? 'cursor-pointer hover:border-indigo/40 hover:bg-surface transition-all select-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo' : ''
       } ${className}`}
     >

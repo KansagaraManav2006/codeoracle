@@ -36,6 +36,10 @@ import SearchField from './common/SearchField';
 import { FilterChip } from './common/Chips';
 import { StatusTag } from './common/Tags';
 import { useToast } from './common/Toast';
+import LoadingState from './common/LoadingState';
+import Badge from './common/Badge';
+import Card from './common/Card';
+import PageHeader from './common/PageHeader';
 import FindingFunnel from './common/FindingFunnel';
 import ChangeImpactView from './common/ChangeImpactView';
 import PriorityMatrix from './migration/PriorityMatrix';
@@ -273,17 +277,7 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
   if (!projectId) return null;
 
   if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="skeleton h-56 w-full" />
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="skeleton h-28" />
-          ))}
-        </div>
-        <div className="skeleton h-[400px] w-full" />
-      </div>
-    );
+    return <LoadingState label="Scoring migration readiness…" />;
   }
 
   if (error || !plan) {
@@ -347,33 +341,33 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
       )}
 
       {/* 1. Hero Card: Modernization Intelligence & Executive Plan */}
-      <section className="bg-surface border border-line rounded-xl p-6 sm:p-7 shadow-1 space-y-5">
+      <Card variant="primary" padding="lg" className="space-y-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="max-w-2xl space-y-3">
-            <div className="flex items-center gap-3">
-              <div
-                className="w-11 h-11 rounded-md bg-ink text-indigo-on-dark flex items-center justify-center shrink-0"
-                aria-hidden="true"
-              >
-                <Map className="w-5 h-5" strokeWidth={1.75} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="font-display font-bold text-[20px] text-ink leading-tight">
-                    Modernization Intelligence &amp; Plan
-                  </h2>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-pill bg-ink text-white font-sans text-[11px] font-bold tracking-[0.06em] uppercase select-none">
-                    DECISION SUPPORT
-                  </span>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-pill bg-tile border border-line text-ink font-mono text-[11px] font-bold uppercase">
-                    CONFIDENCE: {plan.readiness_confidence?.toUpperCase() || 'MEDIUM'}
-                  </span>
-                </div>
-                <p className="font-sans text-xs text-ink-3 mt-0.5">
-                  Explainable readiness scoring, blast-radius ripple analysis, and staged modernization waves.
-                </p>
-              </div>
-            </div>
+            <PageHeader
+              icon={Map}
+              title="Migration Plan"
+              description="Explainable readiness scoring, blast-radius ripple analysis, and staged modernization waves."
+              badge={
+                <>
+                  <Badge tone="indigo" size="sm">
+                    Decision support
+                  </Badge>
+                  <Badge
+                    tone={
+                      (plan.readiness_confidence || 'medium') === 'high'
+                        ? 'green'
+                        : (plan.readiness_confidence || 'medium') === 'low'
+                        ? 'red'
+                        : 'amber'
+                    }
+                    size="sm"
+                  >
+                    Confidence: {plan.readiness_confidence || 'medium'}
+                  </Badge>
+                </>
+              }
+            />
 
             <p className="font-sans text-[13px] text-ink-2 leading-[1.6] pt-1">
               {plan.executive_summary}
@@ -503,7 +497,7 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
             </button>
           </div>
         </div>
-      </section>
+      </Card>
 
       {/* 2. Next Best Action Callout Card */}
       {plan.next_best_action && (

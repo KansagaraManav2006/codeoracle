@@ -35,7 +35,7 @@ export const JobProgressView: React.FC<JobProgressViewProps> = ({
       : null);
 
   return (
-    <div className="w-full my-6 sm:my-8">
+    <div className="w-full my-2">
       <AnalysisStepper
         currentStage={currentStage}
         fetchStage={fetchStage}

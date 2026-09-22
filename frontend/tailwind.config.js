@@ -37,6 +37,7 @@ export default {
           surface: "var(--indigo-surface)",
           "on-dark": "var(--indigo-on-dark)",
           "badge-text": "var(--indigo-badge-text)",
+          strong: "var(--indigo-strong)",
         },
         teal: {
           DEFAULT: "var(--teal)",
@@ -44,6 +45,11 @@ export default {
           surface: "var(--teal-surface)",
           text: "var(--teal-text)",
           "on-dark": "var(--teal-on-dark)",
+          line: "var(--teal-line)",
+        },
+        sidebar: {
+          DEFAULT: "var(--sidebar)",
+          line: "var(--sidebar-line)",
         },
         amber: {
           DEFAULT: "var(--amber)",

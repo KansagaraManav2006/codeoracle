@@ -37,6 +37,10 @@ import { FilterChip } from './common/Chips';
 import { LanguageTag, StatusTag } from './common/Tags';
 import { useToast } from './common/Toast';
 import EmptyState from './common/EmptyState';
+import LoadingState from './common/LoadingState';
+import Badge from './common/Badge';
+import Card from './common/Card';
+import PageHeader from './common/PageHeader';
 
 interface ExplanationTabProps {
   projectId?: string | null;
@@ -684,18 +688,7 @@ ${
   }
 
   if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="skeleton h-24 w-full" />
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="skeleton h-24" />
-          <div className="skeleton h-24" />
-          <div className="skeleton h-24" />
-          <div className="skeleton h-24" />
-        </div>
-        <div className="skeleton h-48 w-full" />
-      </div>
-    );
+    return <LoadingState label="Loading architecture overview…" />;
   }
 
   if (error) {
@@ -780,17 +773,18 @@ ${
               <span className="font-mono text-[11px] font-black uppercase tracking-wider text-ink">
                 ANALYSIS CONFIDENCE:
               </span>
-              <span
-                className={`font-mono text-[11px] font-extrabold px-2 py-0.5 rounded border uppercase tracking-wider ${
+              <Badge
+                tone={
                   canonicalCoverage.confidence === 'high'
-                    ? 'bg-teal-surface text-teal-strong border-teal/30'
+                    ? 'green'
                     : canonicalCoverage.confidence === 'partial'
-                    ? 'bg-amber-surface text-amber-strong border-amber/40'
-                    : 'bg-indigo-surface text-indigo border-indigo/30'
-                }`}
+                    ? 'amber'
+                    : 'indigo'
+                }
+                size="sm"
               >
                 {canonicalCoverage.confidence.toUpperCase()}
-              </span>
+              </Badge>
               <span className="text-xs text-ink-3 hidden sm:inline">·</span>
               <span className="font-sans text-xs text-ink-2 font-medium">
                 <strong>{canonicalCoverage.fully_parsed}</strong> / {canonicalCoverage.total_source_files} files fully parsed
@@ -821,31 +815,22 @@ ${
       {/* ========================================================================= */}
       {/* 1. EXECUTIVE OVERVIEW: CORE ARCHITECTURE FACTS & KPIS                     */}
       {/* ========================================================================= */}
-      <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-line">
-          <div className="flex items-center gap-3.5 min-w-0">
-            <div
-              className="w-10 h-10 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20"
-              aria-hidden="true"
-            >
-              <BookOpen className="w-5 h-5" strokeWidth={1.75} />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-pill bg-indigo-surface text-indigo border border-indigo/20 uppercase tracking-wide">
-                  Question 1 · Executive Overview
-                </span>
-                <span className="font-mono text-[10px] font-semibold px-2 py-0.5 rounded-pill bg-surface text-ink-3 border border-line">
-                  Deterministic AST Evidence
-                </span>
-              </div>
-              <h2 className="font-display font-bold text-lg sm:text-[20px] text-ink leading-tight truncate">
-                {projectName} — Codebase Architecture &amp; Risk Command Center
-              </h2>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+      <PageHeader
+        icon={BookOpen}
+        title={`${projectName} — Architecture overview`}
+        description="Deterministic AST evidence for languages, coverage, coupling, and dependency loops."
+        badge={
+          <>
+            <Badge tone="indigo" size="sm">
+              Explanation
+            </Badge>
+            <Badge tone="neutral" size="sm">
+              AST evidence
+            </Badge>
+          </>
+        }
+        actions={
+          <>
             <Button
               variant="outline"
               size="sm"
@@ -864,8 +849,11 @@ ${
             >
               Refresh
             </Button>
-          </div>
-        </div>
+          </>
+        }
+      />
+
+      <Card variant="primary" padding="lg">
 
         {/* 5-Second Core Facts Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-5">
@@ -1026,13 +1014,13 @@ ${
             </div>
           </div>
         </div>
-      </section>
+      </Card>
 
       {/* ========================================================================= */}
       {/* 2. RECOMMENDED STARTING POINT & SCORE FACTOR DECOMPOSITION                */}
       {/* ========================================================================= */}
       {recommendedTarget && (
-        <section className="bg-surface border-2 border-indigo/40 rounded-xl p-5 sm:p-6 shadow-2 relative overflow-hidden">
+        <section className="bg-surface border-2 border-indigo/40 rounded-xl p-5 sm:p-6 shadow-1 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-indigo/5 rounded-full blur-2xl pointer-events-none" />
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-line">
             <div className="flex items-center gap-3">
@@ -1185,7 +1173,7 @@ ${
       {/* 3. MAJOR LAYERS BREAKDOWN (File Share % vs LOC Share %)                   */}
       {/* ========================================================================= */}
       {architectureLayers.length > 0 && (
-        <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
+        <Card variant="primary" padding="lg" className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-line">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
@@ -1277,14 +1265,14 @@ ${
               );
             })}
           </div>
-        </section>
+        </Card>
       )}
 
       {/* ========================================================================= */}
       {/* 4. UNRESOLVED DEPENDENCY DIAGNOSTICS                                      */}
       {/* ========================================================================= */}
       {architecture?.unresolved_diagnostics && (
-        <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
+        <Card variant="primary" padding="lg" className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-line">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
@@ -1349,7 +1337,7 @@ ${
               </div>
             )}
           </div>
-        </section>
+        </Card>
       )}
 
       {/* ========================================================================= */}
@@ -1358,7 +1346,7 @@ ${
       <section className="space-y-4">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {/* Top-Risk Modules Leaderboard */}
-          <div className="lg:col-span-2 bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
+          <Card variant="primary" padding="lg" className="lg:col-span-2 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-line">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
@@ -1448,10 +1436,10 @@ ${
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
 
           {/* Modernization Funnel Stages */}
-          <div className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 flex flex-col justify-between space-y-4">
+          <Card variant="secondary" padding="lg" className="flex flex-col justify-between space-y-4">
             <div>
               <div className="flex items-center justify-between pb-3 border-b border-line">
                 <div className="flex items-center gap-2">
@@ -1499,14 +1487,14 @@ ${
                 {findingFunnel.verification_label || 'Static analysis only: proposals require characterization tests.'}
               </p>
             </div>
-          </div>
+          </Card>
         </div>
       </section>
 
       {/* ========================================================================= */}
       {/* 6. GUIDED WORKFLOW ROADMAP                                                */}
       {/* ========================================================================= */}
-      <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
+      <Card variant="primary" padding="lg" className="space-y-4">
         <div className="flex items-center gap-3 pb-3 border-b border-line">
           <div className="w-10 h-10 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
             <Activity className="w-5 h-5" strokeWidth={1.75} />
@@ -1612,12 +1600,12 @@ ${
             </Button>
           </div>
         </div>
-      </section>
+      </Card>
 
       {/* ========================================================================= */}
       {/* 7. MODULE EXPLORER & ADVANCED SEARCH FILTERS                              */}
       {/* ========================================================================= */}
-      <div className="bg-surface border border-line rounded-xl p-4 sm:p-5 shadow-1 space-y-3">
+      <Card variant="primary" padding="md" className="space-y-3">
         {/* Search Bar + Quick Syntax Hints */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <SearchField
@@ -1710,7 +1698,7 @@ ${
             </select>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Module Accordion Rows */}
       <div className="space-y-2.5" role="region" aria-label="Analyzed Modules List">

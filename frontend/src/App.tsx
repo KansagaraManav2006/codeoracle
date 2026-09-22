@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, lazy, Suspense } from 'react';
-import Header from './components/Header';
+import AppSidebar from './components/AppSidebar';
+import ProjectContextBar from './components/ProjectContextBar';
 import WorkspaceShell from './components/WorkspaceShell';
-import ProjectNavBar from './components/ProjectNavBar';
 import InputSection from './components/InputSection';
 import JobProgressView from './components/JobProgressView';
 import RecentProjectsSection from './components/RecentProjectsSection';
@@ -14,6 +14,7 @@ import RefactoredCodeTab from './components/RefactoredCodeTab';
 import MigrationPlanTab from './components/MigrationPlanTab';
 import SystemPulseTab from './components/pulse/SystemPulseTab';
 import { ToastProvider } from './components/common/Toast';
+import PipelineStrip from './components/common/PipelineStrip';
 import ShortcutsModal from './components/common/ShortcutsModal';
 import ChangeImpactModal from './components/common/ChangeImpactModal';
 import { useJobPoller } from './hooks/useJobPoller';
@@ -57,11 +58,21 @@ const AppContent: React.FC = () => {
   const [hasHumanReviewRequired, setHasHumanReviewRequired] = useState(false);
   const [impactModalOpen, setImpactModalOpen] = useState(false);
   const [impactModalTarget, setImpactModalTarget] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const handleOpenImpactModal = (filePath: string) => {
     setImpactModalTarget(filePath);
     setImpactModalOpen(true);
   };
+
+  useEffect(() => {
+    const rail = window.matchMedia('(min-width: 1024px) and (max-width: 1279px)');
+    const apply = () => setSidebarCollapsed(rail.matches);
+    apply();
+    rail.addEventListener('change', apply);
+    return () => rail.removeEventListener('change', apply);
+  }, []);
 
   const {
     job,
@@ -220,7 +231,7 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-canvas text-ink-2 flex flex-col font-sans antialiased">
+    <div className="min-h-screen bg-canvas text-ink-2 flex font-sans antialiased">
       {/* Skip to Content for Accessibility per DESIGN.md §12 */}
       <a
         href="#main-content"
@@ -229,33 +240,60 @@ const AppContent: React.FC = () => {
         Skip to content
       </a>
 
-      {/* Navigation & Brand Header */}
-      {!project ? (
-        <Header />
-      ) : (
-        <ProjectNavBar
+      <AppSidebar
+        hasProject={Boolean(project)}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        onIngest={reset}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
+        mobileOpen={mobileNavOpen}
+        onMobileClose={() => setMobileNavOpen(false)}
+        hasDependencyLoops={hasDependencyLoops}
+        hasHumanReviewRequired={hasHumanReviewRequired}
+        project={project}
+        onLoadDemo={loadDemo}
+        loading={loading}
+      />
+
+      <div
+        className={`flex-1 min-w-0 min-h-screen flex flex-col transition-[padding] duration-base ${
+          sidebarCollapsed ? 'lg:pl-[72px]' : 'lg:pl-[240px]'
+        }`}
+      >
+        <ProjectContextBar
           project={project}
-          files={files}
-          activeTab={activeTab}
-          onTabChange={handleTabChange}
           targetFile={targetFile}
           onSelectFile={handleSelectFile}
           onReset={reset}
           onOpenImpactModal={handleOpenImpactModal}
-          hasDependencyLoops={hasDependencyLoops}
-          hasHumanReviewRequired={hasHumanReviewRequired}
+          onOpenSidebar={() => setMobileNavOpen(true)}
         />
-      )}
 
-      {/* Main Page Content without restrictive side margins */}
+      {/* Main Page Content */}
       <main
         id="main-content"
         className={`flex-1 w-full ${
-          !project
-            ? 'max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8'
-            : 'px-3 sm:px-5 lg:px-6 py-3 sm:py-4'
+          project && (activeTab === 'graph' || activeTab === 'neural-map')
+            ? 'px-3 sm:px-4 py-3'
+            : 'px-4 sm:px-6 py-5'
         }`}
       >
+        {!(project && (activeTab === 'graph' || activeTab === 'neural-map')) && (
+          <PipelineStrip
+            stage={
+              !project
+                ? 'ingest'
+                : activeTab === 'tests' || activeTab === 'refactor' || activeTab === 'migration'
+                ? 'output'
+                : 'analyze'
+            }
+            hasProject={Boolean(project)}
+            onIngest={reset}
+            onAnalyze={() => handleTabChange('explanation')}
+            onOutput={() => handleTabChange('tests')}
+          />
+        )}
         {!project ? (
           <div className="space-y-6 sm:space-y-8">
             <InputSection
@@ -408,9 +446,10 @@ const AppContent: React.FC = () => {
       />
 
       {/* Footer */}
-      <footer className="border-t border-line px-4 py-4 text-center text-xs text-ink-3 bg-surface/60">
+      <footer className="border-t border-line px-4 py-3 text-center text-xs text-ink-3 bg-surface/60">
         CodeOracle Pro Engine &copy; 2026 — Legacy Codebase Intelligence &amp; Refactoring Engine
       </footer>
+      </div>
     </div>
   );
 };

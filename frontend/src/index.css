@@ -5,56 +5,60 @@
 :root {
   color-scheme: light;
 
-  /* Neutral foundation — shared by the page canvas and cards. */
-  --neutral:       #F8FAFC;
-  --canvas:        #F8FAFC;
-  --surface:       #FFFFFF;
-  --panel:         #F1F5F9;
-  --track:         #E2E8F0;
-  --tile:          #F8FAFC;
-  --well:          #F1F5F9;
-  --graph-bg:      #F8FAFC;
-  --graph-dot:     #CBD5E1;
-  --gauge-track:   rgba(15, 23, 42, 0.08);
-  --line:          #E2E8F0;
-  --line-strong:   #94A3B8;
+  /* Neutral foundation — ivory canvas, warm charcoal type. */
+  --neutral:       #F8F4EE;
+  --canvas:        #F8F4EE;
+  --surface:       #FFFEFB;
+  --panel:         #F3EDE4;
+  --track:         #E8E1D6;
+  --tile:          #F7F1E8;
+  --well:          #F1EBE3;
+  --graph-bg:      #F7F1E8;
+  --graph-dot:     #D4CBBE;
+  --gauge-track:   rgba(44, 41, 37, 0.08);
+  --line:          #E4DCD0;
+  --line-strong:   #C4B8A8;
+  --sidebar:       #FFFEFB;
+  --sidebar-line:  #E4DCD0;
 
-  /* Text — slate-black scale */
-  --ink:           #0F172A;
-  --ink-2:         #334155;
-  --ink-3:         #64748B;
-  --ink-4:         #94A3B8;   /* large text / decorative / metadata */
+  /* Text — charcoal scale */
+  --ink:           #2C2925;
+  --ink-2:         #4A4540;
+  --ink-3:         #6F6962;
+  --ink-4:         #9A9288;
   --ink-inverse:   #FFFFFF;
 
-  /* Header */
-  --header-bg:     #0F172A;
-  --header-line:   #1E293B;
-  --header-muted:  #94A3B8;
+  /* Header / chrome (light shell) */
+  --header-bg:     #FFFEFB;
+  --header-line:   #E4DCD0;
+  --header-muted:  #6F6962;
 
-  /* Deep-blue interactive system (keeps the legacy indigo utility aliases). */
-  --interactive:        #1D4ED8;
-  --interactive-press:  #1E40AF;
-  --interactive-deep:   #1E3A8A;
-  --interactive-text:   #1D4ED8;
-  --interactive-surface:#EFF6FF;
-  --interactive-on-dark:#DBEAFE;
-  --interactive-badge-text: #DBEAFE;
+  /* Brand indigo — primary interactive only. */
+  --interactive:        #4C4FD6;
+  --interactive-press:  #3F42C4;
+  --interactive-deep:   #3538A8;
+  --interactive-text:   #3F42C4;
+  --interactive-surface:#EEEDFB;
+  --interactive-on-dark:#E4E3FA;
+  --interactive-badge-text: #EEEDFB;
   --indigo:            var(--interactive);
   --indigo-press:      var(--interactive-press);
   --indigo-deep:       var(--interactive-deep);
   --indigo-text:       var(--interactive-text);
   --indigo-surface:    var(--interactive-surface);
-  --indigo-on-dark:    var(--indigo-on-dark);
+  --indigo-on-dark:    var(--interactive-on-dark);
   --indigo-badge-text: var(--interactive-badge-text);
+  --indigo-strong:     var(--interactive-press);
 
-  /* Teal / Success */
-  --teal:          #0D9488;
-  --teal-strong:   #0F766E;
+  /* Green / Success (teal aliases kept for existing class names) */
+  --teal:          #15803D;
+  --teal-strong:   #166534;
   --teal-surface:  #F0FDF4;
   --teal-text:     #166534;
   --teal-on-dark:  #4ADE80;
+  --teal-line:     #BBF7D0;
 
-  /* Amber / Warning (reserved strictly for high-signal highlights & warnings) */
+  /* Amber — capped secondary signal (badges, scores, attention — never large fills) */
   --amber:            #D97706;
   --amber-strong:     #B45309;
   --amber-surface:    #FEF3C7;
@@ -112,7 +116,9 @@
   --sh-3:      0 12px 32px rgba(25, 23, 21, 0.12);
   --sh-4:      0 24px 64px rgba(25, 23, 21, 0.18);
   --sh-shell:  0 8px 40px rgba(25, 23, 21, 0.06);
-  --sh-indigo: 0 6px 16px -4px rgba(29, 78, 216, 0.32);
+  --sh-indigo: 0 6px 16px -4px rgba(76, 79, 214, 0.28);
+  --sidebar-w: 240px;
+  --sidebar-rail: 72px;
 
   /* Motion */
   --dur-instant: 100ms;
@@ -155,7 +161,7 @@
 
 html {
   -webkit-text-size-adjust: 100%;
-  scroll-padding-top: 88px;
+  scroll-padding-top: 16px;
 }
 
 body {
@@ -226,6 +232,40 @@ button, input, select, textarea {
 }
 
 /* Custom overlay scrollbar */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  box-shadow: var(--sh-1);
+}
+
+.card--secondary {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: none;
+}
+
+.card--muted {
+  background: var(--tile);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: none;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: var(--r-pill);
+  border: 1px solid transparent;
+  white-space: nowrap;
+  line-height: 1;
+}
+
 .custom-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: #C9C1B4 transparent;

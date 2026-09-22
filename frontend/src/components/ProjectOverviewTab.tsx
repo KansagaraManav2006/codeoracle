@@ -191,7 +191,7 @@ export const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
     <div className="w-full space-y-5 animate-[fade-down_150ms_ease-out]">
       {/* Hero Project Card */}
       <section
-        className="w-full bg-surface border border-line rounded-2xl p-5 sm:p-7 shadow-1 relative overflow-hidden"
+        className="w-full bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 relative overflow-hidden"
         aria-label="Repository Identity and Metrics"
       >
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
@@ -387,7 +387,7 @@ export const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
 
       {/* Analysis Coverage Breakdown Card */}
       <section
-        className="w-full bg-surface border border-line rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4"
+        className="w-full bg-surface border border-line rounded-xl p-4 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4"
         aria-label="AST Analysis Coverage Breakdown"
       >
         <div className="space-y-1">
@@ -433,7 +433,7 @@ export const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
       {/* Partial Analysis Warning Banner */}
       {isPartialAnalysis && (
         <div
-          className="w-full bg-amber-surface border border-amber/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs text-xs animate-[fade-down_150ms_ease-out]"
+          className="w-full bg-amber-surface border border-amber/30 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs text-xs animate-[fade-down_150ms_ease-out]"
           role="alert"
         >
           <div className="flex items-start gap-3">
@@ -462,7 +462,7 @@ export const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
 
       {/* Source Files Inventory Section */}
       <section
-        className="w-full bg-surface border border-line rounded-2xl p-5 sm:p-7 shadow-1 space-y-4"
+        className="w-full bg-surface border border-line rounded-xl p-5 sm:p-7 shadow-1 space-y-4"
         aria-label="Repository Source Files"
       >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-line">

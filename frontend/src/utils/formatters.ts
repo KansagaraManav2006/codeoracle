@@ -101,7 +101,7 @@ export function getScoreBand(score: number): ScoreBandInfo {
       color: 'teal',
       barFill: 'var(--teal)',
       textColor: 'var(--teal-strong)',
-      strokeColor: '#0D9488',
+      strokeColor: '#15803D',
       surfaceClass: 'bg-surface border-line',
       isRisk: false,
     };

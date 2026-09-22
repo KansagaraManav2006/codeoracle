@@ -49,6 +49,10 @@ import SegmentedControl from './common/SegmentedControl';
 import { ToggleChip, FilterChip } from './common/Chips';
 import { LanguageTag, StatusTag } from './common/Tags';
 import { useToast } from './common/Toast';
+import LoadingState from './common/LoadingState';
+import Badge from './common/Badge';
+import Card from './common/Card';
+import PageHeader from './common/PageHeader';
 
 interface DependencyGraphTabProps {
   projectId?: string | null;
@@ -982,17 +986,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
   if (!projectId) return null;
 
   if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="skeleton h-32 w-full" />
-        <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="skeleton h-16" />
-          ))}
-        </div>
-        <div className="skeleton h-[520px] w-full" />
-      </div>
-    );
+    return <LoadingState label="Building dependency graph…" />;
   }
 
   if (error || !graph) {
@@ -1021,45 +1015,25 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
       id="tabpanel-graph"
       aria-labelledby="tab-graph"
     >
-      {/* 1. Section Header Card with Canonical Facts */}
-      <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-line">
-          <div className="flex items-center gap-3.5 min-w-0">
-            <div
-              className="w-11 h-11 rounded-md bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20"
-              aria-hidden="true"
+      <PageHeader
+        icon={Workflow}
+        title="Dependency Graph"
+        description="Deterministic module coupling, semantic entry points, and verified cycles. Single canonical source of truth for blast radius and impact."
+        badge={
+          <>
+            <Badge tone="indigo" size="sm">
+              Canonical map
+            </Badge>
+            <Badge
+              tone={graphConfidence === 'high' ? 'green' : 'amber'}
+              size="sm"
+              title={graph.summary.graph_confidence_reason || 'Graph confidence score'}
             >
-              <Workflow className="w-5 h-5" strokeWidth={1.75} />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="font-display font-bold text-lg sm:text-[20px] text-ink leading-tight">
-                  Code Relationships &amp; Architecture Map
-                </h2>
-                <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-pill bg-indigo-surface text-indigo border border-indigo/20 uppercase tracking-wide">
-                  Canonical Dependency Graph
-                </span>
-
-                {/* Graph Confidence Badge */}
-                <span
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-pill font-mono text-[10px] font-bold tracking-wide uppercase border ${
-                    graphConfidence === 'high'
-                      ? 'bg-teal-surface text-teal-text border-teal-line'
-                      : graphConfidence === 'medium'
-                      ? 'bg-amber-surface text-amber-text border-amber-line'
-                      : 'bg-amber-surface/70 text-amber-text border-amber-line'
-                  }`}
-                  title={graph.summary.graph_confidence_reason || 'Graph confidence score'}
-                >
-                  CONFIDENCE: {graphConfidence.toUpperCase()}
-                </span>
-              </div>
-              <p className="font-sans text-xs text-ink-3 mt-0.5">
-                Deterministic module coupling, semantic entry points, and verified cycles. Single canonical source of truth for blast radius and impact.
-              </p>
-            </div>
-          </div>
-
+              Confidence: {graphConfidence}
+            </Badge>
+          </>
+        }
+        actions={
           <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
             {unresolvedCount > 0 && (
               <Button
@@ -1081,10 +1055,12 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
               Download Mermaid
             </Button>
           </div>
-        </div>
+        }
+      />
 
+      <Card variant="primary" padding="lg">
         {/* 6 Canonical Stat tiles */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <StatTile
             label="MODULES"
             value={formatNumber(totalInternalModules)}
@@ -1145,10 +1121,10 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
             Canvas renders top {cappedNodes.length} of {filteredNodes.length} modules · Metrics use all {totalInternalModules} modules
           </div>
         </div>
-      </section>
+      </Card>
 
       {/* 2. Subgraph Views & Layout Toolbar */}
-      <div className="bg-surface border border-line rounded-lg p-3 sm:px-4 shadow-1 space-y-3">
+      <Card variant="secondary" padding="sm" className="space-y-3">
         {/* Row 1: Search & Subgraph Filters */}
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
           <SearchField
@@ -1317,7 +1293,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
             </Button>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* 3. Main Workspace: Graph Canvas vs List View */}
       {viewMode === 'graph' ? (
@@ -1533,7 +1509,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
                     )
                       return '#D97706';
                     if (node.data?.isExternal) return '#94A3B8';
-                    return '#1D4ED8';
+                    return '#4C4FD6';
                   }}
                   maskColor="rgba(231, 224, 211, 0.45)"
                   zoomable
