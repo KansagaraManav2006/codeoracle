@@ -5,19 +5,24 @@ import {
   ZoomOut,
   Maximize2,
   Crosshair,
-  RotateCcw,
+  Compass,
+  ChevronRight,
+  Zap,
 } from 'lucide-react';
 import type {
   ClusterMode,
+  DensityLevel,
   FocusDepth,
   NeuralGraph,
-  NeuralLink,
   NeuralNode,
   NodeShape,
   VisualMode,
 } from './graphDataAdapter';
+import {
+  buildNodeBreadcrumb,
+  CONSTELLATION_CENTROIDS,
+} from './graphDataAdapter';
 import { useForceSimulation } from './useForceSimulation';
-import { truncateMiddle } from '../../utils/formatters';
 
 interface Props {
   graph: NeuralGraph;
@@ -32,17 +37,24 @@ interface Props {
   quickFilter: 'all' | 'high_risk' | 'partial' | 'entry_points' | 'unresolved';
   showIsolated: boolean;
   impactPreviewNode?: string | null;
+  density?: DensityLevel;
+  isolatedPath?: string[] | null;
+  onClearIsolatedPath?: () => void;
 }
 
-interface HoveredEdgeInfo {
-  link: NeuralLink;
-  sourceNode: NeuralNode;
-  targetNode: NeuralNode;
-  screenX: number;
-  screenY: number;
-}
+// Language color palette for inner accent cores
+const LANGUAGE_COLORS: Record<string, string> = {
+  python: '#3B82F6',
+  typescript: '#38BDF8',
+  javascript: '#FBBF24',
+  html: '#F97316',
+  css: '#EC4899',
+  sql: '#10B981',
+  shell: '#84CC16',
+  other: '#94A3B8',
+};
 
-// Custom shape drawing functions on 2D canvas
+// Custom shape drawing on Canvas
 function drawNodeShape(
   ctx: CanvasRenderingContext2D,
   shape: NodeShape,
@@ -53,7 +65,7 @@ function drawNodeShape(
   ctx.beginPath();
   switch (shape) {
     case 'diamond': {
-      // Entry point: diamond
+      // Entry point: prominent diamond
       const d = r * 1.35;
       ctx.moveTo(x, y - d);
       ctx.lineTo(x + d, y);
@@ -104,7 +116,7 @@ function drawNodeShape(
       break;
     }
     case 'db': {
-      // Database: polygon
+      // Database: pentagon
       const d = r * 1.25;
       for (let i = 0; i < 5; i++) {
         const angle = (i * 2 * Math.PI) / 5 - Math.PI / 2;
@@ -116,9 +128,16 @@ function drawNodeShape(
       ctx.closePath();
       break;
     }
+    case 'utility': {
+      // Utility: square
+      const s = r * 1.8;
+      ctx.rect(x - s / 2, y - s / 2, s, s);
+      break;
+    }
+    case 'store':
     case 'config': {
-      // Config: slender diamond
-      const dx = r * 1.6;
+      // Config/Store: slender diamond
+      const dx = r * 1.5;
       const dy = r * 0.9;
       ctx.moveTo(x, y - dy);
       ctx.lineTo(x + dx, y);
@@ -150,6 +169,9 @@ export default function ForceGraphCanvas({
   quickFilter,
   showIsolated,
   impactPreviewNode,
+  density = 'balanced',
+  isolatedPath = null,
+  onClearIsolatedPath,
 }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const { nodes, revision, settled } = useForceSimulation(graph, clusterMode, visualMode);
@@ -157,8 +179,15 @@ export default function ForceGraphCanvas({
   const [size, setSize] = useState({ width: 800, height: 620 });
   const [view, setView] = useState({ x: 400, y: 310, k: 1 });
   const [hoverNodeId, setHoverNodeId] = useState<string | null>(null);
-  const [hoveredEdge, setHoveredEdge] = useState<HoveredEdgeInfo | null>(null);
 
+  // Smooth camera animation state
+  const targetView = useRef<{ x: number; y: number; k: number } | null>(null);
+  const animFrame = useRef<number>(0);
+
+  // Selection shockwave pulse effect
+  const selectionPulse = useRef<{ id: string; startTime: number } | null>(null);
+
+  // Pointers for panning / dragging
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef({ x: 0, y: 0, moved: false });
 
@@ -180,7 +209,9 @@ export default function ForceGraphCanvas({
       if (!showIsolated && n.fanIn === 0 && n.fanOut === 0) return false;
 
       if (quickFilter === 'high_risk') {
-        if (!['high', 'critical'].includes(String(n.riskLevel).toLowerCase()) && n.hotspotScore < 50) return false;
+        if (!['high', 'critical'].includes(String(n.riskLevel).toLowerCase()) && n.hotspotScore < 50) {
+          return false;
+        }
       } else if (quickFilter === 'partial') {
         if (n.parseStatus !== 'partial') return false;
       } else if (quickFilter === 'entry_points') {
@@ -189,21 +220,79 @@ export default function ForceGraphCanvas({
         if (n.nodeState !== 'unresolved' && n.unresolvedImports === 0) return false;
       }
 
+      // Density filter: in minimal mode, show anchors and hubs only
+      if (density === 'minimal') {
+        if (n.visualTier === 'micro') return false;
+      }
+
       return true;
     },
-    [search, language, showIsolated, quickFilter]
+    [search, language, showIsolated, quickFilter, density]
   );
 
   const focusId = hoverNodeId || selected;
 
-  // Neighborhood sets for 1-hop and 2-hop focus lenses
-  const { directNeighbors, secondHopNeighbors } = useMemo(() => {
+  // Track selection change for smooth camera fly-to & pulse
+  useEffect(() => {
+    if (selected) {
+      selectionPulse.current = { id: selected, startTime: performance.now() };
+      const n = byId.get(selected);
+      if (n && Number.isFinite(n.x) && Number.isFinite(n.y)) {
+        // Smooth camera flight toward node
+        const targetK = Math.max(1.2, Math.min(2.2, view.k * 1.3));
+        targetView.current = {
+          x: size.width / 2 - n.x! * targetK,
+          y: size.height / 2 - n.y! * targetK,
+          k: targetK,
+        };
+      }
+    }
+  }, [selected, byId, size]);
+
+  // Smooth camera animation loop (350-600ms cubic ease)
+  useEffect(() => {
+    let active = true;
+    const animateCamera = () => {
+      if (!active) return;
+      if (targetView.current) {
+        const tv = targetView.current;
+        const dx = tv.x - view.x;
+        const dy = tv.y - view.y;
+        const dk = tv.k - view.k;
+
+        if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(dk) < 0.005) {
+          setView(tv);
+          targetView.current = null;
+        } else {
+          setView(v => ({
+            x: v.x + dx * 0.18,
+            y: v.y + dy * 0.18,
+            k: v.k + dk * 0.18,
+          }));
+        }
+      }
+      animFrame.current = requestAnimationFrame(animateCamera);
+    };
+
+    animFrame.current = requestAnimationFrame(animateCamera);
+    return () => {
+      active = false;
+      cancelAnimationFrame(animFrame.current);
+    };
+  }, [view]);
+
+  // Neighborhood sets for 1-hop, 2-hop, and 3-hop focus lenses
+  const { directNeighbors, secondHopNeighbors, thirdHopNeighbors } = useMemo(() => {
     const hop1 = new Set<string>();
     const hop2 = new Set<string>();
-    if (!focusId) return { directNeighbors: hop1, secondHopNeighbors: hop2 };
+    const hop3 = new Set<string>();
+    if (!focusId) {
+      return { directNeighbors: hop1, secondHopNeighbors: hop2, thirdHopNeighbors: hop3 };
+    }
 
     hop1.add(focusId);
     hop2.add(focusId);
+    hop3.add(focusId);
 
     // 1-Hop
     for (const link of graph.links) {
@@ -212,7 +301,7 @@ export default function ForceGraphCanvas({
     }
 
     // 2-Hop
-    if (focusDepth === '2-hop' || focusDepth === 'all') {
+    if (focusDepth === '2-hop' || focusDepth === '3-hop' || focusDepth === 'all') {
       for (const n of hop1) hop2.add(n);
       for (const link of graph.links) {
         if (hop1.has(link.source)) hop2.add(link.target);
@@ -220,7 +309,16 @@ export default function ForceGraphCanvas({
       }
     }
 
-    return { directNeighbors: hop1, secondHopNeighbors: hop2 };
+    // 3-Hop
+    if (focusDepth === '3-hop' || focusDepth === 'all') {
+      for (const n of hop2) hop3.add(n);
+      for (const link of graph.links) {
+        if (hop2.has(link.source)) hop3.add(link.target);
+        if (hop2.has(link.target)) hop3.add(link.source);
+      }
+    }
+
+    return { directNeighbors: hop1, secondHopNeighbors: hop2, thirdHopNeighbors: hop3 };
   }, [graph.links, focusId, focusDepth]);
 
   // Downstream subtree set for Entry Points visual mode
@@ -241,16 +339,21 @@ export default function ForceGraphCanvas({
     return set;
   }, [graph.links, focusId]);
 
-  // Direct and transitive impact sets when impactPreviewNode is active
-  const { directImpact, transitiveImpact } = useMemo(() => {
+  // Direct and transitive impact sets with affected entry points for Impact Mode
+  const { directImpact, transitiveImpact, affectedEntryPoints } = useMemo(() => {
     const dSet = new Set<string>();
     const tSet = new Set<string>();
+    const epSet = new Set<string>();
     const target = impactPreviewNode || (selected && focusId === selected ? selected : null);
-    if (!target) return { directImpact: dSet, transitiveImpact: tSet };
+    if (!target) return { directImpact: dSet, transitiveImpact: tSet, affectedEntryPoints: epSet };
 
     // Direct callers (upstream)
     for (const link of graph.links) {
-      if (link.target === target) dSet.add(link.source);
+      if (link.target === target) {
+        dSet.add(link.source);
+        const srcNode = byId.get(link.source);
+        if (srcNode?.isEntryPoint) epSet.add(link.source);
+      }
     }
 
     // Transitive callers
@@ -258,34 +361,54 @@ export default function ForceGraphCanvas({
     while (queue.length > 0) {
       const curr = queue.shift()!;
       for (const link of graph.links) {
-        if (link.target === curr && !dSet.has(link.source) && !tSet.has(link.source) && link.source !== target) {
+        if (
+          link.target === curr &&
+          !dSet.has(link.source) &&
+          !tSet.has(link.source) &&
+          link.source !== target
+        ) {
           tSet.add(link.source);
           queue.push(link.source);
+          const srcNode = byId.get(link.source);
+          if (srcNode?.isEntryPoint) epSet.add(link.source);
         }
       }
     }
 
-    return { directImpact: dSet, transitiveImpact: tSet };
-  }, [graph.links, impactPreviewNode, selected, focusId]);
+    return { directImpact: dSet, transitiveImpact: tSet, affectedEntryPoints: epSet };
+  }, [graph.links, impactPreviewNode, selected, focusId, byId]);
 
-  // Compute cluster bounding regions for soft ambient hulls
+  // Isolated path set for Path Tracing
+  const isolatedPathSet = useMemo(() => {
+    if (!isolatedPath) return null;
+    return new Set(isolatedPath);
+  }, [isolatedPath]);
+
+  // Compute cluster bounding hulls & atmospheric regions
   const clusterHulls = useMemo(() => {
-    const hulls = new Map<string, { minX: number; maxX: number; minY: number; maxY: number; count: number; color: string }>();
+    const hulls = new Map<
+      string,
+      { minX: number; maxX: number; minY: number; maxY: number; count: number; color: string; desc: string }
+    >();
     for (const n of nodes) {
       if (!Number.isFinite(n.x) || !Number.isFinite(n.y) || !matchesFilter(n)) continue;
       const key = n.clusterLabel || 'BACKEND';
+      const conf = CONSTELLATION_CENTROIDS[key] || {
+        color: '#0B3D91',
+        desc: 'Subsystem',
+      };
       const existing = hulls.get(key);
-      const color =
-        key === 'FRONTEND'
-          ? '#38BDF8'
-          : key === 'ML'
-          ? '#F472B6'
-          : key === 'DATABASE'
-          ? '#34D399'
-          : '#818CF8';
 
       if (!existing) {
-        hulls.set(key, { minX: n.x!, maxX: n.x!, minY: n.y!, maxY: n.y!, count: 1, color });
+        hulls.set(key, {
+          minX: n.x!,
+          maxX: n.x!,
+          minY: n.y!,
+          maxY: n.y!,
+          count: 1,
+          color: conf.color,
+          desc: conf.desc,
+        });
       } else {
         existing.minX = Math.min(existing.minX, n.x!);
         existing.maxX = Math.max(existing.maxX, n.x!);
@@ -304,14 +427,16 @@ export default function ForceGraphCanvas({
     const ys = nodes.map(n => (visualMode === 'flow' ? n.flowY : n.y!)).filter(Number.isFinite);
     if (!xs.length || !ys.length) return;
 
-    const minX = Math.min(...xs), maxX = Math.max(...xs);
-    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const minX = Math.min(...xs),
+      maxX = Math.max(...xs);
+    const minY = Math.min(...ys),
+      maxY = Math.max(...ys);
     const k = Math.max(
-      0.05,
+      0.08,
       Math.min(
-        1.5,
-        (size.width - 120) / Math.max(1, maxX - minX + 60),
-        (size.height - 120) / Math.max(1, maxY - minY + 60)
+        1.4,
+        (size.width - 140) / Math.max(1, maxX - minX + 80),
+        (size.height - 140) / Math.max(1, maxY - minY + 80)
       )
     );
     setView({
@@ -332,6 +457,26 @@ export default function ForceGraphCanvas({
       y: size.height / 2 - n.y! * v.k,
     }));
   }, [selected, byId, size]);
+
+  // Fly to specific constellation
+  const flyToConstellation = useCallback(
+    (constellationName: string) => {
+      const hull = clusterHulls.get(constellationName);
+      if (!hull) return;
+      const cx = (hull.minX + hull.maxX) / 2;
+      const cy = (hull.minY + hull.maxY) / 2;
+      const spanX = hull.maxX - hull.minX + 80;
+      const spanY = hull.maxY - hull.minY + 80;
+      const k = Math.max(0.6, Math.min(1.8, (size.width - 80) / spanX, (size.height - 80) / spanY));
+
+      targetView.current = {
+        x: size.width / 2 - cx * k,
+        y: size.height / 2 - cy * k,
+        k,
+      };
+    },
+    [clusterHulls, size]
+  );
 
   useEffect(() => {
     const observer = new ResizeObserver(([entry]) => {
@@ -355,7 +500,7 @@ export default function ForceGraphCanvas({
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
       setView(v => {
-        const k = Math.max(0.05, Math.min(5, v.k * Math.exp(-e.deltaY * 0.001)));
+        const k = Math.max(0.08, Math.min(5, v.k * Math.exp(-e.deltaY * 0.0012)));
         return {
           x: x - ((x - v.x) * k) / v.k,
           y: y - ((y - v.y) * k) / v.k,
@@ -367,8 +512,26 @@ export default function ForceGraphCanvas({
     return () => element.removeEventListener('wheel', wheel);
   }, []);
 
+  // Keyboard shortcut listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      if (e.key === 'Escape') {
+        onSelect(null);
+        if (onClearIsolatedPath) onClearIsolatedPath();
+      } else if (e.key === 'f' || e.key === 'F') {
+        fit();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onSelect, fit, onClearIsolatedPath]);
+
   // Main Canvas Render Loop
   useEffect(() => {
+    let frameId = 0;
     const draw = () => {
       if (document.hidden) return;
       const element = canvas.current;
@@ -380,54 +543,123 @@ export default function ForceGraphCanvas({
       element.height = Math.round(size.height * dpr);
       ctx.scale(dpr, dpr);
 
-      // Deep dark sleek canvas background
-      ctx.fillStyle = '#090A0F';
+      const now = performance.now();
+
+      // 1. Deep Ocean Canvas Surface with atmospheric radial gradient
+      const bgGrad = ctx.createRadialGradient(
+        size.width / 2,
+        size.height / 2,
+        40,
+        size.width / 2,
+        size.height / 2,
+        Math.max(size.width, size.height) * 0.8
+      );
+      bgGrad.addColorStop(0, '#0A2033'); // Cool deep ocean blue
+      bgGrad.addColorStop(0.5, '#071625');
+      bgGrad.addColorStop(1, '#040C16'); // Void depth
+      ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, size.width, size.height);
 
       ctx.save();
       ctx.translate(view.x, view.y);
       ctx.scale(view.k, view.k);
 
-      // 1. Soft Architecture Cluster Hulls & Headers
+      // Faint coordinate matrix grid points
+      const gridSpacing = 160;
+      const startX = Math.floor((-view.x / view.k) / gridSpacing) * gridSpacing - gridSpacing;
+      const endX = Math.ceil(((size.width - view.x) / view.k) / gridSpacing) * gridSpacing + gridSpacing;
+      const startY = Math.floor((-view.y / view.k) / gridSpacing) * gridSpacing - gridSpacing;
+      const endY = Math.ceil(((size.height - view.y) / view.k) / gridSpacing) * gridSpacing + gridSpacing;
+
+      ctx.fillStyle = '#38BDF8';
+      ctx.globalAlpha = 0.08;
+      for (let gx = startX; gx <= endX; gx += gridSpacing) {
+        for (let gy = startY; gy <= endY; gy += gridSpacing) {
+          ctx.fillRect(gx - 1 / view.k, gy - 1 / view.k, 2 / view.k, 2 / view.k);
+        }
+      }
+      ctx.globalAlpha = 1.0;
+
+      // 2. Atmospheric Subsystem Constellation Boundaries & Ambient Glow
       if (visualMode !== 'flow' && clusterHulls.size > 0) {
         for (const [key, hull] of clusterHulls.entries()) {
-          const padding = 50;
+          const padding = 55;
           const rx = hull.minX - padding;
           const ry = hull.minY - padding;
-          const rw = Math.max(80, hull.maxX - hull.minX + padding * 2);
-          const rh = Math.max(80, hull.maxY - hull.minY + padding * 2);
+          const rw = Math.max(120, hull.maxX - hull.minX + padding * 2);
+          const rh = Math.max(120, hull.maxY - hull.minY + padding * 2);
+          const cx = rx + rw / 2;
+          const cy = ry + rh / 2;
 
-          // Soft ambient rounded background
           ctx.save();
+
+          // Organic low-opacity radial field
+          const radialGlow = ctx.createRadialGradient(cx, cy, 10, cx, cy, Math.max(rw, rh) * 0.65);
+          radialGlow.addColorStop(0, `${hull.color}15`);
+          radialGlow.addColorStop(0.7, `${hull.color}05`);
+          radialGlow.addColorStop(1, 'transparent');
+          ctx.fillStyle = radialGlow;
+          ctx.beginPath();
+          ctx.arc(cx, cy, Math.max(rw, rh) * 0.65, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Soft translucent boundary hull
           ctx.globalAlpha = 0.04;
           ctx.fillStyle = hull.color;
           ctx.beginPath();
-          ctx.roundRect ? ctx.roundRect(rx, ry, rw, rh, 28) : ctx.rect(rx, ry, rw, rh);
+          ctx.roundRect ? ctx.roundRect(rx, ry, rw, rh, 36) : ctx.rect(rx, ry, rw, rh);
           ctx.fill();
 
-          ctx.globalAlpha = 0.12;
+          ctx.globalAlpha = 0.18;
           ctx.strokeStyle = hull.color;
-          ctx.lineWidth = 1 / view.k;
+          ctx.lineWidth = 1.2 / view.k;
           ctx.stroke();
 
-          // Cluster header (fades out as user zooms in deeply for focus)
-          const headerAlpha = Math.max(0, Math.min(0.85, (1.1 - view.k) * 1.5));
+          // Subsystem header: visible when camera is at high/mid zoom levels
+          const headerAlpha = Math.max(0, Math.min(0.9, (1.8 - view.k) * 1.2));
           if (headerAlpha > 0.05) {
             ctx.globalAlpha = headerAlpha;
             ctx.fillStyle = hull.color;
-            ctx.font = `bold ${Math.max(11, 14 / view.k)}px monospace`;
+            ctx.font = `bold ${Math.max(12, 15 / view.k)}px monospace`;
             ctx.textAlign = 'left';
-            ctx.fillText(`${key} · ${hull.count} modules`, rx + 18, ry + 24);
+            ctx.fillText(`✦ ${key}`, rx + 20, ry + 26);
+
+            ctx.font = `${Math.max(10, 11 / view.k)}px sans-serif`;
+            ctx.fillStyle = '#94A3B8';
+            ctx.fillText(`${hull.count} modules · ${hull.desc}`, rx + 20, ry + 42);
           }
           ctx.restore();
         }
       }
 
-      // Time for subtle edge flow animation particle
-      const now = performance.now();
-      const flowT = (now % 2000) / 2000;
+      // 3. Architecture Cross-Layer Highways (e.g. FRONTEND -> BACKEND)
+      if (visualMode !== 'flow' && graph.highways && graph.highways.length > 0) {
+        for (const hw of graph.highways) {
+          const srcHull = clusterHulls.get(hw.sourceCluster);
+          const tgtHull = clusterHulls.get(hw.targetCluster);
+          if (!srcHull || !tgtHull) continue;
 
-      // 2. Draw Edges
+          const sx = (srcHull.minX + srcHull.maxX) / 2;
+          const sy = (srcHull.minY + srcHull.maxY) / 2;
+          const tx = (tgtHull.minX + tgtHull.maxX) / 2;
+          const ty = (tgtHull.minY + tgtHull.maxY) / 2;
+
+          ctx.save();
+          ctx.globalAlpha = 0.25;
+          ctx.strokeStyle = '#3BA7F2';
+          ctx.lineWidth = Math.min(5, Math.max(2, (hw.count / 10) / view.k));
+          ctx.setLineDash([8 / view.k, 6 / view.k]);
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(tx, ty);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      // 4. Edges & Flow Particles
+      const flowT = (now % 2200) / 2200; // Particle time [0..1]
+
       for (const link of graph.links) {
         const a = byId.get(link.source);
         const b = byId.get(link.target);
@@ -446,39 +678,54 @@ export default function ForceGraphCanvas({
           focusId && (link.source === focusId || link.target === focusId);
         const is2HopConnection =
           focusId && directNeighbors.has(link.source) && directNeighbors.has(link.target);
+        const isPathLink =
+          isolatedPathSet && (isolatedPathSet.has(link.source) && isolatedPathSet.has(link.target));
 
         let alpha = 0.12;
-        let strokeColor = '#FFFFFF';
+        let strokeColor = '#64748B';
         let lineWidth = 0.8 / view.k;
 
-        if (focusId) {
+        if (isolatedPathSet) {
+          if (isPathLink) {
+            alpha = 1.0;
+            strokeColor = '#06B6D4'; // Bright Cyan
+            lineWidth = 2.8 / view.k;
+          } else {
+            alpha = 0.03;
+          }
+        } else if (focusId) {
           if (isDirectConnection) {
             alpha = 0.95;
-            strokeColor = selected === focusId ? '#6366F1' : '#38BDF8';
-            lineWidth = 2.0 / view.k;
+            strokeColor = selected === focusId ? '#38BDF8' : '#7FE7D6';
+            lineWidth = 2.2 / view.k;
           } else if (focusDepth === '2-hop' && is2HopConnection) {
             alpha = 0.55;
-            strokeColor = '#A5B4FC';
-            lineWidth = 1.3 / view.k;
+            strokeColor = '#818CF8';
+            lineWidth = 1.4 / view.k;
           } else if (focusDepth === '1-hop') {
             alpha = 0.02;
           } else {
-            alpha = 0.04;
+            alpha = 0.05;
           }
         }
 
-        // Impact Mode highlighting
+        // Impact Mode edge highlighting
         if (directImpact.has(link.source) || directImpact.has(link.target)) {
-          alpha = 0.9;
+          alpha = 0.92;
           strokeColor = '#F59E0B';
           lineWidth = 2.2 / view.k;
+        } else if (transitiveImpact.has(link.source) || transitiveImpact.has(link.target)) {
+          alpha = 0.65;
+          strokeColor = '#FBBF24';
+          lineWidth = 1.6 / view.k;
         }
 
-        if (visualMode === 'entry_points') {
+        // Signal Flow / Entry points edge highlighting
+        if (visualMode === 'flow' || visualMode === 'entry_points') {
           if (downstreamOfFocus.has(link.source) && downstreamOfFocus.has(link.target)) {
-            strokeColor = '#14B8A6';
-            alpha = 0.85;
-            lineWidth = 1.6 / view.k;
+            strokeColor = '#34D399';
+            alpha = 0.88;
+            lineWidth = 1.8 / view.k;
           }
         }
 
@@ -486,10 +733,11 @@ export default function ForceGraphCanvas({
         ctx.strokeStyle = strokeColor;
         ctx.lineWidth = lineWidth;
 
+        // Line dashing by dependency semantic kind
         if (link.type === 'type-only' || link.kind === 'type_only_import') {
           ctx.setLineDash([4 / view.k, 4 / view.k]);
         } else if (link.kind === 'dynamic_import') {
-          ctx.setLineDash([2 / view.k, 3 / view.k]);
+          ctx.setLineDash([2 / view.k, 4 / view.k]);
         } else {
           ctx.setLineDash([]);
         }
@@ -499,545 +747,549 @@ export default function ForceGraphCanvas({
         ctx.lineTo(bx, by);
         ctx.stroke();
 
-        // Animated flow particle along selected active relationships
-        if (isDirectConnection && selected === focusId) {
+        // 5. Flow Particles: animate light pulse only when link is actively highlighted
+        const shouldAnimateFlow =
+          (isDirectConnection && selected) ||
+          (isPathLink) ||
+          (visualMode === 'flow' && downstreamOfFocus.has(link.source)) ||
+          (impactPreviewNode && directImpact.has(link.source));
+
+        if (shouldAnimateFlow) {
           const px = ax + (bx - ax) * flowT;
           const py = ay + (by - ay) * flowT;
-          ctx.globalAlpha = 0.9;
-          ctx.fillStyle = '#67E8F9';
+
+          ctx.save();
+          ctx.setLineDash([]);
+          ctx.globalAlpha = 0.95;
+          ctx.fillStyle = '#7FE7D6';
           ctx.beginPath();
-          ctx.arc(px, py, 2.5 / view.k, 0, Math.PI * 2);
+          ctx.arc(px, py, Math.max(2.5, 3.5 / view.k), 0, Math.PI * 2);
           ctx.fill();
+          ctx.restore();
         }
       }
 
       ctx.setLineDash([]);
 
-      // 3. Draw Nodes with Shapes, Importance, Halos, and Badges
+      // 6. Impact Ripple Propagation Effect
+      if (impactPreviewNode) {
+        const impactSource = byId.get(impactPreviewNode);
+        if (impactSource && Number.isFinite(impactSource.x) && Number.isFinite(impactSource.y)) {
+          const t = (now % 3000) / 3000;
+          ctx.save();
+          ctx.strokeStyle = '#F59E0B';
+          ctx.lineWidth = 1.5 / view.k;
+          ctx.globalAlpha = Math.max(0, 0.7 * (1 - t));
+          ctx.beginPath();
+          ctx.arc(impactSource.x!, impactSource.y!, 40 + t * 240, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      // 7. Render Nodes
+      const renderedLabels: { x: number; y: number; width: number; height: number }[] = [];
+
       for (const n of nodes) {
         if (!matchesFilter(n)) continue;
 
         const nx = visualMode === 'flow' ? n.flowX : n.x!;
         const ny = visualMode === 'flow' ? n.flowY : n.y!;
+        if (!Number.isFinite(nx) || !Number.isFinite(ny)) continue;
 
-        const active = n.id === selected;
-        const hovered = n.id === hoverNodeId;
-        const inFocusSet =
-          !focusId ||
-          (focusDepth === '1-hop'
-            ? directNeighbors.has(n.id)
-            : focusDepth === '2-hop'
-            ? secondHopNeighbors.has(n.id)
-            : true);
+        const isSelected = selected === n.id;
+        const isHovered = hoverNodeId === n.id;
+        const isDirectNeighbor = directNeighbors.has(n.id);
+        const is2HopNeighbor = secondHopNeighbors.has(n.id);
+        const isInIsolatedPath = isolatedPathSet ? isolatedPathSet.has(n.id) : true;
 
-        let opacity = inFocusSet ? 1.0 : 0.16;
-        if (hovered || active) opacity = 1.0;
+        // Base node alpha & scaling
+        let nodeAlpha = 1.0;
+        let scale = 1.0;
 
-        // Base Color Determination according to Visual Mode
-        let nodeColor = '#FFFFFF';
-        let haloColor: string | null = null;
-        let haloLevel: 'none' | 'medium' | 'high' | 'critical' = 'none';
-
-        // Risk Halos
-        const score = n.hotspotScore;
-        if (n.riskLevel === 'critical' || score >= 70) {
-          haloLevel = 'critical';
-          haloColor = '#EF4444';
-        } else if (n.riskLevel === 'high' || score >= 45) {
-          haloLevel = 'high';
-          haloColor = '#F59E0B';
-        } else if (n.riskLevel === 'medium' || score >= 20) {
-          haloLevel = 'medium';
-          haloColor = '#FBBF24';
+        if (isolatedPathSet) {
+          if (!isInIsolatedPath) nodeAlpha = 0.12;
+        } else if (focusId) {
+          if (isSelected || isHovered) {
+            scale = 1.18;
+            nodeAlpha = 1.0;
+          } else if (isDirectNeighbor) {
+            scale = 1.06;
+            nodeAlpha = 0.95;
+          } else if (focusDepth === '2-hop' && is2HopNeighbor) {
+            nodeAlpha = 0.65;
+          } else if (focusDepth === '1-hop') {
+            nodeAlpha = 0.12;
+          } else {
+            nodeAlpha = 0.2;
+          }
         }
 
+        // RISK Mode: fade low risk, highlight high/critical
         if (visualMode === 'risk') {
-          nodeColor = haloColor || '#14B8A6';
-        } else if (visualMode === 'parse_quality') {
-          if (n.parseStatus === 'partial') {
-            nodeColor = '#F59E0B';
-            haloColor = '#F59E0B';
-            haloLevel = 'high';
-          } else if (n.parseStatus === 'fallback' || n.parseStatus === 'failed') {
-            nodeColor = '#EF4444';
-            haloColor = '#EF4444';
-            haloLevel = 'critical';
-          } else if (n.nodeState === 'unresolved') {
-            nodeColor = '#C084FC';
-            haloColor = '#C084FC';
-            haloLevel = 'medium';
-          } else {
-            nodeColor = '#FFFFFF';
-          }
-        } else if (visualMode === 'entry_points') {
-          if (n.isEntryPoint) {
-            nodeColor = '#14B8A6';
-            haloColor = '#14B8A6';
-            haloLevel = 'high';
-          } else if (downstreamOfFocus.has(n.id)) {
-            nodeColor = '#38BDF8';
-          } else {
-            nodeColor = '#94A3B8';
-          }
-        } else {
-          // Structure Mode / Flow Mode
-          if (active) {
-            nodeColor = '#6366F1';
-            haloColor = '#6366F1';
-            haloLevel = 'critical';
-          } else if (hovered) {
-            nodeColor = '#FFFFFF';
-          } else if (n.isEntryPoint) {
-            nodeColor = '#14B8A6';
-          } else if (['high', 'critical'].includes(String(n.riskLevel).toLowerCase())) {
-            nodeColor = '#F59E0B';
-          } else {
-            nodeColor = '#E2E8F0';
+          const rL = String(n.riskLevel).toLowerCase();
+          if (rL === 'low') {
+            nodeAlpha = Math.min(nodeAlpha, 0.35);
+          } else if (rL === 'critical' || rL === 'high') {
+            nodeAlpha = 1.0;
+            scale = Math.max(scale, 1.15);
           }
         }
 
-        // Direct / Transitive Impact Preview Override
-        if (directImpact.has(n.id)) {
-          nodeColor = '#F97316';
-          haloColor = '#F97316';
-          haloLevel = 'high';
-          opacity = 1.0;
-        } else if (transitiveImpact.has(n.id)) {
-          nodeColor = '#FBBF24';
-          haloColor = '#FBBF24';
-          haloLevel = 'medium';
-          opacity = 0.9;
+        if (affectedEntryPoints.has(n.id)) {
+          scale = Math.max(scale, 1.25);
         }
 
-        const radius = n.radius + (hovered ? 3 : 0);
+        const r = n.radius * scale;
 
-        // Render Outer Halos according to Risk
-        if (haloLevel !== 'none' && haloColor) {
+        // A. Node Halo: Overall Risk Encoding
+        const rL = String(n.riskLevel).toLowerCase();
+        if (rL === 'critical') {
           ctx.save();
-          if (haloLevel === 'critical') {
-            // Double halo
-            ctx.globalAlpha = opacity * 0.12;
-            ctx.fillStyle = haloColor;
-            ctx.beginPath();
-            ctx.arc(nx, ny, radius * 2.5, 0, Math.PI * 2);
-            ctx.fill();
+          ctx.globalAlpha = nodeAlpha * 0.45;
+          ctx.fillStyle = '#EF4444';
+          ctx.beginPath();
+          ctx.arc(nx, ny, r + 9 / view.k, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = nodeAlpha * 0.25;
+          ctx.beginPath();
+          ctx.arc(nx, ny, r + 15 / view.k, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        } else if (rL === 'high') {
+          ctx.save();
+          ctx.globalAlpha = nodeAlpha * 0.35;
+          ctx.fillStyle = '#F97316';
+          ctx.beginPath();
+          ctx.arc(nx, ny, r + 7 / view.k, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        } else if (rL === 'medium') {
+          ctx.save();
+          ctx.globalAlpha = nodeAlpha * 0.2;
+          ctx.fillStyle = '#FBBF24';
+          ctx.beginPath();
+          ctx.arc(nx, ny, r + 4 / view.k, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
 
-            ctx.globalAlpha = opacity * 0.22;
-            ctx.beginPath();
-            ctx.arc(nx, ny, radius * 1.8, 0, Math.PI * 2);
-            ctx.fill();
-          } else if (haloLevel === 'high') {
-            ctx.globalAlpha = opacity * 0.18;
-            ctx.fillStyle = haloColor;
-            ctx.beginPath();
-            ctx.arc(nx, ny, radius * 1.9, 0, Math.PI * 2);
-            ctx.fill();
-          } else {
-            ctx.globalAlpha = opacity * 0.1;
-            ctx.fillStyle = haloColor;
-            ctx.beginPath();
-            ctx.arc(nx, ny, radius * 1.5, 0, Math.PI * 2);
-            ctx.fill();
+        // B. Selected Node Concentric Aura (Gravity Well)
+        if (isSelected) {
+          ctx.save();
+          ctx.globalAlpha = 0.5;
+          ctx.strokeStyle = '#7FE7D6';
+          ctx.lineWidth = 2.0 / view.k;
+          ctx.beginPath();
+          ctx.arc(nx, ny, r + 8 / view.k, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Selection Shockwave Pulse (one subtle pulse)
+          if (selectionPulse.current && selectionPulse.current.id === n.id) {
+            const pulseAge = (now - selectionPulse.current.startTime) / 600;
+            if (pulseAge < 1.0) {
+              ctx.globalAlpha = Math.max(0, 0.8 * (1 - pulseAge));
+              ctx.strokeStyle = '#38BDF8';
+              ctx.lineWidth = 1.5 / view.k;
+              ctx.beginPath();
+              ctx.arc(nx, ny, r + pulseAge * 35 / view.k, 0, Math.PI * 2);
+              ctx.stroke();
+            }
           }
           ctx.restore();
         }
 
-        // Draw Semantic Node Shape (Circle, Diamond, Rounded Rect, Hexagon, Triangle, etc.)
-        ctx.globalAlpha = opacity;
-        ctx.fillStyle = nodeColor;
-        drawNodeShape(ctx, n.shape, nx, ny, radius);
+        // C. Draw Node Body (Shape = Module Role)
+        ctx.save();
+        ctx.globalAlpha = nodeAlpha;
+
+        // Node fill color based on state & constellation
+        let fillColor = '#1E293B';
+        if (n.isEntryPoint) {
+          fillColor = '#0F766E'; // Teal Entry Point
+        } else if (n.nodeState === 'failed') {
+          fillColor = '#7F1D1D';
+        } else if (n.nodeState === 'unresolved') {
+          fillColor = '#78350F';
+        } else if (n.clusterLabel === 'FRONTEND') {
+          fillColor = '#0284C7';
+        } else if (n.clusterLabel === 'ML') {
+          fillColor = '#7E22CE';
+        } else if (n.clusterLabel === 'DATABASE') {
+          fillColor = '#047857';
+        } else {
+          fillColor = '#1D4ED8'; // Backend
+        }
+
+        ctx.fillStyle = fillColor;
+        drawNodeShape(ctx, n.shape, nx, ny, r);
         ctx.fill();
 
-        // Border Style based on Parse Confidence
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 1.4 / view.k;
-        if (n.parseStatus === 'partial') {
-          ctx.setLineDash([3 / view.k, 3 / view.k]);
-          ctx.strokeStyle = '#F59E0B';
+        // D. Node Border = Analysis Confidence & AST Quality
+        let strokeColor = '#FFFFFF';
+        let borderDash: number[] = [];
+
+        if (n.parseStatus === 'full') {
+          strokeColor = isSelected ? '#7FE7D6' : '#E2E8F0';
+          borderDash = [];
+        } else if (n.parseStatus === 'partial') {
+          strokeColor = '#FBBF24';
+          borderDash = [3 / view.k, 2 / view.k];
         } else if (n.parseStatus === 'fallback') {
-          ctx.setLineDash([1.5 / view.k, 2.5 / view.k]);
-          ctx.strokeStyle = '#EF4444';
-        } else if (n.nodeState === 'unresolved') {
-          ctx.setLineDash([4 / view.k, 3 / view.k]);
-          ctx.strokeStyle = '#C084FC';
+          strokeColor = '#F97316';
+          borderDash = [1.5 / view.k, 2 / view.k];
         } else {
-          ctx.setLineDash([]);
+          strokeColor = '#EF4444';
+          borderDash = [4 / view.k, 2 / view.k];
         }
-        drawNodeShape(ctx, n.shape, nx, ny, radius);
+
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = (isSelected ? 2.5 : 1.2) / view.k;
+        ctx.setLineDash(borderDash);
+        drawNodeShape(ctx, n.shape, nx, ny, r);
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Active node selection beacon
-        if (active) {
-          ctx.globalAlpha = 1.0;
-          ctx.strokeStyle = '#6366F1';
-          ctx.lineWidth = 2.2 / view.k;
+        // E. Inner Core = Language Identification Accent
+        const langColor = LANGUAGE_COLORS[n.language] || '#94A3B8';
+        ctx.fillStyle = langColor;
+        ctx.beginPath();
+        ctx.arc(nx, ny, Math.max(1.8, r * 0.3), 0, Math.PI * 2);
+        ctx.fill();
+
+        // F. Shield Icon for Protected Nodes in Impact Mode
+        if (impactPreviewNode && directImpact.has(n.id)) {
+          ctx.fillStyle = '#34D399';
           ctx.beginPath();
-          ctx.arc(nx, ny, radius + 6 / view.k, 0, Math.PI * 2);
-          ctx.stroke();
+          ctx.arc(nx + r * 0.8, ny - r * 0.8, 3.5 / view.k, 0, Math.PI * 2);
+          ctx.fill();
         }
 
-        // Semantic Zooming for Labels
-        const isImportant = n.visualImportance > 0.55 || n.isEntryPoint || n.riskLevel === 'critical';
-        const showLabel =
-          active ||
-          hovered ||
-          (search && n.label.toLowerCase().includes(search.toLowerCase())) ||
-          (view.k >= 1.25 && inFocusSet) ||
-          (view.k >= 0.75 && isImportant && inFocusSet) ||
-          nodes.length <= 4;
+        ctx.restore();
 
-        if (showLabel) {
-          ctx.globalAlpha = opacity;
-          ctx.fillStyle = '#FFFFFF';
-          ctx.font = `${Math.max(10, 11 / view.k)}px monospace`;
-          ctx.textAlign = 'center';
-          const shortName = n.label.split(/[\\/]/).pop() || n.label;
-          ctx.fillText(shortName, nx, ny + radius + 16 / view.k);
+        // G. Collision-Aware Label Engine
+        // Decide whether this node should attempt to render a label based on zoom & priority
+        const shouldShowLabel =
+          isSelected ||
+          isHovered ||
+          n.isEntryPoint ||
+          n.visualTier === 'anchor' ||
+          (view.k > 0.8 && (n.visualTier === 'hub' || rL === 'critical' || rL === 'high')) ||
+          (view.k > 1.4 && n.visualTier === 'important') ||
+          (view.k > 2.0 && density === 'full');
+
+        if (shouldShowLabel && nodeAlpha > 0.3) {
+          const displayName = n.label.split('/').pop() || n.label;
+          const fontSize = Math.max(10, Math.min(13, 11 / view.k));
+          ctx.font = `${isSelected ? 'bold ' : ''}${fontSize}px sans-serif`;
+
+          const textWidth = ctx.measureText(displayName).width;
+          const labelBox = {
+            x: nx - textWidth / 2 - 4 / view.k,
+            y: ny + r + 3 / view.k,
+            width: textWidth + 8 / view.k,
+            height: fontSize + 4 / view.k,
+          };
+
+          // Collision check against already rendered labels
+          let collides = false;
+          for (const box of renderedLabels) {
+            if (
+              labelBox.x < box.x + box.width &&
+              labelBox.x + labelBox.width > box.x &&
+              labelBox.y < box.y + box.height &&
+              labelBox.y + labelBox.height > box.y
+            ) {
+              collides = true;
+              break;
+            }
+          }
+
+          if (!collides || isSelected || isHovered) {
+            renderedLabels.push(labelBox);
+
+            ctx.save();
+            ctx.globalAlpha = Math.min(1.0, nodeAlpha);
+
+            // Subtle dark label pill background
+            ctx.fillStyle = 'rgba(7, 22, 37, 0.85)';
+            ctx.beginPath();
+            ctx.roundRect
+              ? ctx.roundRect(labelBox.x, labelBox.y, labelBox.width, labelBox.height, 4)
+              : ctx.rect(labelBox.x, labelBox.y, labelBox.width, labelBox.height);
+            ctx.fill();
+
+            // Label text
+            ctx.fillStyle = isSelected ? '#7FE7D6' : isHovered ? '#FFFFFF' : '#E2E8F0';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText(displayName, nx, labelBox.y + 2 / view.k);
+            ctx.restore();
+          }
         }
       }
 
       ctx.restore();
 
-      // 4. Interactive Minimap (Bottom-Right)
-      if (nodes.length > 10) {
-        const mmWidth = 140;
-        const mmHeight = 90;
-        const mmX = size.width - mmWidth - 14;
-        const mmY = size.height - mmHeight - 14;
-
-        ctx.save();
-        // Frosted glass background
-        ctx.fillStyle = 'rgba(10, 11, 16, 0.85)';
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.roundRect ? ctx.roundRect(mmX, mmY, mmWidth, mmHeight, 8) : ctx.rect(mmX, mmY, mmWidth, mmHeight);
-        ctx.fill();
-        ctx.stroke();
-
-        // Minimap scale calculation
-        const xs = nodes.map(n => n.x!).filter(Number.isFinite);
-        const ys = nodes.map(n => n.y!).filter(Number.isFinite);
-        const minX = Math.min(...xs), maxX = Math.max(...xs);
-        const minY = Math.min(...ys), maxY = Math.max(...ys);
-        const spanX = Math.max(1, maxX - minX);
-        const spanY = Math.max(1, maxY - minY);
-        const mmScale = Math.min((mmWidth - 16) / spanX, (mmHeight - 16) / spanY);
-
-        // Draw node dots in minimap
-        for (const n of nodes) {
-          if (!Number.isFinite(n.x) || !Number.isFinite(n.y)) continue;
-          const mx = mmX + 8 + (n.x! - minX) * mmScale;
-          const my = mmY + 8 + (n.y! - minY) * mmScale;
-          ctx.fillStyle = n.id === selected ? '#6366F1' : n.isEntryPoint ? '#14B8A6' : '#94A3B8';
-          ctx.beginPath();
-          ctx.arc(mx, my, n.id === selected ? 2.5 : 1.2, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        // Draw viewport bounds box in minimap
-        const vpX = mmX + 8 + (-view.x / view.k - minX) * mmScale;
-        const vpY = mmY + 8 + (-view.y / view.k - minY) * mmScale;
-        const vpW = (size.width / view.k) * mmScale;
-        const vpH = (size.height / view.k) * mmScale;
-
-        ctx.strokeStyle = '#6366F1';
-        ctx.lineWidth = 1.2;
-        ctx.strokeRect(vpX, vpY, vpW, vpH);
-        ctx.restore();
-      }
+      frameId = requestAnimationFrame(draw);
     };
 
-    let frame = requestAnimationFrame(draw);
-    const visible = () => {
-      cancelAnimationFrame(frame);
-      if (!document.hidden) frame = requestAnimationFrame(draw);
-    };
-    document.addEventListener('visibilitychange', visible);
-    return () => {
-      cancelAnimationFrame(frame);
-      document.removeEventListener('visibilitychange', visible);
-    };
+    frameId = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(frameId);
   }, [
-    revision,
     nodes,
-    graph,
-    size,
     view,
-    hoverNodeId,
+    size,
+    matchesFilter,
+    graph.links,
+    graph.highways,
+    focusId,
     selected,
-    search,
-    language,
-    visualMode,
-    focusDepth,
+    hoverNodeId,
     directNeighbors,
     secondHopNeighbors,
-    downstreamOfFocus,
+    thirdHopNeighbors,
+    focusDepth,
+    visualMode,
+    density,
+    isolatedPathSet,
+    clusterHulls,
     directImpact,
     transitiveImpact,
-    clusterHulls,
-    focusId,
+    affectedEntryPoints,
+    downstreamOfFocus,
+    impactPreviewNode,
     byId,
-    matchesFilter,
   ]);
 
-  const point = (e: React.PointerEvent) => {
+  // Mouse Interaction: Hover & Hit Testing
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-  };
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
 
-  const hitNode = (p: { x: number; y: number }): string | null => {
-    const x = (p.x - view.x) / view.k;
-    const y = (p.y - view.y) / view.k;
-    let found: NeuralNode | null = null;
-    let distance = Infinity;
-    const reach = 24 + 8 / view.k;
+    const wx = (mx - view.x) / view.k;
+    const wy = (my - view.y) / view.k;
 
-    tree.visit((quad, x0, y0, x1, y1) => {
-      if (x0 > x + reach || x1 < x - reach || y0 > y + reach || y1 < y - reach) return true;
-      if (!quad.length) {
-        let leaf: typeof quad | undefined = quad;
-        do {
-          const n = leaf.data;
-          if (matchesFilter(n)) {
-            const nx = visualMode === 'flow' ? n.flowX : n.x!;
-            const ny = visualMode === 'flow' ? n.flowY : n.y!;
-            const d = Math.hypot(nx - x, ny - y);
-            if (d <= n.radius + 8 / view.k && d < distance) {
-              found = n;
-              distance = d;
-            }
-          }
-          leaf = leaf.next;
-        } while (leaf);
-      }
-      return false;
-    });
+    // Search quadtree for closest node within hit distance
+    const searchRadius = Math.max(14, 20 / view.k);
+    const closest = tree.find(wx, wy, searchRadius);
 
-    return (found as NeuralNode | null)?.id || null;
-  };
-
-  const distToSegment = (
-    px: number,
-    py: number,
-    x1: number,
-    y1: number,
-    x2: number,
-    y2: number
-  ) => {
-    const l2 = (x2 - x1) ** 2 + (y2 - y1) ** 2;
-    if (l2 === 0) return Math.hypot(px - x1, py - y1);
-    let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
-    t = Math.max(0, Math.min(1, t));
-    return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
-  };
-
-  const hitEdge = (p: { x: number; y: number }): HoveredEdgeInfo | null => {
-    const x = (p.x - view.x) / view.k;
-    const y = (p.y - view.y) / view.k;
-    const maxThreshold = 6 / view.k;
-
-    for (const link of graph.links) {
-      const a = byId.get(link.source);
-      const b = byId.get(link.target);
-      if (!a || !b) continue;
-      if (!matchesFilter(a) || !matchesFilter(b)) continue;
-
-      const ax = visualMode === 'flow' ? a.flowX : a.x!;
-      const ay = visualMode === 'flow' ? a.flowY : a.y!;
-      const bx = visualMode === 'flow' ? b.flowX : b.x!;
-      const by = visualMode === 'flow' ? b.flowY : b.y!;
-
-      const d = distToSegment(x, y, ax, ay, bx, by);
-      if (d <= maxThreshold) {
-        return {
-          link,
-          sourceNode: a,
-          targetNode: b,
-          screenX: p.x,
-          screenY: p.y,
-        };
-      }
+    if (closest && matchesFilter(closest)) {
+      setHoverNodeId(closest.id);
+    } else {
+      setHoverNodeId(null);
     }
-    return null;
   };
+
+  const handleMouseLeave = () => {
+    setHoverNodeId(null);
+  };
+
+  const handleClick = () => {
+    if (gesture.current.moved) return;
+    if (hoverNodeId) {
+      onSelect(hoverNodeId === selected ? null : hoverNodeId);
+    } else {
+      onSelect(null);
+    }
+  };
+
+  // Drag to pan
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    gesture.current = { x: e.clientX, y: e.clientY, moved: false };
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!pointers.current.has(e.pointerId)) return;
+    const last = pointers.current.get(e.pointerId)!;
+    const dx = e.clientX - last.x;
+    const dy = e.clientY - last.y;
+
+    if (Math.hypot(e.clientX - gesture.current.x, e.clientY - gesture.current.y) > 4) {
+      gesture.current.moved = true;
+    }
+
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    setView(v => ({ ...v, x: v.x + dx, y: v.y + dy }));
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    pointers.current.delete(e.pointerId);
+  };
+
+  const hoveredNode = hoverNodeId ? byId.get(hoverNodeId) : null;
+  const selectedNode = selected ? byId.get(selected) : null;
+  const activeBreadcrumb = selectedNode ? buildNodeBreadcrumb(selectedNode) : null;
 
   return (
-    <div className="relative w-full overflow-hidden rounded-xl border border-white/15 bg-[#090A0F]">
+    <div className="relative w-full h-[620px] rounded-xl overflow-hidden select-none border border-cyan-500/20 shadow-2xl bg-[#071625]">
       <canvas
         ref={canvas}
-        className="w-full h-[580px] sm:h-[660px] touch-none focus-visible:outline focus-visible:outline-indigo"
-        style={{ cursor: hoverNodeId ? 'pointer' : hoveredEdge ? 'crosshair' : 'grab' }}
-        tabIndex={0}
-        aria-label="Neural dependency graph explorer. Drag to pan, scroll to zoom, click to select node. Escape clears selection."
-        onKeyDown={e => {
-          if (e.key === 'Escape') onSelect(null);
-        }}
-        onPointerDown={e => {
-          if (e.button !== 0) return;
-          e.currentTarget.setPointerCapture(e.pointerId);
-          const p = point(e);
-          pointers.current.set(e.pointerId, p);
-          gesture.current = { ...p, moved: pointers.current.size > 1 };
-        }}
-        onPointerMove={e => {
-          const p = point(e);
-          const previous = pointers.current.get(e.pointerId);
-          if (!previous) {
-            const nodeId = hitNode(p);
-            setHoverNodeId(nodeId);
-            if (!nodeId) {
-              setHoveredEdge(hitEdge(p));
-            } else {
-              setHoveredEdge(null);
-            }
-            return;
-          }
-
-          setHoverNodeId(null);
-          setHoveredEdge(null);
-
-          if (Math.hypot(p.x - gesture.current.x, p.y - gesture.current.y) > 4) {
-            gesture.current.moved = true;
-          }
-
-          const other = [...pointers.current.entries()].find(([id]) => id !== e.pointerId)?.[1];
-          setView(v => {
-            if (!other) {
-              return { ...v, x: v.x + p.x - previous.x, y: v.y + p.y - previous.y };
-            }
-            const oldDistance = Math.hypot(previous.x - other.x, previous.y - other.y);
-            const k = Math.max(
-              0.05,
-              Math.min(
-                5,
-                (v.k * Math.hypot(p.x - other.x, p.y - other.y)) / Math.max(1, oldDistance)
-              )
-            );
-            return {
-              x: (p.x + other.x) / 2 - (((previous.x + other.x) / 2 - v.x) * k) / v.k,
-              y: (p.y + other.y) / 2 - (((previous.y + other.y) / 2 - v.y) * k) / v.k,
-              k,
-            };
-          });
-          pointers.current.set(e.pointerId, p);
-        }}
-        onPointerUp={e => {
-          if (!pointers.current.has(e.pointerId)) return;
-          if (!gesture.current.moved) {
-            onSelect(hitNode(point(e)));
-          }
-          pointers.current.delete(e.pointerId);
-          setHoverNodeId(null);
-          setHoveredEdge(null);
-        }}
-        onPointerCancel={e => {
-          pointers.current.delete(e.pointerId);
-          gesture.current.moved = true;
-        }}
-        onPointerLeave={() => {
-          setHoverNodeId(null);
-          setHoveredEdge(null);
-        }}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        onClick={handleClick}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        className="w-full h-full cursor-grab active:cursor-grabbing block"
       />
 
-      {/* Floating HUD Navigation Bar (Top-Right) */}
-      <div className="absolute top-3 right-3 z-10 flex items-center gap-1 p-1 rounded-lg border border-white/15 bg-black/60 backdrop-blur-md text-white shadow-2">
+      {/* Top Floating Breadcrumb Bar */}
+      {activeBreadcrumb && (
+        <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#091829]/90 border border-cyan-400/30 text-white text-xs backdrop-blur-md shadow-lg animate-[fade-in_150ms_ease-out]">
+          <Compass className="w-3.5 h-3.5 text-cyan-400 mr-0.5" />
+          {activeBreadcrumb.map((crumb, idx) => (
+            <div key={idx} className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  if (crumb.level === 'universe') fit();
+                  else if (crumb.level === 'constellation') flyToConstellation(crumb.label);
+                }}
+                className={`font-mono text-[11px] transition-colors ${
+                  idx === activeBreadcrumb.length - 1
+                    ? 'font-bold text-cyan-300'
+                    : 'text-white/60 hover:text-white'
+                }`}
+              >
+                {crumb.label}
+              </button>
+              {idx < activeBreadcrumb.length - 1 && (
+                <ChevronRight className="w-3 h-3 text-white/30" />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Path Isolation Active Banner */}
+      {isolatedPath && (
+        <div className="absolute top-3 right-14 z-10 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-900/90 border border-cyan-400 text-white text-xs backdrop-blur-md shadow-lg">
+          <Zap className="w-3.5 h-3.5 text-cyan-300" />
+          <span className="font-mono font-bold text-[11px]">
+            Path Isolated ({isolatedPath.length - 1} hops)
+          </span>
+          {onClearIsolatedPath && (
+            <button
+              type="button"
+              onClick={onClearIsolatedPath}
+              className="ml-1 text-[10px] uppercase font-bold text-white/70 hover:text-white underline"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Compact Floating Glass Tooltip */}
+      {hoveredNode && (
+        <div
+          className="absolute pointer-events-none z-20 px-3.5 py-2.5 rounded-xl bg-[#091626]/95 border border-cyan-400/40 text-white shadow-2xl backdrop-blur-md max-w-xs transition-opacity"
+          style={{
+            left: Math.min(size.width - 290, Math.max(12, hoveredNode.x! * view.k + view.x + 18)),
+            top: Math.min(size.height - 180, Math.max(12, hoveredNode.y! * view.k + view.y - 45)),
+          }}
+        >
+          <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-white/10">
+            <span className="font-bold text-xs truncate text-cyan-300">
+              {hoveredNode.label.split('/').pop()}
+            </span>
+            <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-white/10 text-white/70">
+              {hoveredNode.language}
+            </span>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
+            <div className="text-white/60">
+              Role: <span className="text-white font-medium">{hoveredNode.role}</span>
+            </div>
+            <div className="text-white/60">
+              Cluster: <span className="text-white font-medium">{hoveredNode.clusterLabel}</span>
+            </div>
+            <div className="text-white/60">
+              Risk:{' '}
+              <span
+                className={`font-bold uppercase ${
+                  hoveredNode.riskLevel === 'critical'
+                    ? 'text-red-400'
+                    : hoveredNode.riskLevel === 'high'
+                    ? 'text-orange-400'
+                    : 'text-emerald-400'
+                }`}
+              >
+                {hoveredNode.riskLevel}
+              </span>
+            </div>
+            <div className="text-white/60">
+              Complexity: <span className="text-white font-medium">{hoveredNode.complexityScore}</span>
+            </div>
+            <div className="text-white/60">
+              In / Out:{' '}
+              <span className="text-white font-medium">
+                {hoveredNode.fanIn} / {hoveredNode.fanOut}
+              </span>
+            </div>
+            <div className="text-white/60">
+              AST Parse:{' '}
+              <span className="text-white font-medium uppercase">{hoveredNode.parseStatus}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Camera Controls Toolbar */}
+      <div className="absolute top-3 right-3 z-10 flex flex-col gap-1 p-1 rounded-xl bg-[#091829]/90 border border-white/10 backdrop-blur-md shadow-xl text-white">
         <button
           type="button"
           onClick={() =>
             setView(v => ({
               ...v,
               k: Math.min(5, v.k * 1.3),
-              x: size.width / 2 - (size.width / 2 - v.x) * 1.3,
-              y: size.height / 2 - (size.height / 2 - v.y) * 1.3,
+              x: size.width / 2 - ((size.width / 2 - v.x) * 1.3),
+              y: size.height / 2 - ((size.height / 2 - v.y) * 1.3),
             }))
           }
-          className="p-1.5 rounded hover:bg-white/15 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-white/10 text-white/70 hover:text-white transition-colors"
           title="Zoom In"
         >
-          <ZoomIn className="w-3.5 h-3.5" />
+          <ZoomIn className="w-4 h-4" />
         </button>
         <button
           type="button"
           onClick={() =>
             setView(v => ({
               ...v,
-              k: Math.max(0.05, v.k / 1.3),
-              x: size.width / 2 - (size.width / 2 - v.x) / 1.3,
-              y: size.height / 2 - (size.height / 2 - v.y) / 1.3,
+              k: Math.max(0.08, v.k / 1.3),
+              x: size.width / 2 - ((size.width / 2 - v.x) / 1.3),
+              y: size.height / 2 - ((size.height / 2 - v.y) / 1.3),
             }))
           }
-          className="p-1.5 rounded hover:bg-white/15 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-white/10 text-white/70 hover:text-white transition-colors"
           title="Zoom Out"
         >
-          <ZoomOut className="w-3.5 h-3.5" />
+          <ZoomOut className="w-4 h-4" />
         </button>
-        <div className="w-px h-4 bg-white/20 my-auto" />
         <button
           type="button"
           onClick={fit}
-          className="p-1.5 rounded hover:bg-white/15 transition-colors"
-          title="Fit All Nodes"
+          className="p-1.5 rounded-lg hover:bg-white/10 text-white/70 hover:text-white transition-colors"
+          title="Fit Architecture to Viewport (F)"
         >
-          <Maximize2 className="w-3.5 h-3.5" />
+          <Maximize2 className="w-4 h-4" />
         </button>
         {selected && (
           <button
             type="button"
             onClick={centerSelected}
-            className="p-1.5 rounded hover:bg-white/15 transition-colors text-indigo-on-dark"
-            title="Center Selected Node"
+            className="p-1.5 rounded-lg hover:bg-white/10 text-cyan-400 hover:text-cyan-300 transition-colors"
+            title="Center on Selected Node"
           >
-            <Crosshair className="w-3.5 h-3.5" />
+            <Crosshair className="w-4 h-4" />
           </button>
         )}
-        <button
-          type="button"
-          onClick={() => setView({ x: size.width / 2, y: size.height / 2, k: 1 })}
-          className="p-1.5 rounded hover:bg-white/15 transition-colors"
-          title="Reset View"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-        </button>
       </div>
-
-      {/* Floating Edge Tooltip on Hover */}
-      {hoveredEdge && (
-        <div
-          className="absolute z-20 pointer-events-none p-3 rounded-lg bg-black/90 border border-white/20 text-white text-xs shadow-2 max-w-xs space-y-1.5 animate-[fade-up_100ms_ease-out]"
-          style={{
-            left: Math.min(size.width - 240, hoveredEdge.screenX + 14),
-            top: Math.min(size.height - 130, hoveredEdge.screenY + 14),
-          }}
-        >
-          <div className="font-mono font-bold text-[11px] text-white flex items-center gap-1.5 border-b border-white/15 pb-1">
-            <span className="text-teal-strong">{truncateMiddle(hoveredEdge.sourceNode.label, 16)}</span>
-            <span className="text-white/50">→</span>
-            <span className="text-indigo-on-dark">{truncateMiddle(hoveredEdge.targetNode.label, 16)}</span>
-          </div>
-          <div className="space-y-0.5 text-[11px] font-mono text-white/80">
-            <div>
-              <span className="text-white/50">Type:</span> {hoveredEdge.link.kind || hoveredEdge.link.type}
-            </div>
-            <div>
-              <span className="text-white/50">Confidence:</span> {hoveredEdge.link.confidence || 'high'}
-            </div>
-            {hoveredEdge.link.rawImport && (
-              <div className="truncate" title={hoveredEdge.link.rawImport}>
-                <span className="text-white/50">Import:</span> &quot;{hoveredEdge.link.rawImport}&quot;
-              </div>
-            )}
-            <div>
-              <span className="text-white/50">Status:</span>{' '}
-              <span className={hoveredEdge.link.resolved ? 'text-teal-strong' : 'text-amber-text'}>
-                {hoveredEdge.link.resolved ? 'RESOLVED' : 'UNRESOLVED'}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

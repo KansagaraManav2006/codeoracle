@@ -8,7 +8,13 @@ import {
   forceX,
   forceY,
 } from 'd3-force';
-import type { ClusterMode, NeuralGraph, NeuralNode, VisualMode } from './graphDataAdapter';
+import {
+  CONSTELLATION_CENTROIDS,
+  type ClusterMode,
+  type NeuralGraph,
+  type NeuralNode,
+  type VisualMode,
+} from './graphDataAdapter';
 
 export const LIVE_NODE_LIMIT = 150;
 export const MAX_TICKS = 300;
@@ -17,6 +23,7 @@ export function getNodeClusterKey(node: NeuralNode, mode: ClusterMode = 'none'):
   if (mode === 'folder') return node.folderCluster || 'root';
   if (mode === 'role') return node.role || 'module';
   if (mode === 'language') return node.language || 'other';
+  if (mode === 'constellation') return node.clusterLabel || 'BACKEND';
   return 'default';
 }
 
@@ -26,6 +33,13 @@ export function computeClusterPositions(
 ): Map<string, { x: number; y: number }> {
   const map = new Map<string, { x: number; y: number }>();
   if (mode === 'none') return map;
+
+  if (mode === 'constellation') {
+    for (const [key, val] of Object.entries(CONSTELLATION_CENTROIDS)) {
+      map.set(key, { x: val.x, y: val.y });
+    }
+    return map;
+  }
 
   const clusterCounts = new Map<string, number>();
   for (const n of nodes) {
@@ -68,6 +82,9 @@ export function createSimulation(
       const pos = cachedCoords.get(n.id)!;
       clone.x = pos.x;
       clone.y = pos.y;
+    } else if (nodesCountForArch(graph.nodes.length) && (n.archX !== 0 || n.archY !== 0)) {
+      clone.x = n.archX;
+      clone.y = n.archY;
     }
     return clone;
   });
@@ -83,8 +100,25 @@ export function createSimulation(
     return sim;
   }
 
+  if (visualMode === 'system') {
+    // In System mode, attract nodes into tight cluster spheres around constellation centers
+    sim
+      .force(
+        'constellationX',
+        forceX<NeuralNode>(n => CONSTELLATION_CENTROIDS[n.clusterLabel]?.x ?? 0).strength(0.65)
+      )
+      .force(
+        'constellationY',
+        forceY<NeuralNode>(n => CONSTELLATION_CENTROIDS[n.clusterLabel]?.y ?? 0).strength(0.65)
+      )
+      .force('collision', forceCollide<NeuralNode>().radius(n => n.radius + 4));
+    return sim;
+  }
+
+  const isSmallGraph = nodes.length <= 3;
+
   sim
-    .force('charge', forceManyBody().strength(nodes.length <= 3 ? -160 : -120))
+    .force('charge', forceManyBody().strength(isSmallGraph ? -160 : -110))
     .force(
       'links',
       forceLink<NeuralNode, { source: string; target: string }>(
@@ -97,20 +131,37 @@ export function createSimulation(
     .force('center', forceCenter(0, 0))
     .force('collision', forceCollide<NeuralNode>().radius(n => n.radius + 7));
 
+  // If clusterMode is explicitly specified, apply cluster forces
   if (clusterMode !== 'none') {
     const clusterPositions = computeClusterPositions(nodes, clusterMode);
     sim
       .force(
         'clusterX',
-        forceX<NeuralNode>(n => clusterPositions.get(getNodeClusterKey(n, clusterMode))?.x ?? 0).strength(0.22)
+        forceX<NeuralNode>(n => clusterPositions.get(getNodeClusterKey(n, clusterMode))?.x ?? 0).strength(0.25)
       )
       .force(
         'clusterY',
-        forceY<NeuralNode>(n => clusterPositions.get(getNodeClusterKey(n, clusterMode))?.y ?? 0).strength(0.22)
+        forceY<NeuralNode>(n => clusterPositions.get(getNodeClusterKey(n, clusterMode))?.y ?? 0).strength(0.25)
+      );
+  } else if (nodes.length > 3) {
+    // Hybrid constellation gravity: gently constrain nodes toward their constellation territory
+    sim
+      .force(
+        'archX',
+        forceX<NeuralNode>(n => (n.archX ? n.archX : CONSTELLATION_CENTROIDS[n.clusterLabel]?.x ?? 0)).strength(0.14)
+      )
+      .force(
+        'archY',
+        forceY<NeuralNode>(n => (n.archY ? n.archY : CONSTELLATION_CENTROIDS[n.clusterLabel]?.y ?? 0)).strength(0.14)
       );
   }
 
   return sim;
+}
+
+function nodesCountForArch(count: number): boolean {
+  // Only pre-position nodes when there are enough to form constellations (>3)
+  return count > 3;
 }
 
 export function useForceSimulation(
@@ -139,7 +190,7 @@ export function useForceSimulation(
       simulation.tick(Math.min(batch, MAX_TICKS - ticks));
       ticks += batch;
 
-      if (visualMode !== 'flow') {
+      if (visualMode !== 'flow' && visualMode !== 'system') {
         for (const n of simulation.nodes()) {
           if (Number.isFinite(n.x) && Number.isFinite(n.y)) {
             coordCache.current.set(n.id, { x: n.x!, y: n.y! });

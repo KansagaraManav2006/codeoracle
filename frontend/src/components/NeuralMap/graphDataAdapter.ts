@@ -10,9 +10,18 @@ export type NeuralNodeState =
 
 export type ParseStatus = 'full' | 'partial' | 'fallback' | 'failed';
 export type AnalysisConfidence = 'high' | 'medium' | 'low';
-export type VisualMode = 'structure' | 'risk' | 'parse_quality' | 'entry_points' | 'flow';
-export type ClusterMode = 'none' | 'folder' | 'role' | 'language';
-export type FocusDepth = '1-hop' | '2-hop' | 'all';
+export type VisualMode =
+  | 'structure'
+  | 'flow'
+  | 'risk'
+  | 'impact'
+  | 'parse_quality'
+  | 'entry_points'
+  | 'system';
+export type ClusterMode = 'none' | 'folder' | 'role' | 'language' | 'constellation';
+export type FocusDepth = '1-hop' | '2-hop' | '3-hop' | 'all';
+export type DensityLevel = 'minimal' | 'balanced' | 'full';
+export type VisualTier = 'micro' | 'normal' | 'important' | 'hub' | 'anchor';
 
 export type NodeShape =
   | 'circle'
@@ -22,7 +31,9 @@ export type NodeShape =
   | 'ml'
   | 'ui'
   | 'db'
-  | 'config';
+  | 'config'
+  | 'utility'
+  | 'store';
 
 export interface UnresolvedDetail {
   rawImport: string;
@@ -56,10 +67,14 @@ export interface NeuralNode extends SimulationNodeDatum {
   role: string;
   shape: NodeShape;
   visualImportance: number;
+  visualTier: VisualTier;
   flowTier: number;
   flowX: number;
   flowY: number;
+  archX: number;
+  archY: number;
   clusterLabel: string;
+  subCluster: string;
   hotspot?: HotspotItem;
   folderCluster: string;
   upstreamIds: string[];
@@ -85,6 +100,20 @@ export interface ClusterInfo {
   label: string;
   count: number;
   color: string;
+  description: string;
+  centerX: number;
+  centerY: number;
+  subClusters: { name: string; count: number }[];
+}
+
+export interface ArchitectureHighway {
+  id: string;
+  sourceCluster: string;
+  targetCluster: string;
+  count: number;
+  resolvedCount: number;
+  unresolvedCount: number;
+  confidence: 'high' | 'medium' | 'low';
 }
 
 export interface NeuralGraphSummary {
@@ -105,6 +134,7 @@ export interface NeuralGraph {
   links: NeuralLink[];
   summary: NeuralGraphSummary;
   clusters: ClusterInfo[];
+  highways: ArchitectureHighway[];
 }
 
 export function extractFolderCluster(path: string): string {
@@ -115,6 +145,106 @@ export function extractFolderCluster(path: string): string {
   return parts[0];
 }
 
+/**
+ * Identify high-level architectural constellation based on canonical path & role
+ */
+export function deriveConstellation(path: string, role: string): string {
+  const norm = path.replace(/\\/g, '/').toLowerCase();
+  const r = (role || '').toLowerCase();
+
+  if (
+    norm.startsWith('frontend') ||
+    norm.includes('src/components') ||
+    norm.includes('src/pages') ||
+    norm.includes('src/hooks') ||
+    norm.includes('/ui/') ||
+    norm.endsWith('.tsx') ||
+    norm.endsWith('.jsx') ||
+    norm.endsWith('.vue') ||
+    r === 'ui'
+  ) {
+    return 'FRONTEND';
+  }
+
+  if (
+    norm.startsWith('ml/') ||
+    norm.includes('/ml/') ||
+    norm.includes('train') ||
+    norm.includes('predict') ||
+    norm.includes('dataset') ||
+    r === 'ml'
+  ) {
+    return 'ML';
+  }
+
+  if (
+    norm.includes('/db/') ||
+    norm.includes('/store/') ||
+    norm.includes('/models/') ||
+    norm.includes('/repository/') ||
+    norm.includes('schema') ||
+    norm.includes('migration') ||
+    r === 'repository' ||
+    r === 'persistence'
+  ) {
+    return 'DATABASE';
+  }
+
+  if (
+    norm.includes('/infra/') ||
+    norm.includes('/deploy/') ||
+    norm.includes('docker') ||
+    norm.includes('/k8s/')
+  ) {
+    return 'INFRASTRUCTURE';
+  }
+
+  return 'BACKEND';
+}
+
+/**
+ * Identify sub-cluster inside constellation
+ */
+export function deriveSubCluster(path: string, role: string, constellation: string): string {
+  const norm = path.replace(/\\/g, '/').toLowerCase();
+  const r = (role || '').toLowerCase();
+
+  if (constellation === 'FRONTEND') {
+    if (norm.includes('page') || norm.includes('view') || norm.includes('screen')) return 'Pages';
+    if (norm.includes('hook')) return 'Hooks';
+    if (norm.includes('api') || norm.includes('service') || norm.includes('client')) return 'API Client';
+    if (norm.includes('state') || norm.includes('store') || norm.includes('context')) return 'State';
+    if (norm.includes('type') || norm.includes('interface')) return 'Types';
+    return 'Components';
+  }
+
+  if (constellation === 'BACKEND') {
+    if (norm.includes('route') || norm.includes('router') || norm.includes('endpoint') || norm.includes('controller')) return 'Routes';
+    if (norm.includes('service') || r.includes('service')) return 'Services';
+    if (norm.includes('repo') || norm.includes('store') || norm.includes('crud')) return 'Repositories';
+    if (norm.includes('model') || norm.includes('schema')) return 'Models';
+    if (norm.includes('worker') || norm.includes('task') || norm.includes('job') || norm.includes('celery')) return 'Workers';
+    if (norm.includes('util') || norm.includes('helper')) return 'Utilities';
+    return 'Core';
+  }
+
+  if (constellation === 'ML') {
+    if (norm.includes('preproc') || norm.includes('feature') || norm.includes('clean')) return 'Preprocessing';
+    if (norm.includes('train') || norm.includes('fit')) return 'Training';
+    if (norm.includes('predict') || norm.includes('infer')) return 'Prediction';
+    if (norm.includes('explain') || norm.includes('metric')) return 'Explainability';
+    return 'Pipeline';
+  }
+
+  if (constellation === 'DATABASE') {
+    if (norm.includes('schema') || norm.includes('migration')) return 'Schema';
+    if (norm.includes('model')) return 'Models';
+    return 'Stores';
+  }
+
+  return 'General';
+}
+
 export function deriveNodeShape(role: string, isEntryPoint: boolean): NodeShape {
   if (isEntryPoint) return 'diamond';
   const r = (role || '').toLowerCase();
@@ -122,7 +252,9 @@ export function deriveNodeShape(role: string, isEntryPoint: boolean): NodeShape 
   if (r.includes('service')) return 'service';
   if (r.includes('api') || r.includes('route') || r.includes('controller') || r.includes('endpoint')) return 'api';
   if (r.includes('ml') || r.includes('model') || r.includes('train')) return 'ml';
-  if (r.includes('repo') || r.includes('db') || r.includes('persistence') || r.includes('store')) return 'db';
+  if (r.includes('repo') || r.includes('db') || r.includes('persistence')) return 'db';
+  if (r.includes('store') || r.includes('state')) return 'store';
+  if (r.includes('util') || r.includes('helper')) return 'utility';
   if (r.includes('config') || r.includes('gen') || r.includes('type')) return 'config';
   return 'circle';
 }
@@ -142,6 +274,25 @@ export function deriveFlowTier(role: string, isEntryPoint: boolean, fanIn: numbe
   if (fanOut === 0 && fanIn > 0) return 4;
   return 2;
 }
+
+export function deriveVisualTier(importance: number): VisualTier {
+  if (importance >= 0.8) return 'anchor';
+  if (importance >= 0.55) return 'hub';
+  if (importance >= 0.35) return 'important';
+  if (importance >= 0.18) return 'normal';
+  return 'micro';
+}
+
+/**
+ * Constellation Spatial Anchors (Initial deterministic layout)
+ */
+export const CONSTELLATION_CENTROIDS: Record<string, { x: number; y: number; color: string; desc: string }> = {
+  FRONTEND: { x: 0, y: -240, color: '#3BA7F2', desc: 'Client application, presentation & UI views' },
+  BACKEND: { x: -280, y: 70, color: '#0B3D91', desc: 'API endpoints, domain services & business core' },
+  ML: { x: 280, y: 70, color: '#9333EA', desc: 'Intelligence models, preprocessing & inference' },
+  DATABASE: { x: 0, y: 310, color: '#0D9488', desc: 'Persistence models, schemas & repositories' },
+  INFRASTRUCTURE: { x: -320, y: -160, color: '#F59E0B', desc: 'Deployment, containers & configuration' },
+};
 
 export function buildNeuralGraphData(
   graph: GraphResponse,
@@ -318,7 +469,10 @@ export function buildNeuralGraphData(
       normIn * 0.35 + normOut * 0.2 + normBlast * 0.25 + entryBonus * 0.2
     );
 
-    // Node radius: preserves exact test assertions: Math.max(6, Math.min(22, 6 + degree * 1.5))
+    // Visual Tier
+    const visualTier = deriveVisualTier(visualImportance);
+
+    // Node radius: strictly preserves exact test assertions: Math.max(6, Math.min(22, 6 + degree * 1.5))
     const radius = Math.max(6, Math.min(22, 6 + (fanIn + fanOut) * 1.5));
 
     const folderCluster = extractFolderCluster(n.label);
@@ -326,16 +480,9 @@ export function buildNeuralGraphData(
     const shape = deriveNodeShape(role, isEntryPoint);
     const flowTier = deriveFlowTier(role, isEntryPoint, fanIn, fanOut);
 
-    // Cluster label categorization
-    let clusterLabel = 'BACKEND';
-    const normL = normLabel.toLowerCase();
-    if (normL.includes('front') || normL.includes('src/components') || normL.includes('src/pages') || normL.includes('ui/')) {
-      clusterLabel = 'FRONTEND';
-    } else if (normL.includes('ml/') || normL.includes('model') || normL.includes('train')) {
-      clusterLabel = 'ML';
-    } else if (normL.includes('db/') || normL.includes('store/') || normL.includes('sql') || normL.includes('schema')) {
-      clusterLabel = 'DATABASE';
-    }
+    // Architectural Constellation & Sub-Cluster
+    const clusterLabel = deriveConstellation(n.label, role);
+    const subCluster = deriveSubCluster(n.label, role, clusterLabel);
 
     return {
       id: n.id,
@@ -363,10 +510,14 @@ export function buildNeuralGraphData(
       role,
       shape,
       visualImportance,
+      visualTier,
       flowTier,
       flowX: 0,
       flowY: 0,
+      archX: 0,
+      archY: 0,
       clusterLabel,
+      subCluster,
       hotspot,
       folderCluster,
       upstreamIds: upstreamMap.get(n.id) || [],
@@ -375,8 +526,7 @@ export function buildNeuralGraphData(
     };
   });
 
-  // Calculate layered FLOW positions (Flow Mode)
-  // Tiers 0..4 arranged horizontally or vertically in clean stages
+  // Calculate Flow Mode positions (layered pipeline)
   const tierBuckets = new Map<number, typeof rawNodes>();
   for (const n of rawNodes) {
     if (!tierBuckets.has(n.flowTier)) tierBuckets.set(n.flowTier, []);
@@ -395,35 +545,125 @@ export function buildNeuralGraphData(
     });
   }
 
-  const nodes: NeuralNode[] = rawNodes;
-
-  // Aggregate clusters
-  const clusterCountMap = new Map<string, number>();
-  for (const n of nodes) {
-    clusterCountMap.set(n.clusterLabel, (clusterCountMap.get(n.clusterLabel) || 0) + 1);
+  // Calculate Constellation Deterministic Architectural Coordinates (archX, archY)
+  const constellationGroups = new Map<string, typeof rawNodes>();
+  for (const n of rawNodes) {
+    if (!constellationGroups.has(n.clusterLabel)) constellationGroups.set(n.clusterLabel, []);
+    constellationGroups.get(n.clusterLabel)!.push(n);
   }
 
-  const clusterPalette: Record<string, string> = {
-    FRONTEND: '#38BDF8',
-    BACKEND: '#818CF8',
-    ML: '#F472B6',
-    DATABASE: '#34D399',
-  };
+  for (const [cLabel, cNodes] of constellationGroups.entries()) {
+    const center = CONSTELLATION_CENTROIDS[cLabel] || { x: 0, y: 0 };
+    // Sub-cluster grouping inside constellation
+    const subGroups = new Map<string, typeof rawNodes>();
+    for (const n of cNodes) {
+      if (!subGroups.has(n.subCluster)) subGroups.set(n.subCluster, []);
+      subGroups.get(n.subCluster)!.push(n);
+    }
 
-  const clusters: ClusterInfo[] = [...clusterCountMap.entries()].map(([id, count]) => ({
-    id,
-    label: id,
-    count,
-    color: clusterPalette[id] || '#A78BFA',
-  }));
+    const subKeys = [...subGroups.keys()].sort();
+    const numSubs = subKeys.length;
+    const subRadius = Math.max(50, Math.min(150, numSubs * 28));
+
+    subKeys.forEach((sKey, sIdx) => {
+      const angle = numSubs <= 1 ? 0 : (sIdx / numSubs) * 2 * Math.PI;
+      const subCenterX = center.x + (numSubs <= 1 ? 0 : Math.cos(angle) * subRadius);
+      const subCenterY = center.y + (numSubs <= 1 ? 0 : Math.sin(angle) * subRadius);
+
+      const subNodes = subGroups.get(sKey)!;
+      subNodes.sort((a, b) => b.visualImportance - a.visualImportance);
+
+      // Distribute nodes in small orbit around sub-cluster center
+      const nodeCount = subNodes.length;
+      subNodes.forEach((node, nIdx) => {
+        if (nIdx === 0 && nodeCount > 1) {
+          // Top hub in sub-cluster is center
+          node.archX = subCenterX;
+          node.archY = subCenterY;
+        } else {
+          const orbitAngle = ((nIdx - 1) / Math.max(1, nodeCount - 1)) * 2 * Math.PI;
+          const orbitR = Math.min(75, 20 + Math.sqrt(nIdx) * 16);
+          node.archX = subCenterX + Math.cos(orbitAngle) * orbitR;
+          node.archY = subCenterY + Math.sin(orbitAngle) * orbitR;
+        }
+      });
+    });
+  }
+
+  const nodes: NeuralNode[] = rawNodes;
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+
+  // Build Architecture Highways across layers
+  const highwayMap = new Map<string, { count: number; resolved: number; unresolved: number }>();
+  for (const l of links) {
+    const src = nodeMap.get(l.source);
+    const tgt = nodeMap.get(l.target);
+    if (!src || !tgt) continue;
+
+    if (src.clusterLabel !== tgt.clusterLabel) {
+      const highwayKey = `${src.clusterLabel}->${tgt.clusterLabel}`;
+      const entry = highwayMap.get(highwayKey) || { count: 0, resolved: 0, unresolved: 0 };
+      entry.count++;
+      if (l.resolved) entry.resolved++;
+      else entry.unresolved++;
+      highwayMap.set(highwayKey, entry);
+    }
+  }
+
+  const highways: ArchitectureHighway[] = [...highwayMap.entries()].map(([key, data]) => {
+    const [sourceCluster, targetCluster] = key.split('->');
+    const confidence: 'high' | 'medium' | 'low' =
+      data.unresolved === 0 ? 'high' : data.resolved > data.unresolved ? 'medium' : 'low';
+    return {
+      id: key,
+      sourceCluster,
+      targetCluster,
+      count: data.count,
+      resolvedCount: data.resolved,
+      unresolvedCount: data.unresolved,
+      confidence,
+    };
+  });
+
+  // Aggregate clusters information
+  const clusterCountMap = new Map<string, { count: number; subClusters: Map<string, number> }>();
+  for (const n of nodes) {
+    if (!clusterCountMap.has(n.clusterLabel)) {
+      clusterCountMap.set(n.clusterLabel, { count: 0, subClusters: new Map() });
+    }
+    const cEntry = clusterCountMap.get(n.clusterLabel)!;
+    cEntry.count++;
+    cEntry.subClusters.set(n.subCluster, (cEntry.subClusters.get(n.subCluster) || 0) + 1);
+  }
+
+  const clusters: ClusterInfo[] = [...clusterCountMap.entries()].map(([id, info]) => {
+    const conf = CONSTELLATION_CENTROIDS[id] || {
+      x: 0,
+      y: 0,
+      color: '#3BA7F2',
+      desc: 'System architectural subsystem',
+    };
+    return {
+      id,
+      label: id,
+      count: info.count,
+      color: conf.color,
+      description: conf.desc,
+      centerX: conf.x,
+      centerY: conf.y,
+      subClusters: [...info.subClusters.entries()].map(([name, count]) => ({ name, count })),
+    };
+  });
 
   const totalModules = graph.summary?.total_modules ?? internal.length;
   const resolvedEdges = graph.summary?.resolved_edges ?? graph.edges.filter(e => e.resolved).length;
-  const unresolvedImports = graph.summary?.unresolved_imports ?? (graph.unresolved ? graph.unresolved.length : 0);
+  const unresolvedImports =
+    graph.summary?.unresolved_imports ?? (graph.unresolved ? graph.unresolved.length : 0);
   const cycleCount = graph.summary?.cycles ?? graph.summary?.cycle_count ?? graph.cycles?.length ?? 0;
   const confirmedEntryPoints = graph.summary?.entry_points ?? graph.summary?.entry_point_count ?? 0;
   const trueStandaloneCount = graph.summary?.standalone_modules ?? graph.summary?.orphan_count ?? 0;
-  const fullAstPercentage = totalModules > 0 ? Math.round((fullyParsedCount / totalModules) * 100) : 100;
+  const fullAstPercentage =
+    totalModules > 0 ? Math.round((fullyParsedCount / totalModules) * 100) : 100;
 
   const summary: NeuralGraphSummary = {
     totalModules,
@@ -444,5 +684,60 @@ export function buildNeuralGraphData(
     fullAstPercentage,
   };
 
-  return { nodes, links, summary, clusters };
+  return { nodes, links, summary, clusters, highways };
+}
+
+/**
+ * Breadcrumb step representation
+ */
+export interface ArchitectureBreadcrumb {
+  level: 'universe' | 'constellation' | 'subcluster' | 'file';
+  label: string;
+  id?: string;
+}
+
+export function buildNodeBreadcrumb(node: NeuralNode): ArchitectureBreadcrumb[] {
+  return [
+    { level: 'universe', label: 'Repository' },
+    { level: 'constellation', label: node.clusterLabel },
+    { level: 'subcluster', label: node.subCluster },
+    { level: 'file', label: node.label.split('/').pop() || node.label, id: node.id },
+  ];
+}
+
+/**
+ * Shortest path finder between two nodes via BFS
+ */
+export function findShortestPath(
+  links: NeuralLink[],
+  startId: string,
+  endId: string
+): string[] | null {
+  if (startId === endId) return [startId];
+
+  const adj = new Map<string, string[]>();
+  for (const l of links) {
+    if (!adj.has(l.source)) adj.set(l.source, []);
+    adj.get(l.source)!.push(l.target);
+  }
+
+  const queue: string[][] = [[startId]];
+  const visited = new Set<string>([startId]);
+
+  while (queue.length > 0) {
+    const path = queue.shift()!;
+    const last = path[path.length - 1];
+
+    if (last === endId) return path;
+
+    const neighbors = adj.get(last) || [];
+    for (const n of neighbors) {
+      if (!visited.has(n)) {
+        visited.add(n);
+        queue.push([...path, n]);
+      }
+    }
+  }
+
+  return null;
 }
