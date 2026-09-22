@@ -8,6 +8,7 @@ import {
   ArrowUpRight,
   AlertCircle,
   CheckCircle2,
+  Sliders,
 } from 'lucide-react';
 import { HealthDimensionCard, TabType } from '../../types';
 
@@ -61,32 +62,39 @@ export const HealthDimensionCards: React.FC<HealthDimensionCardsProps> = ({
   ];
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-teal-strong';
-    if (score >= 70) return 'text-interactive';
-    if (score >= 50) return 'text-amber-strong';
-    return 'text-red-strong';
+    if (score >= 80) return 'text-[#167C69]';
+    if (score >= 70) return 'text-[#0B3D91]';
+    if (score >= 50) return 'text-[#D97706]';
+    return 'text-[#DC2626]';
+  };
+
+  const getProgressBarColor = (score: number) => {
+    if (score >= 80) return 'bg-[#167C69]';
+    if (score >= 70) return 'bg-[#0B3D91]';
+    if (score >= 50) return 'bg-[#D97706]';
+    return 'bg-[#DC2626]';
   };
 
   const getStatusBadge = (status: string, score: number) => {
     if (score >= 80) {
       return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-text bg-teal-surface px-2 py-0.5 rounded border border-teal/20">
-          <CheckCircle2 className="w-3 h-3 text-teal" />
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#167C69] bg-[#E6F8F3] px-2.5 py-0.5 rounded-full border border-[#7FE7D6]/40">
+          <CheckCircle2 className="w-3 h-3 text-[#167C69]" />
           {status || 'Healthy'}
         </span>
       );
     }
     if (score >= 50) {
       return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-text bg-amber-surface px-2 py-0.5 rounded border border-amber/30">
-          <AlertCircle className="w-3 h-3 text-amber-strong" />
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#92400E] bg-[#FEF3C7] px-2.5 py-0.5 rounded-full border border-[#FCD34D]">
+          <AlertCircle className="w-3 h-3 text-[#B45309]" />
           {status || 'Needs Attention'}
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-text bg-red-surface px-2 py-0.5 rounded border border-red/30">
-        <AlertCircle className="w-3 h-3 text-red-strong" />
+      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#991B1B] bg-[#FEE2E2] px-2.5 py-0.5 rounded-full border border-[#FCA5A5]">
+        <AlertCircle className="w-3 h-3 text-[#DC2626]" />
         {status || 'High Risk'}
       </span>
     );
@@ -98,126 +106,125 @@ export const HealthDimensionCards: React.FC<HealthDimensionCardsProps> = ({
     switch (card.key) {
       case 'parsing':
         return (
-          <div className="space-y-2 mt-2 pt-2 border-t border-line/60">
+          <div className="space-y-2 mt-3 pt-3 border-t border-[#D7EAF5]">
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="bg-panel/50 p-2 rounded">
-                <div className="text-[10px] font-mono text-ink-3 uppercase">Full AST Coverage</div>
-                <div className="text-sm font-bold font-mono text-ink mt-0.5">
+              <div className="bg-[#F7FBFF] border border-[#D7EAF5] p-2.5 rounded-xl">
+                <div className="text-[10px] font-bold text-[#52697A] uppercase tracking-wider">Full AST Coverage</div>
+                <div className="text-sm font-bold font-mono text-[#102536] mt-0.5">
                   {m.fullAstPercentage ?? 100}%
                 </div>
               </div>
-              <div className="bg-panel/50 p-2 rounded">
-                <div className="text-[10px] font-mono text-ink-3 uppercase">Parser Readiness</div>
-                <div className="text-sm font-bold font-mono text-interactive mt-0.5">
+              <div className="bg-[#F7FBFF] border border-[#D7EAF5] p-2.5 rounded-xl">
+                <div className="text-[10px] font-bold text-[#52697A] uppercase tracking-wider">Parser Readiness</div>
+                <div className="text-sm font-bold font-mono text-[#0B3D91] mt-0.5">
                   {m.parserReadinessScore ?? card.score}/100
                 </div>
               </div>
             </div>
-            <div className="flex items-center justify-between text-[11px] font-mono text-ink-3 px-1">
-              <span>Fully Parsed: <strong className="text-ink-2">{m.fullyParsed ?? 0}</strong></span>
-              <span>Partial: <strong className="text-ink-2">{m.partial ?? 0}</strong></span>
-              <span>Fallback: <strong className="text-ink-2">{m.fallbackOrUnsupported ?? 0}</strong></span>
+            <div className="flex items-center justify-between text-[11px] text-[#52697A] px-1 font-sans">
+              <span>Parsed: <strong className="font-mono text-[#102536]">{m.fullyParsed ?? 0}</strong></span>
+              <span>Partial: <strong className="font-mono text-[#102536]">{m.partial ?? 0}</strong></span>
+              <span>Fallback: <strong className="font-mono text-[#102536]">{m.fallbackOrUnsupported ?? 0}</strong></span>
             </div>
           </div>
         );
 
       case 'dependencies':
         return (
-          <div className="space-y-2 mt-2 pt-2 border-t border-line/60">
+          <div className="space-y-2 mt-3 pt-3 border-t border-[#D7EAF5]">
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="bg-panel/50 p-2 rounded">
-                <div className="text-[10px] font-mono text-ink-3 uppercase">Resolved Edges</div>
-                <div className="text-sm font-bold font-mono text-ink mt-0.5">
+              <div className="bg-[#F7FBFF] border border-[#D7EAF5] p-2.5 rounded-xl">
+                <div className="text-[10px] font-bold text-[#52697A] uppercase tracking-wider">Resolved Edges</div>
+                <div className="text-sm font-bold font-mono text-[#102536] mt-0.5">
                   {m.resolvedEdges ?? 0}
                 </div>
               </div>
-              <div className="bg-panel/50 p-2 rounded">
-                <div className="text-[10px] font-mono text-ink-3 uppercase">Unresolved Imports</div>
-                <div className={`text-sm font-bold font-mono mt-0.5 ${m.unresolvedImports > 0 ? 'text-amber-strong' : 'text-teal-strong'}`}>
+              <div className="bg-[#F7FBFF] border border-[#D7EAF5] p-2.5 rounded-xl">
+                <div className="text-[10px] font-bold text-[#52697A] uppercase tracking-wider">Unresolved Imports</div>
+                <div className={`text-sm font-bold font-mono mt-0.5 ${m.unresolvedImports > 0 ? 'text-[#D97706]' : 'text-[#167C69]'}`}>
                   {m.unresolvedImports ?? 0}
                 </div>
               </div>
             </div>
-            <div className="flex items-center justify-between text-[11px] font-mono text-ink-3 px-1">
-              <span>Detected Cycles: <strong className={m.detectedCycles > 0 ? 'text-red-strong' : 'text-teal-strong'}>{m.detectedCycles ?? 0}</strong></span>
-              <span>Graph Conf: <strong className="text-ink-2">{m.graphConfidence || 'High'}</strong></span>
+            <div className="flex items-center justify-between text-[11px] text-[#52697A] px-1 font-sans">
+              <span>Cycles: <strong className="font-mono text-[#102536]">{m.cycleCount ?? 0}</strong></span>
+              <span>Graph Density: <strong className="font-mono text-[#102536]">{m.density ?? '0.04'}</strong></span>
+              <span>External: <strong className="font-mono text-[#102536]">{m.externalPackages ?? 0}</strong></span>
             </div>
           </div>
         );
 
       case 'complexity':
         return (
-          <div className="space-y-2 mt-2 pt-2 border-t border-line/60">
+          <div className="space-y-2 mt-3 pt-3 border-t border-[#D7EAF5]">
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="bg-panel/50 p-2 rounded">
-                <div className="text-[10px] font-mono text-ink-3 uppercase">Complexity Health</div>
-                <div className="text-sm font-bold font-mono text-ink mt-0.5">
-                  {m.overallComplexityHealth ?? 'Manageable'}
+              <div className="bg-[#F7FBFF] border border-[#D7EAF5] p-2.5 rounded-xl">
+                <div className="text-[10px] font-bold text-[#52697A] uppercase tracking-wider">Hotspots Found</div>
+                <div className="text-sm font-bold font-mono text-[#102536] mt-0.5">
+                  {m.hotspotCount ?? 0}
                 </div>
               </div>
-              <div className="bg-panel/50 p-2 rounded">
-                <div className="text-[10px] font-mono text-ink-3 uppercase">Highest Cyclomatic</div>
-                <div className="text-sm font-bold font-mono text-ink-2 mt-0.5">
-                  {m.highestCyclomaticComplexity ?? 1}
+              <div className="bg-[#F7FBFF] border border-[#D7EAF5] p-2.5 rounded-xl">
+                <div className="text-[10px] font-bold text-[#52697A] uppercase tracking-wider">Max Complexity</div>
+                <div className={`text-sm font-bold font-mono mt-0.5 ${m.maxComplexity > 20 ? 'text-[#DC2626]' : 'text-[#0B3D91]'}`}>
+                  {m.maxComplexity ?? 0} CC
                 </div>
               </div>
             </div>
-            <div className="flex items-center justify-between text-[11px] font-mono text-ink-3 px-1">
-              <span>High-Risk Files: <strong className="text-amber-strong">{m.highRiskFiles ?? 0}</strong></span>
-              <span>Critical Files: <strong className="text-red-strong">{m.criticalOverallRiskFiles ?? 0}</strong></span>
+            <div className="flex items-center justify-between text-[11px] text-[#52697A] px-1 font-sans">
+              <span>Avg CC: <strong className="font-mono text-[#102536]">{m.avgComplexity ?? 0}</strong></span>
+              <span>Critical: <strong className="font-mono text-[#102536]">{m.criticalFiles ?? 0}</strong></span>
+              <span>Hotspot Index: <strong className="font-mono text-[#102536]">{m.hotspotRatio ?? '0%'}</strong></span>
             </div>
           </div>
         );
 
       case 'protection':
         return (
-          <div className="space-y-2 mt-2 pt-2 border-t border-line/60">
+          <div className="space-y-2 mt-3 pt-3 border-t border-[#D7EAF5]">
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="bg-panel/50 p-2 rounded">
-                <div className="text-[10px] font-mono text-ink-3 uppercase">Protected Modules</div>
-                <div className="text-sm font-bold font-mono text-teal-strong mt-0.5">
-                  {m.protectedSourceModules ?? 0}
+              <div className="bg-[#F7FBFF] border border-[#D7EAF5] p-2.5 rounded-xl">
+                <div className="text-[10px] font-bold text-[#52697A] uppercase tracking-wider">Protected Modules</div>
+                <div className="text-sm font-bold font-mono text-[#167C69] mt-0.5">
+                  {m.protectedModules ?? 0}
                 </div>
               </div>
-              <div className="bg-panel/50 p-2 rounded">
-                <div className="text-[10px] font-mono text-ink-3 uppercase">Unprotected Modules</div>
-                <div className="text-sm font-bold font-mono text-amber-strong mt-0.5">
+              <div className="bg-[#F7FBFF] border border-[#D7EAF5] p-2.5 rounded-xl">
+                <div className="text-[10px] font-bold text-[#52697A] uppercase tracking-wider">Unprotected Modules</div>
+                <div className={`text-sm font-bold font-mono mt-0.5 ${m.unprotectedModules > 0 ? 'text-[#DC2626]' : 'text-[#167C69]'}`}>
                   {m.unprotectedModules ?? 0}
                 </div>
               </div>
             </div>
-            <div className="text-[10px] font-mono text-ink-3 px-1 space-y-0.5">
-              <div className="flex justify-between">
-                <span>Syntax-Valid Tests: <strong className="text-ink-2">{m.syntaxValidTests ?? 0}</strong></span>
-                <span>Generated Files: <strong className="text-ink-2">{m.generatedTests ?? 0}</strong></span>
-              </div>
-              <div className="text-ink-4 text-[9px] italic">
-                * Syntax-valid tests never implied as runtime verified.
-              </div>
+            <div className="flex items-center justify-between text-[11px] text-[#52697A] px-1 font-sans">
+              <span>Test Files: <strong className="font-mono text-[#102536]">{m.testFiles ?? 0}</strong></span>
+              <span>Coverage Ratio: <strong className="font-mono text-[#102536]">{m.coverageRatio ?? '0%'}</strong></span>
+              <span>Syntax Valid: <strong className="font-mono text-[#102536]">{m.syntaxValidTests ?? 0}</strong></span>
             </div>
           </div>
         );
 
       case 'modernization':
         return (
-          <div className="space-y-2 mt-2 pt-2 border-t border-line/60">
+          <div className="space-y-2 mt-3 pt-3 border-t border-[#D7EAF5]">
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="bg-panel/50 p-2 rounded">
-                <div className="text-[10px] font-mono text-ink-3 uppercase">Modernization Candidates</div>
-                <div className="text-sm font-bold font-mono text-interactive mt-0.5">
+              <div className="bg-[#F7FBFF] border border-[#D7EAF5] p-2.5 rounded-xl">
+                <div className="text-[10px] font-bold text-[#52697A] uppercase tracking-wider">Candidates</div>
+                <div className="text-sm font-bold font-mono text-[#0B3D91] mt-0.5">
                   {m.modernizationCandidates ?? 0}
                 </div>
               </div>
-              <div className="bg-panel/50 p-2 rounded">
-                <div className="text-[10px] font-mono text-ink-3 uppercase">Autofix Eligible</div>
-                <div className="text-sm font-bold font-mono text-teal-strong mt-0.5">
-                  {m.autofixEligible ?? 0}
+              <div className="bg-[#F7FBFF] border border-[#D7EAF5] p-2.5 rounded-xl">
+                <div className="text-[10px] font-bold text-[#52697A] uppercase tracking-wider">Autofixable Diffs</div>
+                <div className="text-sm font-bold font-mono text-[#167C69] mt-0.5">
+                  {m.autofixableDiffs ?? 0}
                 </div>
               </div>
             </div>
-            <div className="flex items-center justify-between text-[11px] font-mono text-ink-3 px-1">
-              <span>Static Findings: <strong className="text-ink-2">{m.staticFindings ?? 0}</strong></span>
-              <span>Generated Diffs: <strong className="text-ink-2">{m.generatedDiffs ?? 0}</strong></span>
+            <div className="flex items-center justify-between text-[11px] text-[#52697A] px-1 font-sans">
+              <span>Legacy Warnings: <strong className="font-mono text-[#102536]">{m.legacyWarnings ?? 0}</strong></span>
+              <span>Diff Coverage: <strong className="font-mono text-[#102536]">{m.diffRatio ?? '100%'}</strong></span>
+              <span>Verified: <strong className="font-mono text-[#102536]">{m.verifiedDiffs ?? 0}</strong></span>
             </div>
           </div>
         );
@@ -228,18 +235,30 @@ export const HealthDimensionCards: React.FC<HealthDimensionCardsProps> = ({
   };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-base font-bold text-ink tracking-tight">
-          Health Dimension Observatory
-        </h3>
-        <p className="text-xs text-ink-3 mt-0.5">
-          Granular metrics across the 5 primary dimensions of repository health.
-        </p>
+    <section
+      className="bg-white border border-[#D7EAF5] rounded-[20px] shadow-[0_8px_28px_rgba(11,61,145,0.06)] p-6 sm:p-7 transition-all"
+      aria-label="Health Dimension Observatory"
+    >
+      {/* Section Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-[#D7EAF5]">
+        <div>
+          <h3 className="text-lg font-bold text-[#102536] tracking-tight font-display flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-[#E8F6FF] flex items-center justify-center text-[#0B3D91]">
+              <Sliders className="w-4 h-4" />
+            </div>
+            <span>Health Dimension Observatory</span>
+          </h3>
+          <p className="text-xs text-[#52697A] mt-1">
+            Deterministic diagnostic breakdown across parsing, dependencies, complexity, protection, and modernization.
+          </p>
+        </div>
+        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#F7FBFF] border border-[#D7EAF5] text-[#52697A] self-start sm:self-auto">
+          5 Core Dimensions Analyzed
+        </span>
       </div>
 
-      {/* 5 Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      {/* Responsive 3+2 Grid on Desktop (Section 18, 20) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-5">
         {dimensionConfigs.map((cfg) => {
           const card = dimensions[cfg.key];
           if (!card) return null;
@@ -248,51 +267,61 @@ export const HealthDimensionCards: React.FC<HealthDimensionCardsProps> = ({
           return (
             <div
               key={cfg.key}
-              className="bg-surface border border-line rounded-card shadow-1 p-4.5 flex flex-col justify-between hover:shadow-2 hover:border-line-strong/70 transition-all duration-200"
+              className="bg-white border border-[#D7EAF5] rounded-[18px] shadow-[0_4px_20px_rgba(11,61,145,0.04)] p-5 flex flex-col justify-between hover:shadow-[0_8px_28px_rgba(11,61,145,0.09)] hover:border-[#3BA7F2]/50 transition-all duration-250 group"
             >
               <div>
-                {/* Header */}
+                {/* Header: Icon, Label, Status Pill */}
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-panel flex items-center justify-center text-ink-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-[#E8F6FF] flex items-center justify-center text-[#0B3D91] group-hover:bg-[#0B3D91] group-hover:text-white transition-colors">
                       <Icon className="w-4 h-4" />
                     </div>
-                    <span className="text-sm font-bold text-ink">{cfg.label}</span>
+                    <span className="text-base font-bold text-[#102536] font-display">
+                      {cfg.label}
+                    </span>
                   </div>
                   {getStatusBadge(card.status, card.score)}
                 </div>
 
-                {/* Score & Confidence */}
-                <div className="mt-3 flex items-baseline justify-between">
+                {/* Score & Progress Bar */}
+                <div className="mt-3.5 flex items-baseline justify-between">
                   <div>
                     {lensMode === 'health' ? (
                       <div className="flex items-baseline gap-1">
-                        <span className={`text-3xl font-extrabold font-mono ${getScoreColor(card.score)}`}>
+                        <span className={`text-3xl font-black font-display tracking-tight ${getScoreColor(card.score)}`}>
                           {card.score}
                         </span>
-                        <span className="text-xs text-ink-4">/100</span>
+                        <span className="text-xs font-bold text-[#94A3B8]">/100</span>
                       </div>
                     ) : (
-                      <div className="text-xl font-bold font-mono uppercase text-ink">
+                      <div className="text-xl font-bold font-mono uppercase text-[#102536]">
                         {card.confidence}
                       </div>
                     )}
-                    <span className="text-[10px] font-mono uppercase text-ink-3 font-medium">
-                      {lensMode === 'health' ? 'Dimension Score' : 'Confidence'}
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#52697A] font-sans">
+                      {lensMode === 'health' ? 'Dimension Score' : 'Confidence Level'}
                     </span>
                   </div>
 
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-panel text-ink-2 border border-line uppercase">
-                    {card.confidence} conf
+                  <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-[#F7FBFF] text-[#52697A] border border-[#D7EAF5] capitalize">
+                    {card.confidence} confidence
                   </span>
                 </div>
 
+                {/* Progress bar line */}
+                <div className="w-full h-1.5 bg-[#E8F6FF] rounded-full overflow-hidden mt-2">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ${getProgressBarColor(card.score)}`}
+                    style={{ width: `${Math.max(6, card.score)}%` }}
+                  />
+                </div>
+
                 {/* Main Pressure */}
-                <div className="mt-3 p-2 rounded-lg bg-panel/40 border border-line/60">
-                  <div className="text-[10px] font-mono uppercase text-ink-3 font-semibold">
+                <div className="mt-3.5 p-3 rounded-xl bg-[#F7FBFF] border border-[#D7EAF5]">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-[#52697A]">
                     Main Pressure
                   </div>
-                  <p className="text-xs text-ink-2 font-medium mt-0.5 line-clamp-2" title={card.mainPressure}>
+                  <p className="text-xs text-[#102536] font-medium mt-1 leading-snug line-clamp-2" title={card.mainPressure}>
                     {card.mainPressure}
                   </p>
                 </div>
@@ -302,13 +331,13 @@ export const HealthDimensionCards: React.FC<HealthDimensionCardsProps> = ({
 
                 {/* Grounding Evidence List */}
                 {card.evidence && card.evidence.length > 0 && (
-                  <div className="mt-3 pt-2 border-t border-line/60">
-                    <div className="text-[10px] font-mono uppercase text-ink-3 font-semibold mb-1">
-                      Evidence
+                  <div className="mt-3 pt-2.5 border-t border-[#D7EAF5]">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-[#52697A] mb-1.5">
+                      Grounding Evidence
                     </div>
                     <ul className="space-y-1">
                       {card.evidence.slice(0, 2).map((ev, idx) => (
-                        <li key={idx} className="text-[11px] text-ink-3 font-mono truncate" title={ev}>
+                        <li key={idx} className="text-[11px] text-[#52697A] font-mono truncate" title={ev}>
                           &bull; {ev}
                         </li>
                       ))}
@@ -317,12 +346,13 @@ export const HealthDimensionCards: React.FC<HealthDimensionCardsProps> = ({
                 )}
               </div>
 
-              {/* Navigation Button */}
+              {/* Navigation Action Button Aligned at Bottom */}
               {onNavigateTab && (
-                <div className="mt-4 pt-3 border-t border-line">
+                <div className="mt-5 pt-3.5 border-t border-[#D7EAF5]">
                   <button
+                    type="button"
                     onClick={() => onNavigateTab(cfg.destinationTab)}
-                    className="w-full py-1.5 px-2.5 rounded-lg text-xs font-semibold text-interactive hover:bg-interactive-surface/80 border border-interactive/20 flex items-center justify-center gap-1.5 transition-colors"
+                    className="w-full py-2 px-3 rounded-xl text-xs font-bold text-[#0B3D91] bg-[#E8F6FF] hover:bg-[#0B3D91] hover:text-white border border-[#3BA7F2]/30 transition-all flex items-center justify-center gap-1.5 shadow-xs"
                   >
                     <span>{cfg.actionText}</span>
                     <ArrowUpRight className="w-3.5 h-3.5" />
@@ -333,7 +363,7 @@ export const HealthDimensionCards: React.FC<HealthDimensionCardsProps> = ({
           );
         })}
       </div>
-    </div>
+    </section>
   );
 };
 
