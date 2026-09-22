@@ -20,6 +20,8 @@ from app.database import get_db
 from app.models.db import Job, JobState, Project, ProjectAnalysisRecord, ProjectFile, ProjectRefactorRecord
 from app.migration.models import ChangeImpact, MigrationPlanResponse
 from app.migration.service import build_migration_plan, get_module_change_impact, migration_plan_markdown
+from app.pulse.models import SystemPulseResponse
+from app.pulse.service import build_system_pulse
 from app.hotspots.models import HotspotsResponse
 from app.hotspots.service import compute_project_hotspots
 from app.models.schema import (
@@ -53,6 +55,23 @@ def _download_name(value: str) -> str:
         character if character.isalnum() or character in "-_" else "-"
         for character in value
     ).strip("-") or "project"
+
+
+@router.get("/projects/{project_id}/system-pulse", response_model=SystemPulseResponse)
+def get_system_pulse(project_id: str, response: Response, db: Session = Depends(get_db)) -> SystemPulseResponse:
+    """Retrieve comprehensive System Pulse (Repository Health Observatory) for the project."""
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    try:
+        return build_system_pulse(db, project_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    except Exception:
+        logger.exception("System Pulse generation failed for project %s", project_id)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unable to create System Pulse.")
 
 
 @router.get("/projects/{project_id}/migration-plan", response_model=MigrationPlanResponse)

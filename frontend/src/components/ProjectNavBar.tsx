@@ -13,6 +13,7 @@ import {
   X,
   LucideIcon,
   FolderGit2,
+  Activity,
 } from 'lucide-react';
 import { ProjectFileResponse, ProjectMetadataResponse, TabType } from '../types';
 import { sourceLabel } from '../utils/presentation';
@@ -56,6 +57,7 @@ export const ProjectNavBar: React.FC<ProjectNavBarProps> = ({
 
   const tabs: TabConfig[] = [
     { id: 'overview', label: 'Project Details', icon: FolderGit2 },
+    { id: 'pulse', label: 'SYSTEM PULSE', icon: Activity },
     { id: 'explanation', label: 'Architecture Overview', icon: BookOpen },
     { id: 'hotspots', label: 'Risk Hotspots', icon: Flame },
     {

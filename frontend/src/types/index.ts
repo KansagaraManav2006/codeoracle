@@ -113,7 +113,7 @@ export interface ProjectSummary {
   warnings: string[];
 }
 
-export type TabType = 'overview' | 'explanation' | 'hotspots' | 'graph' | 'neural-map' | 'tests' | 'refactor' | 'migration';
+export type TabType = 'overview' | 'pulse' | 'explanation' | 'hotspots' | 'graph' | 'neural-map' | 'tests' | 'refactor' | 'migration';
 
 export interface HotspotFactors {
   complexity_raw: number;
@@ -1039,4 +1039,108 @@ export interface RefactorVerificationResult {
   after_tests: TestExecutionComparison;
   metrics: VerificationMetricsComparison;
   verification_summary: string;
+}
+
+// --- System Pulse (Repository Health Observatory) Types ---
+
+export type SubsystemId = 'frontend' | 'backend' | 'ml' | 'database' | 'infrastructure';
+
+export interface SubsystemHealth {
+  id: SubsystemId;
+  label: string;
+  fileCount: number;
+  healthScore: number;
+  confidence: 'high' | 'medium' | 'low';
+  highRiskFiles: number;
+  unresolvedDependencies: number;
+  unprotectedFiles: number;
+  modernizationCandidates: number;
+  fullParseCoverage: number;
+}
+
+export interface PressureZone {
+  id: string;
+  path: string;
+  subsystem: string;
+  pressureScore: number;
+  level: 'Critical' | 'High' | 'Moderate' | 'Low' | string;
+  confidence: 'high' | 'medium' | 'low';
+  reasons: string[];
+  riskScore: number;
+  unprotectedCount: number;
+  graphConfidence: string;
+  mainReason: string;
+}
+
+export interface HealthDimensionCard {
+  key: 'parsing' | 'dependencies' | 'complexity' | 'protection' | 'modernization' | string;
+  label: string;
+  score: number;
+  confidence: 'high' | 'medium' | 'low';
+  status: string;
+  mainPressure: string;
+  evidence: string[];
+  metrics: Record<string, any>;
+}
+
+export interface HealthSignal {
+  id: string;
+  type: 'most_important' | 'dependency' | 'modernization' | 'positive' | 'protection';
+  title: string;
+  narrative: string;
+  evidence: string[];
+  severity: 'positive' | 'info' | 'warning' | 'risk';
+}
+
+export interface NextAction {
+  id: string;
+  title: string;
+  reason: string;
+  expectedEffect: string;
+  destinationPage: TabType;
+  targetFile?: string | null;
+}
+
+export interface AnalysisConfidenceSummary {
+  overallConfidence: 'high' | 'medium' | 'low';
+  parseReliability: string;
+  graphResolutionConfidence: string;
+  riskConfidence: string;
+  protectionEvidenceConfidence: string;
+  modernizationEvidenceConfidence: string;
+  reasons: string[];
+}
+
+export interface WhyScoreEvidence {
+  strengths: string[];
+  pressurePoints: string[];
+  evidence: string[];
+}
+
+export interface SnapshotComparison {
+  hasPrevious: boolean;
+  previousScore?: number;
+  healthDelta?: number;
+  riskReduction?: number;
+  unresolvedDependencyReduction?: number;
+  protectionImprovement?: number;
+}
+
+export interface RepositoryHealth {
+  score: number;
+  label: 'Stable' | 'Stable with pressure points' | 'Needs attention' | 'High risk' | 'Analysis incomplete' | string;
+  confidence: 'high' | 'medium' | 'low';
+  isPartial: boolean;
+  whyScore: WhyScoreEvidence;
+  dimensions: Record<string, HealthDimensionCard>;
+  snapshotComparison?: SnapshotComparison | null;
+}
+
+export interface SystemPulseResponse {
+  health: RepositoryHealth;
+  subsystems: SubsystemHealth[];
+  pressureZones: PressureZone[];
+  signals: HealthSignal[];
+  nextActions: NextAction[];
+  confidence: AnalysisConfidenceSummary;
 }

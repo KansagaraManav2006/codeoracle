@@ -12,6 +12,7 @@ import DependencyGraphTab from './components/DependencyGraphTab';
 import GeneratedTestsTab from './components/GeneratedTestsTab';
 import RefactoredCodeTab from './components/RefactoredCodeTab';
 import MigrationPlanTab from './components/MigrationPlanTab';
+import SystemPulseTab from './components/pulse/SystemPulseTab';
 import { ToastProvider } from './components/common/Toast';
 import ShortcutsModal from './components/common/ShortcutsModal';
 import ChangeImpactModal from './components/common/ChangeImpactModal';
@@ -27,6 +28,7 @@ const AppContent: React.FC = () => {
     const t = params.get('tab') as TabType;
     if (
       t === 'overview' ||
+      t === 'pulse' ||
       t === 'explanation' ||
       t === 'hotspots' ||
       t === 'graph' ||
@@ -175,18 +177,20 @@ const AppContent: React.FC = () => {
       } else if (e.key === '1') {
         handleTabChange('overview');
       } else if (e.key === '2') {
-        handleTabChange('explanation');
+        handleTabChange('pulse');
       } else if (e.key === '3') {
-        handleTabChange('hotspots');
+        handleTabChange('explanation');
       } else if (e.key === '4') {
-        handleTabChange('graph');
+        handleTabChange('hotspots');
       } else if (e.key === '5') {
-        handleTabChange('neural-map');
+        handleTabChange('graph');
       } else if (e.key === '6') {
-        handleTabChange('tests');
+        handleTabChange('neural-map');
       } else if (e.key === '7') {
-        handleTabChange('refactor');
+        handleTabChange('tests');
       } else if (e.key === '8') {
+        handleTabChange('refactor');
+      } else if (e.key === '9') {
         handleTabChange('migration');
       } else if (e.key === '/') {
         e.preventDefault();
@@ -292,6 +296,15 @@ const AppContent: React.FC = () => {
                     onSelectFile={handleSelectFile}
                     onNavigateTab={handleTabChange}
                     onReset={reset}
+                  />
+                )}
+                {activeTab === 'pulse' && (
+                  <SystemPulseTab
+                    projectId={project.project_id}
+                    projectName={project.display_name}
+                    targetFile={targetFile}
+                    onNavigateTab={handleTabChange}
+                    onSelectFile={handleSelectFile}
                   />
                 )}
                 {activeTab === 'explanation' && (

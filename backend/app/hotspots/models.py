@@ -43,6 +43,22 @@ class RiskAssessment(CamelModel):
     reason: str
     recommended_action: str
 
+    @property
+    def file(self) -> str:
+        return self.file_path
+
+    @property
+    def filePath(self) -> str:
+        return self.file_path
+
+    @property
+    def overallRisk(self) -> str:
+        return self.overall_risk
+
+    @property
+    def hotspotScore(self) -> int:
+        return self.hotspot_score
+
 # Alias for backwards compatibility
 HotspotItem = RiskAssessment
 
