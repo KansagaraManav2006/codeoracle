@@ -2,9 +2,8 @@ import React, { useEffect, useState, useCallback, lazy, Suspense } from 'react';
 import AppSidebar from './components/AppSidebar';
 import ProjectContextBar from './components/ProjectContextBar';
 import WorkspaceShell from './components/WorkspaceShell';
-import InputSection from './components/InputSection';
+import LandingPage from './components/landing/LandingPage';
 import JobProgressView from './components/JobProgressView';
-import RecentProjectsSection from './components/RecentProjectsSection';
 import ProjectOverviewTab from './components/ProjectOverviewTab';
 import ExplanationTab from './components/ExplanationTab';
 import HotspotsTab from './components/HotspotsTab';
@@ -60,6 +59,7 @@ const AppContent: React.FC = () => {
   const [impactModalTarget, setImpactModalTarget] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [showLandingPreview, setShowLandingPreview] = useState(false);
 
   const handleOpenImpactModal = (filePath: string) => {
     setImpactModalTarget(filePath);
@@ -83,7 +83,6 @@ const AppContent: React.FC = () => {
     error,
     errorCode,
     repoFetchError,
-    lastGithubUrl,
     fetchStage,
     submitZip,
     submitGithub,
@@ -230,6 +229,51 @@ const AppContent: React.FC = () => {
     handleTabChange('graph');
   };
 
+  if (!project || showLandingPreview) {
+    return (
+      <div className="min-h-screen bg-canvas text-ink-2 font-sans antialiased relative">
+        {showLandingPreview && project && (
+          <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-[#1D1D1F] text-white px-5 py-2 rounded-full shadow-apple-lg border border-white/10 flex items-center gap-3 text-xs animate-fade-in">
+            <span className="font-semibold">Active Codebase: {project.display_name}</span>
+            <button
+              onClick={() => setShowLandingPreview(false)}
+              className="px-3.5 py-1 bg-[#007AFF] hover:bg-[#0066D6] text-white rounded-full font-bold transition-all"
+            >
+              Return to Workspace
+            </button>
+          </div>
+        )}
+        <LandingPage
+          onAnalyzeGithub={submitGithub}
+          onAnalyzeZip={submitZip}
+          onLoadDemo={loadDemo}
+          onOpenProject={(id) => {
+            openProject(id);
+            setShowLandingPreview(false);
+          }}
+          isLoading={loading}
+        />
+        {(loading || job || error || repoFetchError) && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <div className="w-full max-w-lg bg-white rounded-[28px] border border-[#E5E5EA] shadow-apple-lg p-6">
+              <JobProgressView
+                job={job}
+                loading={loading}
+                error={error}
+                errorCode={errorCode}
+                fetchError={repoFetchError}
+                fetchStage={fetchStage}
+                onRetry={retry}
+                onEditUrl={editUrl}
+                onCancel={reset}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-canvas text-ink-2 flex font-sans antialiased">
       {/* Skip to Content for Accessibility per DESIGN.md §12 */}
@@ -268,23 +312,22 @@ const AppContent: React.FC = () => {
           onReset={reset}
           onOpenImpactModal={handleOpenImpactModal}
           onOpenSidebar={() => setMobileNavOpen(true)}
+          onViewLanding={() => setShowLandingPreview(true)}
         />
 
       {/* Main Page Content */}
       <main
         id="main-content"
         className={`flex-1 w-full ${
-          project && (activeTab === 'graph' || activeTab === 'neural-map')
+          activeTab === 'graph' || activeTab === 'neural-map'
             ? 'px-3 sm:px-4 py-3'
             : 'px-4 sm:px-6 py-5'
         }`}
       >
-        {!(project && (activeTab === 'graph' || activeTab === 'neural-map')) && (
+        {!(activeTab === 'graph' || activeTab === 'neural-map') && (
           <PipelineStrip
             stage={
-              !project
-                ? 'ingest'
-                : activeTab === 'tests' || activeTab === 'refactor' || activeTab === 'migration'
+              activeTab === 'tests' || activeTab === 'refactor' || activeTab === 'migration'
                 ? 'output'
                 : 'analyze'
             }
@@ -294,38 +337,8 @@ const AppContent: React.FC = () => {
             onOutput={() => handleTabChange('tests')}
           />
         )}
-        {!project ? (
-          <div className="space-y-6 sm:space-y-8">
-            <InputSection
-              onAnalyzeZip={submitZip}
-              onAnalyzeGithub={submitGithub}
-              onLoadDemo={loadDemo}
-              disabled={loading}
-              initialGithubUrl={lastGithubUrl}
-            />
-
-            <JobProgressView
-              job={job}
-              loading={loading}
-              error={error}
-              errorCode={errorCode}
-              fetchError={repoFetchError}
-              fetchStage={fetchStage}
-              onRetry={retry}
-              onEditUrl={editUrl}
-              onCancel={reset}
-            />
-
-            {!loading && (
-              <RecentProjectsSection
-                onOpenProject={openProject}
-                disabled={loading}
-              />
-            )}
-          </div>
-        ) : (
-          <WorkspaceShell>
-            <div className="w-full">
+        <WorkspaceShell>
+          <div className="w-full">
                 {activeTab === 'overview' && (
                   <ProjectOverviewTab
                     project={project}
@@ -428,7 +441,6 @@ const AppContent: React.FC = () => {
                 )}
               </div>
             </WorkspaceShell>
-        )}
       </main>
 
       {/* Shortcuts Modal */}
