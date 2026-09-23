@@ -18,14 +18,17 @@ from app.analysis.dependency_resolver import resolve_project_dependencies
 from app.analysis.javascript_analyzer import analyze_javascript_source
 from app.analysis.models import (
     ANALYZER_VERSION,
+    DependencyEdge,
     ImportInfo,
+    ModuleAnalysis,
     ProjectAnalysis,
+    WarningInfo,
     generate_edge_id,
     generate_module_id,
     generate_symbol_id,
 )
 from app.analysis.python_analyzer import analyze_python_source, fallback_python_tokenize_analysis
-from app.analysis.service import run_analysis_for_project
+from app.analysis.service import build_analysis_findings, run_analysis_for_project
 from app.config import settings
 from app.database import Base, get_db
 from app.main import app
@@ -74,6 +77,96 @@ def setup_db():
 
 
 client = TestClient(app)
+
+
+def test_finding_contract_preserves_static_evidence_and_dependencies():
+    source_id = generate_module_id("proj_findings", "legacy.py")
+    target_id = generate_module_id("proj_findings", "shared.py")
+    modules = [
+        ModuleAnalysis(
+            module_id=source_id, relative_path="legacy.py", language="python", line_count=3,
+            parse_status="complete",
+            legacy_warnings=[WarningInfo(code="PY2_XRANGE", message="Use range.", line=2, severity="warning")],
+        ),
+        ModuleAnalysis(module_id=target_id, relative_path="shared.py", language="python", line_count=1, parse_status="complete"),
+    ]
+    findings = build_analysis_findings("proj_findings", modules, [
+        DependencyEdge(
+            edge_id="edge_findings", source_module_id=source_id, target_module_id=target_id,
+            type="import", resolved=True,
+        ),
+    ])
+    assert len(findings) == 1
+    finding = findings[0]
+    assert finding.rule_id == "PY2_XRANGE"
+    assert finding.file == "legacy.py"
+    assert finding.line == 2
+    assert finding.category == "modernization"
+    assert finding.confidence == "static"
+    assert finding.autofixable is True
+    assert finding.related_dependencies == ["shared.py"]
+    assert finding.suggested_tests == ["Generate characterization tests for legacy.py"]
+
+
+def test_finding_contract_includes_dependency_cycles():
+    first = generate_module_id("proj_cycle_findings", "first.py")
+    second = generate_module_id("proj_cycle_findings", "second.py")
+    modules = [
+        ModuleAnalysis(module_id=first, relative_path="first.py", language="python", line_count=1, parse_status="complete"),
+        ModuleAnalysis(module_id=second, relative_path="second.py", language="python", line_count=1, parse_status="complete"),
+    ]
+    findings = build_analysis_findings("proj_cycle_findings", modules, [
+        DependencyEdge(edge_id="first_second", source_module_id=first, target_module_id=second, type="import", resolved=True),
+        DependencyEdge(edge_id="second_first", source_module_id=second, target_module_id=first, type="import", resolved=True),
+    ])
+    cycle = next(finding for finding in findings if finding.rule_id == "DEPENDENCY_CYCLE")
+    assert cycle.category == "dependency"
+    assert cycle.confidence == "static"
+    assert cycle.related_dependencies == ["first.py", "second.py"]
+
+
+def test_finding_contract_funnel_and_project_warnings_are_synchronized():
+    from app.analysis.models import SymbolInfo, decorate_findings, summarize_findings
+    mod_id = generate_module_id("proj_sync", "sample.py")
+    module = ModuleAnalysis(
+        module_id=mod_id,
+        relative_path="sample.py",
+        language="python",
+        line_count=10,
+        parse_status="complete",
+        legacy_warnings=[
+            WarningInfo(code="DEPRECATED_MODULE", message="Deprecated module import", line=1, severity="warning")
+        ],
+        functions=[
+            SymbolInfo(
+                symbol_id="sym_1",
+                kind="function",
+                name="legacy_call",
+                qualified_name="legacy_call",
+                start_line=3,
+                end_line=5,
+                legacy_warnings=[
+                    WarningInfo(code="PY2_XRANGE", message="Use range instead of xrange", line=4, severity="warning")
+                ],
+            )
+        ],
+    )
+    findings = build_analysis_findings("proj_sync", [module], [])
+    assert len(findings) == 2
+    rule_ids = {f.rule_id for f in findings}
+    assert "DEPRECATED_MODULE" in rule_ids
+    assert "PY2_XRANGE" in rule_ids
+
+    # Decorated with diff
+    decorated = decorate_findings(findings, {"sample.py"})
+    funnel = summarize_findings(decorated)
+
+    assert funnel.total_findings == 2
+    assert funnel.modernization_candidates == 2
+    assert funnel.autofixable_findings == 1  # PY2_XRANGE is autofixable, DEPRECATED_MODULE is not
+    assert funnel.generated_diffs == 1
+    assert funnel.verified_changes == 0
+    assert "Static-only" in funnel.verification_label
 
 
 # --- 1. Python AST Analyzer Tests ---
@@ -665,4 +758,15 @@ def test_typescript_files_are_discovered_and_analyzed(tmp_path) -> None:
     assert refreshed.json()["languages"] == ["typescript"]
     assert graph.status_code == 200
     assert graph.json()["nodes"][0]["language"] == "typescript"
+
+    arch = client.get(f"/api/projects/{project_id}/architecture")
+    assert arch.status_code == 200
+    arch_data = arch.json()
+    assert "coverage" in arch_data
+    assert "graph" in arch_data
+    assert "entry_points" in arch_data
+    assert "layers" in arch_data
+    assert "unresolved_diagnostics" in arch_data
+    assert arch_data["graph"]["resolved_edges"] == graph.json()["summary"].get("resolved_edges", 0)
+
     db.close()

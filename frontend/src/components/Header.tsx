@@ -1,32 +1,40 @@
 import React from 'react';
 import { Eye } from 'lucide-react';
-import HealthIndicator from './HealthIndicator';
+import StatusPill, { ServiceStatus } from './common/StatusPill';
 
-export const Header: React.FC = () => {
+interface HeaderProps {
+  onStatusChange?: (status: ServiceStatus) => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({ onStatusChange }) => {
   return (
-    <header className="border-b border-[#2D2A26] bg-[#181715] text-white sticky top-0 z-50 px-4 py-3 sm:px-6 lg:px-8 shadow-md">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
-        <div className="flex min-w-0 items-center gap-3 sm:gap-3.5">
-          <div className="flex shrink-0 items-center justify-center rounded-2xl bg-[#4C4FD6] p-2 text-white sm:p-2.5 shadow-sm ring-2 ring-indigo-400/30">
-            <Eye className="h-5 w-5 sm:h-6 sm:w-6" />
+    <header
+      className="w-full border-b border-line bg-surface/80 backdrop-blur-sm transition-colors"
+      aria-label="Application Header"
+    >
+      <div className="w-full h-14 px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+        {/* Compact Brand Identity */}
+        <div className="flex items-center gap-2.5">
+          <div
+            className="w-7 h-7 rounded-lg bg-indigo flex items-center justify-center text-white shrink-0 shadow-xs"
+            aria-hidden="true"
+          >
+            <Eye className="w-4 h-4" strokeWidth={1.75} />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-extrabold text-white tracking-tight sm:text-xl font-sans">
-                CodeOracle
-              </h1>
-              <span className="hidden sm:inline-block rounded-full bg-[#383BA8] px-2.5 py-0.5 text-[9px] font-bold tracking-widest uppercase text-indigo-200">
-                PRO ENGINE
-              </span>
-            </div>
-            <p className="hidden truncate text-xs font-medium text-[#A3998E] md:block">
-              Legacy Codebase Intelligence & Refactoring Engine
-            </p>
+
+          <div className="flex items-center gap-2">
+            <span className="font-display font-extrabold text-base sm:text-lg leading-tight tracking-[-0.01em] text-ink">
+              CodeOracle
+            </span>
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-pill bg-track text-ink-2 border border-line font-sans text-[10px] sm:text-[11px] leading-none font-bold tracking-[0.05em] uppercase select-none">
+              PRO ENGINE
+            </span>
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-3">
-          <HealthIndicator />
+        {/* Header Right: Service Status */}
+        <div className="flex items-center gap-3">
+          <StatusPill onStatusChange={onStatusChange} />
         </div>
       </div>
     </header>
@@ -34,3 +42,4 @@ export const Header: React.FC = () => {
 };
 
 export default Header;
+

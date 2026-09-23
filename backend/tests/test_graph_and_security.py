@@ -396,6 +396,15 @@ def test_cycle_detection_and_deduplication():
     assert cycles[0] == ["mod_a", "mod_b", "mod_c", "mod_a"]
 
 
+def test_cycle_detection_reports_overlapping_elementary_cycles():
+    """Back-edge DFS must not hide a second cycle sharing part of a path."""
+    cycles = find_directed_cycles(
+        {"A", "B", "C"},
+        [("A", "B"), ("B", "A"), ("A", "C"), ("C", "B")],
+    )
+    assert cycles == [["A", "B", "A"], ["A", "C", "B", "A"]]
+
+
 # 14. Orphan detection
 def test_orphan_module_detection(tmp_path):
     ws_dir = tmp_path / "ws_orphan"
@@ -601,3 +610,92 @@ def test_no_absolute_paths_in_responses(tmp_path):
         assert "C:\\" not in serialized
         assert "F:\\" not in serialized
         assert "/app/static" not in serialized
+
+
+# 21. Type-only imports do not create runtime cycles
+def test_21_type_only_imports_do_not_create_runtime_cycles():
+    from app.analysis.models import DependencyEdge
+    mod_a_id = generate_module_id("proj_types", "src/models.ts")
+    mod_b_id = generate_module_id("proj_types", "src/service.ts")
+
+    mod_a = ModuleAnalysis(
+        module_id=mod_a_id, relative_path="src/models.ts", language="typescript", line_count=10, parse_status="complete",
+    )
+    mod_b = ModuleAnalysis(
+        module_id=mod_b_id, relative_path="src/service.ts", language="typescript", line_count=10, parse_status="complete",
+    )
+    edges = [
+        # A imports type from B
+        DependencyEdge(edge_id="e1", source_module_id=mod_a_id, target_module_id=mod_b_id, type="import", resolved=True, is_type_only=True),
+        # B imports value from A
+        DependencyEdge(edge_id="e2", source_module_id=mod_b_id, target_module_id=mod_a_id, type="import", resolved=True, is_type_only=False),
+    ]
+    analysis = ProjectAnalysis(
+        project_id="proj_types",
+        content_hash="thash",
+        modules=[mod_a, mod_b],
+        dependency_edges=edges,
+    )
+    graph = build_project_dependency_graph(analysis, level="module")
+    # Runtime cycle count must be 0!
+    assert graph.summary.cycle_count == 0
+    assert graph.summary.runtime_cycle_count == 0
+    assert graph.summary.type_cycle_count == 1
+    assert len(graph.cycles) == 0
+
+
+# 22. Path alias resolution (@/* and ~/
+def test_22_alias_import_resolution():
+    from app.analysis.dependency_resolver import resolve_javascript_import
+    known = {
+        "src/components/Button.tsx": "mod_btn",
+        "src/utils/math.ts": "mod_math",
+    }
+    # @/ prefix mapping to src/
+    assert resolve_javascript_import("src/pages/Home.tsx", "@/components/Button", known) == "mod_btn"
+    # ~/ prefix mapping to src/
+    assert resolve_javascript_import("src/pages/Home.tsx", "~/utils/math", known) == "mod_math"
+    # Relative import still works
+    assert resolve_javascript_import("src/pages/Home.tsx", "../components/Button", known) == "mod_btn"
+
+
+# 23. Standalone file reason classification
+def test_23_standalone_file_reason_classification():
+    from app.analysis.graph_service import _classify_standalone_reason
+    assert _classify_standalone_reason("vite.config.ts") == "Configuration / build file"
+    assert _classify_standalone_reason("setup.py") == "Configuration / build file"
+    assert _classify_standalone_reason("tests/test_unit.py") == "Test suite / benchmark"
+    assert _classify_standalone_reason("src/auth.spec.ts") == "Test suite / benchmark"
+    assert _classify_standalone_reason("cli.py") == "Standalone script / CLI"
+    assert _classify_standalone_reason("src/helpers/legacy_worker.js") == "Isolated / unreferenced module"
+
+
+# 24. Python package __init__.py re-export cycle prevention
+def test_24_package_init_reexport_cycle_prevention():
+    from app.analysis.models import DependencyEdge
+    init_id = generate_module_id("proj_reexport", "pkg/__init__.py")
+    sub_id = generate_module_id("proj_reexport", "pkg/sub.py")
+
+    mod_init = ModuleAnalysis(
+        module_id=init_id, relative_path="pkg/__init__.py", language="python", line_count=5, parse_status="complete",
+    )
+    mod_sub = ModuleAnalysis(
+        module_id=sub_id, relative_path="pkg/sub.py", language="python", line_count=5, parse_status="complete",
+    )
+    edges = [
+        # __init__.py re-exports sub
+        DependencyEdge(edge_id="e1", source_module_id=init_id, target_module_id=sub_id, type="import", resolved=True),
+        # sub imports from pkg
+        DependencyEdge(edge_id="e2", source_module_id=sub_id, target_module_id=init_id, type="import", resolved=True),
+    ]
+    analysis = ProjectAnalysis(
+        project_id="proj_reexport",
+        content_hash="rhash",
+        modules=[mod_init, mod_sub],
+        dependency_edges=edges,
+    )
+    graph = build_project_dependency_graph(analysis, level="module")
+    # Re-export cycle must be filtered out!
+    assert graph.summary.cycle_count == 0
+    assert len(graph.cycles) == 0
+

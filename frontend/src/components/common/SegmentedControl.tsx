@@ -4,7 +4,6 @@ export interface SegmentOption<T extends string> {
   id: T;
   label: string;
   icon?: LucideIcon;
-  amberAccent?: boolean;
 }
 
 interface SegmentedControlProps<T extends string> {
@@ -12,7 +11,8 @@ interface SegmentedControlProps<T extends string> {
   value: T;
   onChange: (value: T) => void;
   disabled?: boolean;
-  size?: 'sm' | 'std';
+  name?: string;
+  className?: string;
 }
 
 export function SegmentedControl<T extends string>({
@@ -20,13 +20,14 @@ export function SegmentedControl<T extends string>({
   value,
   onChange,
   disabled = false,
-  size = 'std',
+  name = 'segmented-control',
+  className = '',
 }: SegmentedControlProps<T>) {
   return (
     <div
-      className={`inline-flex items-center gap-1 bg-[#F0EBE2] border border-[#D8CFC2] rounded-full p-1 ${
-        size === 'sm' ? 'text-xs' : 'text-sm'
-      }`}
+      role="radiogroup"
+      aria-label={name}
+      className={`inline-flex items-center p-[3px] bg-panel rounded-pill border border-line select-none ${className}`}
     >
       {options.map((opt) => {
         const isActive = value === opt.id;
@@ -36,17 +37,58 @@ export function SegmentedControl<T extends string>({
           <button
             key={opt.id}
             type="button"
+            role="radio"
+            aria-checked={isActive}
             disabled={disabled}
             onClick={() => onChange(opt.id)}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 font-medium rounded-full transition-all duration-150 ${
+            className={`inline-flex items-center justify-center gap-1.5 px-3 py-1 text-[11px] font-bold uppercase tracking-wider rounded-pill transition-[background-color,color,box-shadow] duration-fast ${
               isActive
-                ? opt.amberAccent
-                  ? 'bg-[#F5E8CC] text-[#76561B] shadow-sm font-semibold'
-                  : 'bg-[#EAE9FB] text-[#4340A0] shadow-sm font-semibold'
-                : 'text-[#4D4842] hover:text-[#292622] hover:bg-[#EFE9DD]/60'
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                ? 'bg-indigo-surface text-indigo-text shadow-1'
+                : 'text-ink-2 hover:text-ink hover:bg-tile/70'
+            } disabled:opacity-40 disabled:cursor-not-allowed`}
           >
-            {Icon && <Icon className="h-3.5 w-3.5 shrink-0" />}
+            {Icon && <Icon className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />}
+            <span>{opt.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function DarkSegmentedControl<T extends string>({
+  options,
+  value,
+  onChange,
+  disabled = false,
+  name = 'dark-segmented-control',
+  className = '',
+}: SegmentedControlProps<T>) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={name}
+      className={`inline-flex items-center p-[3px] bg-code-track rounded-pill border border-code-line select-none ${className}`}
+    >
+      {options.map((opt) => {
+        const isActive = value === opt.id;
+        const Icon = opt.icon;
+
+        return (
+          <button
+            key={opt.id}
+            type="button"
+            role="radio"
+            aria-checked={isActive}
+            disabled={disabled}
+            onClick={() => onChange(opt.id)}
+            className={`inline-flex items-center justify-center gap-1.5 px-3 py-1 text-[11px] font-bold uppercase tracking-wider rounded-pill transition-[background-color,color] duration-fast ${
+              isActive
+                ? 'bg-indigo text-white shadow-sm'
+                : 'text-code-muted hover:text-code-text'
+            } disabled:opacity-40 disabled:cursor-not-allowed`}
+          >
+            {Icon && <Icon className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />}
             <span>{opt.label}</span>
           </button>
         );

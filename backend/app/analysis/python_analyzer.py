@@ -26,6 +26,12 @@ DEPRECATED_PYTHON_MODULES = {
 }
 
 
+PYTHON_ENTRY_POINT_FILENAMES = {
+    "main.py", "app.py", "wsgi.py", "asgi.py", "manage.py", "server.py",
+    "run.py", "cli.py", "__main__.py",
+}
+
+
 class PythonASTVisitor(ast.NodeVisitor):
     def __init__(self, module_id: str, code_lines: List[str]):
         self.module_id = module_id
@@ -39,6 +45,7 @@ class PythonASTVisitor(ast.NodeVisitor):
         self.legacy_warnings: List[WarningInfo] = []
         self.is_entry_point = False
         self.symbol_complexities: List[int] = []
+        self._in_type_checking = False
 
     def visit_Import(self, node: ast.Import):
         for alias in node.names:
@@ -50,6 +57,7 @@ class PythonASTVisitor(ast.NodeVisitor):
                     imported_symbols=[sym_name],
                     is_relative=False,
                     source_line=node.lineno,
+                    is_type_only=self._in_type_checking,
                 )
             )
             base_mod = mod_name.split(".")[0]
@@ -92,6 +100,7 @@ class PythonASTVisitor(ast.NodeVisitor):
                 imported_symbols=symbols,
                 is_relative=is_rel,
                 source_line=node.lineno,
+                is_type_only=self._in_type_checking,
             )
         )
 
@@ -109,6 +118,20 @@ class PythonASTVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_If(self, node: ast.If):
+        is_type_checking = (
+            (isinstance(node.test, ast.Name) and node.test.id == "TYPE_CHECKING")
+            or (isinstance(node.test, ast.Attribute) and node.test.attr == "TYPE_CHECKING")
+        )
+        if is_type_checking:
+            prev = self._in_type_checking
+            self._in_type_checking = True
+            for b in node.body:
+                self.visit(b)
+            self._in_type_checking = prev
+            for o in node.orelse:
+                self.visit(o)
+            return
+
         if isinstance(node.test, ast.Compare):
             left = node.test.left
             if isinstance(left, ast.Name) and left.id == "__name__":
@@ -525,6 +548,9 @@ def analyze_python_source(project_id: str, relative_path: str, absolute_path: Pa
 
         dedup_warnings = list({(w.code, w.line, w.message): w for w in all_warnings}.values())
 
+        fname = Path(relative_path).name.lower()
+        is_filename_entry = fname in PYTHON_ENTRY_POINT_FILENAMES
+
         return ModuleAnalysis(
             module_id=module_id,
             relative_path=relative_path,
@@ -537,7 +563,7 @@ def analyze_python_source(project_id: str, relative_path: str, absolute_path: Pa
             functions=visitor.functions,
             variables=visitor.variables,
             calls=visitor.calls,
-            is_entry_point=visitor.is_entry_point,
+            is_entry_point=visitor.is_entry_point or is_filename_entry,
             complexity=comp_summary,
             legacy_warnings=dedup_warnings,
             start_line=1,

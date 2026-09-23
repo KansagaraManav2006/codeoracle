@@ -38,6 +38,8 @@ class JobResponse(BaseModel):
     message: Optional[str] = None
     error_code: Optional[str] = None
     error_message: Optional[str] = None
+    technical_message: Optional[str] = None
+    http_status: Optional[int] = None
     polling_url: str
     created_at: datetime
     updated_at: datetime
@@ -50,6 +52,11 @@ class ProjectFileResponse(BaseModel):
     size_bytes: int
     line_count: int
     sha256_hash: str
+    parse_status: Optional[str] = "complete"  # complete, partial, fallback, unsupported, failed
+    parse_badge: Optional[str] = "FULL AST"  # FULL AST, PARTIAL, FALLBACK, UNSUPPORTED, FAILED
+    parse_reason: Optional[str] = None
+    parser: Optional[str] = None
+    confidence: Optional[str] = "High"
 
 
 class ProjectMetadataResponse(BaseModel):
@@ -73,6 +80,44 @@ class ProjectFilesListResponse(BaseModel):
     project_id: str
     total_files: int
     files: List[ProjectFileResponse] = Field(default_factory=list)
+
+
+# --- Canonical Project Summary Schemas ---
+
+class RepositoryInfo(BaseModel):
+    owner: str = ""
+    name: str = ""
+    url: str = ""
+
+
+class ProjectTotals(BaseModel):
+    repository_files: Optional[int] = None
+    source_files: int
+    loc: int
+
+
+class LanguageStat(BaseModel):
+    language: str
+    loc: int
+
+
+class ParseCoverage(BaseModel):
+    fully_parsed: int
+    partial: int
+    unsupported: int
+    failed: int
+    full_ast_percentage: float
+
+
+class ProjectSummaryResponse(BaseModel):
+    project_id: str
+    display_name: str
+    repository: RepositoryInfo
+    totals: ProjectTotals
+    languages: List[LanguageStat] = Field(default_factory=list)
+    parse_coverage: ParseCoverage
+    analysis_mode: str = "static"
+    warnings: List[str] = Field(default_factory=list)
 
 
 # --- Legacy / Placeholder Schemas ---

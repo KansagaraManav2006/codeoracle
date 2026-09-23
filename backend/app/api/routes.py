@@ -1,3 +1,4 @@
+import json
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -8,6 +9,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Qu
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
+from app.analysis.architecture_models import ArchitectureOverview
+from app.analysis.architecture_service import build_architecture_overview
 from app.analysis.graph_models import GraphResponse
 from app.analysis.graph_service import build_project_dependency_graph
 from app.analysis.models import ANALYZER_VERSION, ProjectAnalysis, ProjectExplanation
@@ -15,20 +18,29 @@ from app.analysis.service import analysis_languages_are_current, process_analysi
 from app.config import settings
 from app.database import get_db
 from app.models.db import Job, JobState, Project, ProjectAnalysisRecord, ProjectFile, ProjectRefactorRecord
-from app.migration.models import MigrationPlanResponse
-from app.migration.service import build_migration_plan, migration_plan_markdown
+from app.migration.models import ChangeImpact, MigrationPlanResponse
+from app.migration.service import build_migration_plan, get_module_change_impact, migration_plan_markdown
+from app.pulse.models import SystemPulseResponse
+from app.pulse.service import build_system_pulse
+from app.hotspots.models import HotspotsResponse
+from app.hotspots.service import compute_project_hotspots
 from app.models.schema import (
     AnalyzeRequest,
     GitHubIngestRequest,
     HealthResponse,
     JobResponse,
+    LanguageStat,
+    ParseCoverage,
     ProjectFileResponse,
     ProjectFilesListResponse,
     ProjectMetadataResponse,
+    ProjectSummaryResponse,
+    ProjectTotals,
     RecentProjectsListResponse,
+    RepositoryInfo,
 )
 from app.ingestion.discovery import IngestionError
-from app.ingestion.github_ingest import validate_github_url
+from app.ingestion.github_ingest import normalize_github_url, validate_github_url
 from app.ingestion.service import process_github_job, process_zip_job
 from app.ingestion.workspace import get_workspace_dir
 from app.ingestion.zip_ingest import validate_zip_stream
@@ -43,6 +55,23 @@ def _download_name(value: str) -> str:
         character if character.isalnum() or character in "-_" else "-"
         for character in value
     ).strip("-") or "project"
+
+
+@router.get("/projects/{project_id}/system-pulse", response_model=SystemPulseResponse)
+def get_system_pulse(project_id: str, response: Response, db: Session = Depends(get_db)) -> SystemPulseResponse:
+    """Retrieve comprehensive System Pulse (Repository Health Observatory) for the project."""
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    try:
+        return build_system_pulse(db, project_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    except Exception:
+        logger.exception("System Pulse generation failed for project %s", project_id)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unable to create System Pulse.")
 
 
 @router.get("/projects/{project_id}/migration-plan", response_model=MigrationPlanResponse)
@@ -80,6 +109,69 @@ def download_migration_plan(project_id: str, db: Session = Depends(get_db)) -> P
     )
 
 
+@router.get("/projects/{project_id}/migration-plan/download-json", response_class=Response)
+def download_migration_plan_json(project_id: str, db: Session = Depends(get_db)) -> Response:
+    """Download the migration plan as structured JSON."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    try:
+        plan = build_migration_plan(db, project_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    json_content = plan.model_dump_json(indent=2)
+    return Response(
+        content=json_content,
+        media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{_download_name(project.display_name)}-migration-plan.json"'},
+    )
+
+
+@router.get("/projects/{project_id}/impact", response_model=ChangeImpact)
+def get_project_change_impact(
+    project_id: str,
+    target: str = Query(..., description="Relative path or module ID of target file"),
+    db: Session = Depends(get_db),
+) -> ChangeImpact:
+    """Retrieve detailed 'What breaks if I change this?' change impact for a specific file or module."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    try:
+        return get_module_change_impact(db, project_id, target)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    except Exception:
+        logger.exception("Change impact calculation failed for project %s target %s", project_id, target)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unable to calculate change impact.")
+
+
+@router.get("/projects/{project_id}/hotspots", response_model=HotspotsResponse)
+def get_project_hotspots(
+    project_id: str,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> HotspotsResponse:
+    """Computes explainable, deterministic static hotspots ranking for refactoring prioritization."""
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    try:
+        return compute_project_hotspots(db, project_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    except Exception:
+        logger.exception("Hotspots calculation failed for project %s", project_id)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unable to calculate project hotspots.")
+
+
 from app.database import get_db_diagnostics
 
 
@@ -108,11 +200,14 @@ def submit_zip_upload(
             detail="Filename missing in upload request.",
         )
 
+    # Validate the upload stream BEFORE generating any server paths.
+    # validate_zip_stream never writes to disk; it checks size and ZIP magic bytes only.
     try:
-        validate_zip_stream(file.file, file.filename)
+        validate_zip_stream(file.file)
     except IngestionError as ie:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ie.message)
 
+    # Generate server-controlled IDs and paths — never derived from user input.
     workspace_id = f"ws_{uuid.uuid4().hex[:12]}"
     job_id = f"job_{uuid.uuid4().hex[:12]}"
     temp_zip_path = Path(settings.TEMP_DIR) / f"{job_id}.zip"
@@ -130,6 +225,7 @@ def submit_zip_upload(
             detail="Unable to store upload archive on server.",
         )
 
+    # Display name is derived from the original filename for UX only — never used as a path.
     display_name = Path(file.filename).stem
 
     job = Job(
@@ -165,6 +261,27 @@ def submit_zip_upload(
     )
 
 
+def _map_http_status_for_error_code(code: Optional[str]) -> Optional[int]:
+    if not code:
+        return None
+    code_upper = code.upper()
+    if "404" in code_upper or code_upper in ("REPO_NOT_FOUND", "NOT_FOUND"):
+        return 404
+    if "403" in code_upper or code_upper in ("PRIVATE_REPO", "FORBIDDEN", "AUTH_FAILED"):
+        return 403
+    if "429" in code_upper or code_upper == "RATE_LIMITED":
+        return 429
+    if "408" in code_upper or code_upper in ("TIMEOUT", "CLONE_TIMEOUT"):
+        return 408
+    if "413" in code_upper or code_upper in ("REPO_TOO_LARGE", "CLONE_SIZE_EXCEEDED"):
+        return 413
+    if code_upper in ("INVALID_URL", "INVALID_GITHUB_URL"):
+        return 400
+    if code_upper in ("CLONE_FAILED", "GITHUB_CLONE_FAILED"):
+        return 500
+    return None
+
+
 @router.post("/jobs/github", response_model=JobResponse, status_code=status.HTTP_202_ACCEPTED)
 def submit_github_repo(
     payload: GitHubIngestRequest,
@@ -172,8 +289,9 @@ def submit_github_repo(
     db: Session = Depends(get_db),
 ) -> JobResponse:
     """Accepts public GitHub repository URL and initializes cloning and ingestion job."""
+    cleaned_input = normalize_github_url(payload.repo_url)
     try:
-        clean_url = validate_github_url(payload.repo_url)
+        clean_url = validate_github_url(cleaned_input)
     except IngestionError as ie:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ie.message)
 
@@ -223,6 +341,9 @@ def get_job_status(job_id: str, db: Session = Depends(get_db)) -> JobResponse:
             detail=f"Job '{job_id}' not found.",
         )
 
+    http_status = _map_http_status_for_error_code(job.error_code)
+    technical_message = job.message if job.state == JobState.FAILED else None
+
     return JobResponse(
         job_id=job.id,
         state=job.state,
@@ -234,6 +355,8 @@ def get_job_status(job_id: str, db: Session = Depends(get_db)) -> JobResponse:
         message=job.message,
         error_code=job.error_code,
         error_message=job.error_message,
+        technical_message=technical_message,
+        http_status=http_status,
         polling_url=f"/api/jobs/{job.id}",
         created_at=job.created_at,
         updated_at=job.updated_at,
@@ -292,9 +415,9 @@ def get_project_metadata(project_id: str, db: Session = Depends(get_db)) -> Proj
     )
 
 
-@router.get("/projects/{project_id}/files", response_model=ProjectFilesListResponse)
-def get_project_files(project_id: str, db: Session = Depends(get_db)) -> ProjectFilesListResponse:
-    """Retrieves list of all discovered source files in a project."""
+@router.get("/projects/{project_id}/summary", response_model=ProjectSummaryResponse)
+def get_project_summary(project_id: str, db: Session = Depends(get_db)) -> ProjectSummaryResponse:
+    """Retrieves canonical single-source-of-truth summary metrics for a project."""
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(
@@ -304,17 +427,160 @@ def get_project_files(project_id: str, db: Session = Depends(get_db)) -> Project
 
     files = db.query(ProjectFile).filter(ProjectFile.project_id == project_id).all()
 
-    file_responses = [
-        ProjectFileResponse(
-            file_id=f.id,
-            relative_path=f.relative_path,
-            language=f.language,
-            size_bytes=f.size_bytes,
-            line_count=f.line_count,
-            sha256_hash=f.sha256_hash,
-        )
-        for f in files
+    # 1. Repository metadata
+    owner = ""
+    name = project.display_name
+    url = project.source_url or ""
+    if url and "github.com/" in url:
+        path_part = url.split("github.com/")[-1]
+        if path_part.endswith(".git"):
+            path_part = path_part[:-4]
+        parts = path_part.strip("/").split("/")
+        if len(parts) >= 2:
+            owner, name = parts[0], parts[1]
+
+    # 2. Canonical language LOC directly from files
+    lang_loc = {}
+    for f in files:
+        lang = f.language.capitalize() if f.language else "Other"
+        lang_loc[lang] = lang_loc.get(lang, 0) + (f.line_count or 0)
+
+    languages = [
+        LanguageStat(language=k, loc=v)
+        for k, v in sorted(lang_loc.items(), key=lambda x: x[1], reverse=True)
     ]
+
+    # 3. Parse coverage from ProjectAnalysisRecord
+    record = db.query(ProjectAnalysisRecord).filter(ProjectAnalysisRecord.project_id == project_id).first()
+    fully_parsed = 0
+    partial = 0
+    unsupported = 0
+    failed = 0
+
+    if record and record.analysis_data:
+        modules = record.analysis_data.get("modules", [])
+        for m in modules:
+            st = m.get("parse_status", "complete")
+            lng = (m.get("language") or "").lower()
+            if st == "complete":
+                fully_parsed += 1
+            elif st == "partial":
+                partial += 1
+            elif st == "unsupported" or (lng not in ("python", "javascript", "typescript") and st == "failed"):
+                unsupported += 1
+            elif st == "failed":
+                failed += 1
+            else:
+                fully_parsed += 1
+    else:
+        fully_parsed = len(files)
+
+    total_source_files = len(files)
+    accounted = fully_parsed + partial + unsupported + failed
+    if total_source_files > accounted:
+        unsupported += (total_source_files - accounted)
+
+    full_ast_pct = round((fully_parsed / max(total_source_files, 1)) * 100, 1)
+
+    parse_coverage = ParseCoverage(
+        fully_parsed=fully_parsed,
+        partial=partial,
+        unsupported=unsupported,
+        failed=failed,
+        full_ast_percentage=full_ast_pct,
+    )
+
+    totals = ProjectTotals(
+        repository_files=project.total_files if project.total_files >= len(files) else len(files),
+        source_files=total_source_files,
+        loc=sum(f.line_count for f in files),
+    )
+
+    warnings = []
+    incomplete_count = partial + unsupported + failed
+    if incomplete_count > 0:
+        warnings.append(f"{incomplete_count} files were not fully parsed. Dependency and impact results may be incomplete.")
+
+    return ProjectSummaryResponse(
+        project_id=project.id,
+        display_name=project.display_name,
+        repository=RepositoryInfo(owner=owner, name=name, url=url),
+        totals=totals,
+        languages=languages,
+        parse_coverage=parse_coverage,
+        analysis_mode="static",
+        warnings=warnings,
+    )
+
+
+@router.get("/projects/{project_id}/files", response_model=ProjectFilesListResponse)
+def get_project_files(project_id: str, db: Session = Depends(get_db)) -> ProjectFilesListResponse:
+    """Retrieves list of all discovered source files in a project, enriched with AST parse status."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project '{project_id}' not found.",
+        )
+
+    files = db.query(ProjectFile).filter(ProjectFile.project_id == project_id).all()
+    analysis_record = db.query(ProjectAnalysisRecord).filter(ProjectAnalysisRecord.project_id == project_id).first()
+    mod_map = {}
+    if analysis_record and analysis_record.analysis_data:
+        for m in analysis_record.analysis_data.get("modules", []):
+            mod_map[m.get("relative_path")] = m
+
+    file_responses = []
+    for f in files:
+        m = mod_map.get(f.relative_path)
+        p_status = m.get("parse_status", "complete") if m else "complete"
+        p_errors = m.get("parse_errors", []) if m else []
+
+        if f.language == "python":
+            parser = "Python AST"
+        elif f.language == "typescript":
+            parser = "Tree-sitter TypeScript"
+        elif f.language == "javascript":
+            parser = "Tree-sitter JavaScript"
+        else:
+            parser = "Generic Parser"
+
+        if p_status == "complete":
+            badge = "FULL AST"
+            reason = None
+            confidence = "High"
+        elif p_status == "partial":
+            badge = "PARTIAL"
+            reason = p_errors[0] if p_errors else "syntax fallback"
+            confidence = "Medium"
+        elif p_status in ("fallback", "lexical"):
+            badge = "FALLBACK"
+            reason = p_errors[0] if p_errors else "lexical fallback"
+            confidence = "Low"
+        elif p_status == "unsupported" or f.language not in ("python", "javascript", "typescript"):
+            badge = "UNSUPPORTED"
+            reason = "unsupported syntax pattern"
+            confidence = "Low"
+        else:
+            badge = "FAILED"
+            reason = p_errors[0] if p_errors else "syntax parsing error"
+            confidence = "Low"
+
+        file_responses.append(
+            ProjectFileResponse(
+                file_id=f.id,
+                relative_path=f.relative_path,
+                language=f.language,
+                size_bytes=f.size_bytes,
+                line_count=f.line_count,
+                sha256_hash=f.sha256_hash,
+                parse_status=p_status,
+                parse_badge=badge,
+                parse_reason=reason,
+                parser=parser,
+                confidence=confidence,
+            )
+        )
 
     return ProjectFilesListResponse(
         project_id=project.id,
@@ -472,6 +738,35 @@ def get_project_explanation(project_id: str, db: Session = Depends(get_db)) -> P
     raise HTTPException(
         status_code=status.HTTP_409_CONFLICT,
         detail="Explanation unavailable. Run project analysis first.",
+    )
+
+
+@router.get("/projects/{project_id}/architecture", response_model=ArchitectureOverview)
+def get_project_architecture(project_id: str, db: Session = Depends(get_db)) -> ArchitectureOverview:
+    """Retrieves canonical architecture overview, confidence metrics, and structural diagnostics."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+
+    rec = (
+        db.query(ProjectAnalysisRecord)
+        .filter(ProjectAnalysisRecord.project_id == project_id)
+        .first()
+    )
+
+    if rec:
+        try:
+            analysis = ProjectAnalysis.model_validate(rec.analysis_data)
+            project_files = db.query(ProjectFile).filter(ProjectFile.project_id == project_id).all()
+            if not analysis_languages_are_current(analysis, project_files):
+                analysis = run_analysis_for_project(db, project_id, force=True)
+            return build_architecture_overview(db, project_id, analysis)
+        except Exception:
+            logger.exception("Failed to build architecture overview for %s", project_id)
+
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="Architecture analysis unavailable. Run project analysis first.",
     )
 
 
@@ -726,9 +1021,15 @@ def get_project_tests(
 @router.get("/projects/{project_id}/tests/download")
 def download_project_tests(
     project_id: str,
+    scope: str = Query(default="all"),
+    test_id: Optional[str] = Query(default=None),
+    target_path: Optional[str] = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    """Downloads a ZIP archive containing all syntax-valid generated unit test files and README."""
+    """Downloads a ZIP archive containing generated unit test files, manifest.json, and README.
+    
+    Supports scopes: 'all', 'protected' (only contract tests), and 'selected'.
+    """
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
@@ -746,20 +1047,56 @@ def download_project_tests(
 
     test_result = ProjectTestResult.model_validate(rec.test_data)
 
+    # Filter files based on requested scope
+    if scope == "protected":
+        files_to_pack = [
+            tf for tf in test_result.test_files
+            if tf.syntax_valid and tf.download_eligible and not tf.is_import_only
+        ]
+    elif scope == "selected" and (test_id or target_path):
+        norm_target = (target_path or "").replace("\\", "/").lower()
+        files_to_pack = [
+            tf for tf in test_result.test_files
+            if tf.syntax_valid and tf.download_eligible and (
+                (test_id and tf.test_id == test_id)
+                or (norm_target and tf.target_relative_path.replace("\\", "/").lower() == norm_target)
+                or (norm_target and tf.safe_test_path.replace("\\", "/").lower().endswith(norm_target))
+            )
+        ]
+        if not files_to_pack:
+            # Fallback to active target
+            files_to_pack = [tf for tf in test_result.test_files if tf.syntax_valid and tf.download_eligible][:1]
+    else:
+        files_to_pack = [tf for tf in test_result.test_files if tf.syntax_valid and tf.download_eligible]
+
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for tf in test_result.test_files:
-            if tf.syntax_valid and tf.download_eligible:
-                zf.writestr(tf.safe_test_path, tf.code)
+        for tf in files_to_pack:
+            zf.writestr(tf.safe_test_path, tf.code)
+
+        # Write manifest.json
+        manifest_data = dict(test_result.manifest) if test_result.manifest else {}
+        manifest_data.update({
+            "generated": len(files_to_pack),
+            "sourceProtected": len(test_result.protected_files),
+            "unprotected": len(test_result.unprotected_files),
+            "totalSourceFiles": test_result.target_source_files,
+            "runtimeExecuted": bool(test_result.is_measured or any(t.execution_status == "passed" for t in test_result.test_files)),
+            "frameworks": test_result.frameworks,
+            "downloadScope": scope,
+        })
+        zf.writestr("manifest.json", json.dumps(manifest_data, indent=2))
 
         # Write README.md
         readme_text = f"""# CodeOracle Auto-Generated Test Suite
 
 Project ID: {project_id}
 Generated At: {test_result.generated_at}
+Download Scope: {scope.upper()} ({len(files_to_pack)} files)
 Frameworks: {', '.join(test_result.frameworks)}
 Total Tests: {test_result.total_generated_tests}
-Overall Line Coverage: {test_result.overall_line_coverage if test_result.overall_line_coverage is not None else 'Not measured'}%
+Source Modules Protected: {len(test_result.protected_files)} / {test_result.target_source_files}
+Overall Line Coverage: {test_result.overall_line_coverage if test_result.overall_line_coverage is not None else 'Not measured (safety locked)'}%
 
 ## How to Run Tests Locally
 
@@ -773,12 +1110,12 @@ Overall Line Coverage: {test_result.overall_line_coverage if test_result.overall
 2. Run test suite: `npx vitest run`
 
 ## Security & Safety Notice
-{test_result.execution_warning or 'Subprocess isolation reduces risk but is not a complete hostile-code sandbox.'}
+{test_result.execution_warning or 'Subprocess isolation reduces risk but is not a complete hostile-code sandbox. Runtime execution was locked during generation.'}
 """
         zf.writestr("README.md", readme_text)
 
     buf.seek(0)
-    filename = f"codeoracle_tests_{project_id}.zip"
+    filename = f"codeoracle_tests_{project_id}_{scope}.zip"
     return StreamingResponse(
         buf,
         media_type="application/zip",
@@ -790,6 +1127,8 @@ Overall Line Coverage: {test_result.overall_line_coverage if test_result.overall
 
 from app.refactor.models import GenerateRefactorRequest, ProjectRefactorResult
 from app.refactor.service import run_refactor_for_project
+from app.refactor.verification_models import RefactorVerificationResult, VerifyRefactorRequest
+from app.refactor.verification_service import run_refactor_verification
 
 
 @router.post("/projects/{project_id}/refactor", response_model=ProjectRefactorResult)
@@ -803,8 +1142,8 @@ def generate_project_refactor(
         return run_refactor_for_project(db, project_id, force=payload.force)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
-    except Exception:
-        logger.exception("Refactor generation failed for project %s", project_id)
+    except Exception as exc:
+        logger.exception("Failed to generate refactor proposal for %s: %s", project_id, exc)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unable to generate refactor proposal.")
 
 
@@ -817,6 +1156,46 @@ def get_project_refactor(project_id: str, db: Session = Depends(get_db)) -> Proj
     if not record:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Refactor proposal unavailable. Generate it first.")
     return ProjectRefactorResult.model_validate(record.refactor_data)
+
+
+@router.post("/projects/{project_id}/refactor/verify", response_model=RefactorVerificationResult)
+def verify_project_refactor(
+    project_id: str,
+    payload: VerifyRefactorRequest = VerifyRefactorRequest(),
+    db: Session = Depends(get_db),
+) -> RefactorVerificationResult:
+    """Executes verified modernization loop in ephemeral disposable workspace (trusted demo only)."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    try:
+        return run_refactor_verification(db, project_id, force=payload.force)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except Exception as exc:
+        logger.exception("Refactor verification failed for project %s: %s", project_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Refactor verification failed unexpectedly.",
+        )
+
+
+@router.get("/projects/{project_id}/refactor/verify", response_model=RefactorVerificationResult)
+def get_refactor_verification(
+    project_id: str,
+    db: Session = Depends(get_db),
+) -> RefactorVerificationResult:
+    """Retrieves refactor verification result or executes baseline verification."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    record = db.query(ProjectRefactorRecord).filter(ProjectRefactorRecord.project_id == project_id).first()
+    if record and "verification" in record.refactor_data:
+        try:
+            return RefactorVerificationResult.model_validate(record.refactor_data["verification"])
+        except Exception:
+            pass
+    return run_refactor_verification(db, project_id, force=False)
 
 
 @router.get("/projects/{project_id}/refactor/download")

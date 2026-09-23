@@ -20,37 +20,33 @@ export const StatCard: React.FC<StatCardProps> = ({
 }) => {
   return (
     <div
-      className={`rounded-2xl border-2 p-4 transition-all duration-150 ${
+      className={`rounded-lg border p-4 transition-all duration-fast ${
         signalAmber
-          ? 'bg-[#FFFDFC] border-[#B88228] shadow-[0_4px_16px_rgba(184,130,40,0.18)] ring-1 ring-[#B88228]/30'
-          : 'bg-[#FFFDFC] border-[#C8BEB0] shadow-xs hover:border-[#181715]'
+          ? 'bg-surface border-amber/40 shadow-none'
+          : 'bg-surface border-line shadow-none hover:border-line-strong'
       }`}
     >
       <div className="flex items-center justify-between gap-2 mb-2">
-        <span className="text-xs font-extrabold uppercase tracking-wider text-[#5C554D]">
-          {label}
-        </span>
+        <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-2">{label}</span>
         {signalAmber ? (
-          <span className="flex h-3 w-3 rounded-full bg-[#B88228] ring-4 ring-[#F5E8CC]" />
+          <span className="flex h-2.5 w-2.5 rounded-full bg-amber" />
         ) : Icon ? (
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#ECE5DA] text-[#181715]">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-tile text-ink-3">
             <Icon className="h-4 w-4" />
           </div>
         ) : null}
       </div>
 
-      <div className="flex items-baseline gap-2">
-        <p
-          className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${
-            signalAmber ? 'text-[#B88228]' : 'text-[#181715]'
-          }`}
-          style={accentColor ? { color: accentColor } : undefined}
-        >
-          {value}
-        </p>
-      </div>
+      <p
+        className={`text-2xl sm:text-[28px] font-display font-extrabold tracking-tight num ${
+          signalAmber ? 'text-amber' : 'text-ink'
+        }`}
+        style={accentColor ? { color: accentColor } : undefined}
+      >
+        {value}
+      </p>
 
-      {subtext && <p className="mt-1 text-[11px] text-[#5C554D] font-bold">{subtext}</p>}
+      {subtext && <p className="mt-1 text-[11px] text-ink-3">{subtext}</p>}
     </div>
   );
 };

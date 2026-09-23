@@ -18,9 +18,39 @@ export interface JobResponse {
   message?: string | null;
   error_code?: string | null;
   error_message?: string | null;
+  technical_message?: string | null;
+  http_status?: number | null;
   polling_url: string;
   created_at: string;
   updated_at: string;
+}
+
+export type FetchStage =
+  | 'idle'
+  | 'validating_url'
+  | 'fetching_repo'
+  | 'reading_files'
+  | 'building_graph'
+  | 'generating_analysis'
+  | 'completed'
+  | 'failed';
+
+export type RepoFetchErrorCode =
+  | 'INVALID_URL'
+  | 'REPO_NOT_FOUND'
+  | 'PRIVATE_REPO'
+  | 'RATE_LIMITED'
+  | 'CLONE_FAILED'
+  | 'TIMEOUT'
+  | 'REPO_TOO_LARGE'
+  | 'UNKNOWN';
+
+export interface RepoFetchError {
+  code: RepoFetchErrorCode;
+  message: string;
+  technicalMessage?: string;
+  httpStatus?: number;
+  stage: string;
 }
 
 export interface ProjectMetadataResponse {
@@ -42,6 +72,11 @@ export interface ProjectFileResponse {
   size_bytes: number;
   line_count: number;
   sha256_hash: string;
+  parse_status?: 'complete' | 'partial' | 'fallback' | 'unsupported' | 'failed';
+  parse_badge?: 'FULL AST' | 'PARTIAL' | 'FALLBACK' | 'UNSUPPORTED' | 'FAILED';
+  parse_reason?: string | null;
+  parser?: string;
+  confidence?: 'High' | 'Medium' | 'Low';
 }
 
 export interface ProjectFilesListResponse {
@@ -50,28 +85,262 @@ export interface ProjectFilesListResponse {
   files: ProjectFileResponse[];
 }
 
-export type TabType = 'explanation' | 'graph' | 'tests' | 'refactor' | 'migration';
+export interface ProjectSummary {
+  project_id: string;
+  display_name: string;
+  repository: {
+    owner: string;
+    name: string;
+    url: string;
+  };
+  totals: {
+    repository_files?: number;
+    source_files: number;
+    loc: number;
+  };
+  languages: {
+    language: string;
+    loc: number;
+  }[];
+  parse_coverage: {
+    fully_parsed: number;
+    partial: number;
+    unsupported: number;
+    failed: number;
+    full_ast_percentage: number;
+  };
+  analysis_mode: 'static' | string;
+  warnings: string[];
+}
+
+export type TabType = 'overview' | 'pulse' | 'explanation' | 'hotspots' | 'graph' | 'neural-map' | 'tests' | 'refactor' | 'migration';
+
+export interface HotspotFactors {
+  complexity_raw: number;
+  complexity_score: number;
+  loc_raw: number;
+  loc_score: number;
+  fan_in_raw: number;
+  fan_in_score: number;
+  warnings_raw: number;
+  warnings_score: number;
+  blast_radius_raw: number;
+  blast_radius_score: number;
+}
+
+export type RiskSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+export interface ComplexityValue {
+  value: number;
+  severity: RiskSeverity;
+}
+
+export interface GraphMetrics {
+  fanIn: number;
+  blastRadius: number;
+  unresolvedRelations: number;
+}
+
+export interface ParseMetrics {
+  status: 'full' | 'partial' | 'fallback';
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface ScoreFactors {
+  complexity: number;
+  warnings: number;
+  fanIn: number;
+  blastRadius: number;
+  loc: number;
+}
+
+export interface RiskAssessment {
+  filePath: string;
+  hotspotScore: number;
+  overallRisk: RiskSeverity;
+  complexity: ComplexityValue;
+  warnings: number;
+  graph: GraphMetrics;
+  parse: ParseMetrics;
+  scoreFactors: ScoreFactors;
+  linesOfCode: number;
+  transitiveDependents?: string[];
+  directDependents?: string[];
+  reason: string;
+  recommendedAction: string;
+
+  // Compatibility aliases
+  file?: string;
+  risk_level?: RiskSeverity;
+  blast_radius?: number;
+  dependency_fan_in?: number;
+  lines_of_code?: number;
+  score_mode?: string;
+  is_partially_parsed?: boolean;
+  hotspot_score?: number;
+  score_factors?: any;
+  warnings_count?: number;
+  recommended_action?: string;
+}
+
+
+// HotspotItem alias for cross-page compatibility
+export type HotspotItem = RiskAssessment;
+
+export interface HotspotsResponse {
+  projectId: string;
+  projectName: string;
+  scoreMode: 'static' | string;
+  totalFiles: number;
+  hotspots: RiskAssessment[];
+  recommendedStartFile?: string | null;
+  recommendedStartReason?: string | null;
+  summary: {
+    highestScore?: number;
+    criticalCount?: number;
+    highCount?: number;
+    mediumCount?: number;
+    lowCount?: number;
+    totalEvaluated?: number;
+    fullParseCount?: number;
+    partialParseCount?: number;
+    fallbackParseCount?: number;
+    highConfidenceCount?: number;
+    scoringEngine?: string;
+    // Compatibility fields
+    highest_score?: number;
+    critical_count?: number;
+    high_count?: number;
+    medium_count?: number;
+    low_count?: number;
+    total_evaluated?: number;
+    scoring_engine?: string;
+  };
+  // Compatibility fields
+  project_id?: string;
+  project_name?: string;
+  score_mode?: string;
+  total_files?: number;
+  recommended_start_file?: string | null;
+  recommended_start_reason?: string | null;
+}
+
 
 export type IngestionMode = 'zip' | 'github';
 
-export interface ReadinessCategory {
+export interface DimensionBreakdownItem {
+  label: string;
+  value: string;
+}
+
+export interface ReadinessDimension {
   key: string;
   label: string;
   score: number;
   status: string;
   reason: string;
+  formula?: string;
+  evidence?: string[];
+  confidence?: 'high' | 'medium' | 'low';
+  breakdown?: DimensionBreakdownItem[];
+}
+
+export type ReadinessCategory = ReadinessDimension;
+
+export interface ChecklistItem {
+  id: string;
+  task: string;
+  target_file?: string | null;
+  action_type: 'test' | 'refactor' | 'cycle_decouple' | 'entry_verify' | string;
+  completed?: boolean;
+}
+
+export interface ScoreBlocker {
+  category_key: string;
+  label: string;
+  current_score: number;
+  target_file?: string | null;
+  blocker_type?: 'global' | 'file';
+  blocker_reason: string;
+  unblocking_action: string;
+  priority_score?: number;
+  risk_level?: string;
+}
+
+export interface ProtectionStatus {
+  generated_tests: number;
+  relevant_tests: number;
+  syntax_valid: number;
+  runtime_verified: number;
+  execution_status?: 'not_run' | 'passed' | 'failed' | 'unmeasured';
+  coverage_percentage?: number | null;
+  summary_label?: string;
+}
+
+export interface ModernizationSummary {
+  findings: number;
+  candidates: number;
+  autofix_eligible: number;
+  generated_diffs: number;
+  verified_changes: number;
+  deterministic_changes_generated: number;
+}
+
+export interface NextBestAction {
+  action: string;
+  target_file?: string | null;
+  reason: string;
+  action_type?: 'protect' | 'resolve_deps' | 'modernize' | 'review' | string;
+}
+
+export interface WhyScore {
+  strengths: string[];
+  needs_attention: string[];
+}
+
+export interface ReadinessAssessment {
+  overall_score: number;
+  overall_label: string;
+  threshold_label: string;
+  confidence: 'high' | 'medium' | 'low';
+  confidence_reasons: string[];
+  full_ast_coverage_pct: number;
+  parser_readiness_score: number;
+  why_score: WhyScore;
+  next_best_action: NextBestAction;
+  dimensions: Record<string, ReadinessDimension>;
+  global_blockers: ScoreBlocker[];
+  file_blockers: ScoreBlocker[];
 }
 
 export interface ChangeImpact {
   module_id: string;
   relative_path: string;
   risk_level: 'low' | 'medium' | 'high' | 'critical';
+  hotspot_score?: number;
+  complexity_severity?: 'low' | 'medium' | 'high' | 'critical';
+  architecture_role?: string;
   blast_radius: number;
+  direct_blast_radius?: number;
+  transitive_blast_radius?: number;
+  dependency_depth: number;
+  wave?: number;
+  wave_title?: string;
+  wave_eligibility_reason?: string;
+  is_cycle_participant?: boolean;
+  is_score_blocker?: boolean;
+  graph_confidence?: 'high' | 'medium' | 'low';
+  change_confidence?: 'high' | 'medium' | 'low';
   direct_dependents: string[];
+  transitive_dependents: string[];
   direct_dependencies: string[];
   affected_entry_points: string[];
+  cycles?: string[][];
   suggested_tests: string[];
+  protection_status?: ProtectionStatus;
   reasons: string[];
+  risk_evidence?: string[];
+  recommended_action?: string;
 }
 
 export interface MigrationPhase {
@@ -83,15 +352,51 @@ export interface MigrationPhase {
   actions: string[];
 }
 
+export interface MigrationWave {
+  wave: number;
+  name: string;
+  title: string;
+  goal: string;
+  strategy: string;
+  status?: 'required' | 'not_required' | 'blocked';
+  confidence?: 'high' | 'medium' | 'low';
+  dependencies?: number[];
+  risk_level: 'low' | 'medium' | 'high' | 'critical' | string;
+  files: string[];
+  total_direct_dependents: number;
+  total_transitive_blast_radius: number;
+  protection_readiness_pct?: number;
+  affected_entry_points: string[];
+  suggested_test_order: string[];
+  checklist: ChecklistItem[];
+}
+
 export interface MigrationPlanResponse {
   project_id: string;
   readiness_score: number;
   readiness_label: string;
+  readiness_confidence?: 'high' | 'medium' | 'low';
+  full_ast_coverage_pct?: number;
+  parser_readiness_score?: number;
+  plan_confidence?: 'high' | 'medium' | 'low';
+  plan_confidence_warning?: string | null;
   executive_summary: string;
+  first_action_summary?: string;
+  next_best_action?: NextBestAction;
+  why_score?: WhyScore;
+  readiness?: ReadinessAssessment;
   categories: ReadinessCategory[];
+  score_blockers?: ScoreBlocker[];
+  global_blockers?: ScoreBlocker[];
+  file_blockers?: ScoreBlocker[];
+  protection_status?: ProtectionStatus;
+  modernization_summary?: ModernizationSummary;
   top_priorities: ChangeImpact[];
   impacts: ChangeImpact[];
   phases: MigrationPhase[];
+  waves?: MigrationWave[];
+  findings: Finding[];
+  finding_funnel: FindingFunnel;
 }
 
 // --- Deterministic Analysis Interfaces ---
@@ -107,6 +412,33 @@ export interface WarningInfo {
   message: string;
   line?: number | null;
   severity: 'warning' | 'risk' | 'info';
+}
+
+export interface Finding {
+  id: string;
+  rule_id: string;
+  file: string;
+  line?: number | null;
+  severity: 'info' | 'warning' | 'risk' | 'critical';
+  category: string;
+  message: string;
+  evidence: string;
+  confidence: 'static' | 'estimated' | 'verified';
+  autofixable: boolean;
+  has_diff: boolean;
+  verified: boolean;
+  related_dependencies: string[];
+  suggested_tests: string[];
+}
+
+export interface FindingFunnel {
+  total_findings: number;
+  modernization_candidates: number;
+  autofixable_findings: number;
+  generated_diffs: number;
+  verified_changes: number;
+  estimated_findings: number;
+  verification_label: string;
 }
 
 export interface ComplexitySummary {
@@ -215,6 +547,8 @@ export interface ProjectAnalysis {
   dependency_edges: DependencyEdge[];
   entry_points: string[];
   project_warnings: WarningInfo[];
+  findings: Finding[];
+  finding_funnel: FindingFunnel;
   parse_success_count: number;
   parse_partial_count: number;
   parse_failure_count: number;
@@ -224,6 +558,15 @@ export interface ProjectAnalysis {
 }
 
 // --- Dependency Graph Interfaces ---
+
+export interface UnresolvedDependency {
+  source: string;
+  source_path: string;
+  raw_import: string;
+  reason_key: string;
+  reason_label: string;
+  line: number;
+}
 
 export interface GraphNodeData {
   id: string;
@@ -239,6 +582,18 @@ export interface GraphNodeData {
   is_external: boolean;
   symbol_count: number;
   module_id?: string | null;
+  standalone_reason?: string | null;
+  standalone_status?: 'true_standalone' | 'isolation_uncertain' | 'unresolved' | 'connected';
+  entry_point_kind?: EntryPointKind | null;
+  entry_point_confidence?: 'high' | 'medium' | 'low' | null;
+  entry_point_evidence?: string | null;
+  module_role?: string | null;
+  fan_in?: number;
+  fan_out?: number;
+  resolved_imports?: number;
+  unresolved_imports?: number;
+  blast_radius?: number;
+  is_cycle?: boolean;
 }
 
 export interface GraphEdgeData {
@@ -246,8 +601,14 @@ export interface GraphEdgeData {
   source: string;
   target: string;
   type: string;
+  kind?: 'runtime_import' | 'type_only_import' | 'dynamic_import' | 'require' | 're_export' | 'unknown';
+  confidence?: 'high' | 'medium' | 'low';
+  raw_import?: string | null;
   resolved: boolean;
   source_line: number;
+  is_type_only?: boolean;
+  is_dynamic?: boolean;
+  is_external?: boolean;
 }
 
 export interface MostConnectedModule {
@@ -260,17 +621,32 @@ export interface MostConnectedModule {
 
 export interface GraphSummary {
   total_nodes: number;
+  total_modules?: number;
   internal_nodes: number;
   external_nodes: number;
   total_edges: number;
   internal_edges: number;
   external_edges: number;
   cycle_count: number;
+  cycles?: number;
+  runtime_cycle_count?: number;
+  type_cycle_count?: number;
   orphan_count: number;
+  standalone_modules?: number;
   entry_point_count: number;
+  entry_points?: number;
   high_complexity_module_count: number;
   most_connected_modules: MostConnectedModule[];
   truncated_edges_count: number;
+  resolved_edges?: number;
+  runtime_edges?: number;
+  type_only_edges?: number;
+  dynamic_edges?: number;
+  unresolved_imports?: number;
+  graph_confidence?: 'high' | 'medium' | 'partial' | 'low';
+  graph_confidence_reason?: string | null;
+  cycle_confidence_warning?: string | null;
+  unresolved_breakdown?: Record<string, number>;
 }
 
 export interface GraphResponse {
@@ -278,13 +654,191 @@ export interface GraphResponse {
   level: 'module' | 'symbol';
   nodes: GraphNodeData[];
   edges: GraphEdgeData[];
+  unresolved?: UnresolvedDependency[];
   cycles: string[][];
   entry_point_ids: string[];
   orphan_module_ids: string[];
   summary: GraphSummary;
 }
 
+// --- Canonical Architecture Overview Types ---
+
+export type EntryPointKind =
+  | 'app_runtime'
+  | 'frontend_bootstrap'
+  | 'worker'
+  | 'cli'
+  | 'script'
+  | 'ml_training'
+  | 'route_root'
+  | 'config'
+  | 'unknown';
+
+export type ModuleRole =
+  | 'domain'
+  | 'application_service'
+  | 'api'
+  | 'repository'
+  | 'persistence'
+  | 'ui'
+  | 'generated'
+  | 'configuration'
+  | 'test'
+  | 'script'
+  | 'ml'
+  | 'utility';
+
+export interface DependencyGraphSummary {
+  node_count: number;
+  resolved_edges: number;
+  runtime_edges: number;
+  type_only_edges: number;
+  dynamic_edges: number;
+  unresolved_imports: number;
+  external_references: number;
+  cycle_count: number;
+  orphan_count: number;
+  isolated_modules_count: number;
+}
+
+export interface UnresolvedDiagnosticGroup {
+  key: string;
+  label: string;
+  count: number;
+  description: string;
+  examples: string[];
+}
+
+export interface UnresolvedDiagnosticsSummary {
+  total_unresolved: number;
+  groups: UnresolvedDiagnosticGroup[];
+}
+
+export interface ArchitectureLayer {
+  path: string;
+  file_count: number;
+  file_percentage: number;
+  loc: number;
+  loc_percentage: number;
+  role: string;
+  has_cycle: boolean;
+  languages: string[];
+  entry_points: number;
+}
+
+export interface ArchitectureEntryPoint {
+  path: string;
+  kind: EntryPointKind;
+  kind_label: string;
+  confidence: number;
+  description: string;
+}
+
+export interface KeyModule {
+  path: string;
+  role: ModuleRole;
+  role_label: string;
+  reason: string;
+  classes_count: number;
+  functions_count: number;
+  line_count: number;
+  complexity_rating: string;
+  is_entry_point: boolean;
+}
+
+export interface ScoreFactorBreakdown {
+  complexity: number;
+  warnings: number;
+  fan_in: number;
+  blast_radius: number;
+  loc: number;
+  hotspot_score: number;
+}
+
+export interface RecommendedTargetInfo {
+  path: string;
+  hotspot_score: number;
+  factors: ScoreFactorBreakdown;
+  reason: string;
+  highest_complexity_file: string;
+  highest_complexity_score: number;
+}
+
+export interface CoverageInfo {
+  total_source_files: number;
+  fully_parsed: number;
+  partial: number;
+  fallback: number;
+  failed: number;
+  full_ast_percentage: number;
+  confidence: 'high' | 'medium' | 'partial' | 'low';
+  cycle_label: string;
+  limitation_notice?: string | null;
+}
+
+export interface ArchitectureOverview {
+  project_id: string;
+  coverage: CoverageInfo;
+  graph: DependencyGraphSummary;
+  entry_points: ArchitectureEntryPoint[];
+  layers: ArchitectureLayer[];
+  key_modules: KeyModule[];
+  recommended_target?: RecommendedTargetInfo | null;
+  unresolved_diagnostics: UnresolvedDiagnosticsSummary;
+  architecture_summary: string;
+  frameworks_detected: string[];
+}
+
 // --- Generated Test Interfaces ---
+
+export type TestStrength = 'syntax' | 'import' | 'contract' | 'behavior' | 'integration';
+export type StrengthLevel = 'L1' | 'L2' | 'L3' | 'L4' | 'L5';
+export type ProtectionConfidence = 'high' | 'medium' | 'low';
+export type FrameworkArchetype = 'react' | 'fastapi' | 'service' | 'ml' | 'generic';
+
+export interface TestCaseBreakdown {
+  name: string;
+  category: string;
+  strength: string;
+  description: string;
+}
+
+export interface WhyGeneratedInfo {
+  finding: string;
+  protection_goal: string;
+  detected_exports?: string[];
+  detected_dependencies?: string[];
+  generated_assertions?: string[];
+  limitations?: string;
+}
+
+export interface UnprotectedModuleDetail {
+  path: string;
+  reason: string;
+  risk_score: number;
+  risk_level: 'critical' | 'high' | 'medium' | 'low';
+  blast_radius: number;
+  is_modernization_candidate: boolean;
+  has_planned_changes: boolean;
+  priority: 'P0' | 'P1' | 'P2';
+  priority_label: string;
+  caller_count: number;
+  loc?: number;
+}
+
+export interface TestManifest {
+  generated: number;
+  sourceProtected: number;
+  unprotected: number;
+  totalModules?: number;
+  totalSourceFiles?: number;
+  coveragePercentage?: number;
+  runtimeExecuted: boolean;
+  frameworks: string[];
+  generatedAt?: string;
+  generatorVersion?: string;
+  downloadScope?: string;
+}
 
 export interface GeneratedTestFile {
   test_id: string;
@@ -292,16 +846,30 @@ export interface GeneratedTestFile {
   language: 'python' | 'javascript';
   framework: 'pytest' | 'vitest';
   safe_test_path: string;
+  display_name?: string;
   code: string;
   generation_strategy: string;
+  test_category: string;
+  test_categories?: string[];
+  covered_symbols: string[];
+  is_import_only: boolean;
+  protection_type: string;
   syntax_valid: boolean;
   syntax_error_message?: string | null;
   execution_status: 'not_run' | 'passed' | 'failed' | 'timed_out' | 'unavailable';
   test_count: number;
   execution_output?: string | null;
   line_coverage?: number | null;
+  covered_lines: number[];
   uncovered_lines: number[];
   warnings: string[];
+  test_strength?: TestStrength;
+  strength_level?: StrengthLevel;
+  confidence?: ProtectionConfidence;
+  confidence_reasons?: string[];
+  framework_archetype?: FrameworkArchetype;
+  why_generated?: WhyGeneratedInfo;
+  test_cases_breakdown?: TestCaseBreakdown[];
 }
 
 export interface ProjectTestResult {
@@ -324,6 +892,14 @@ export interface ProjectTestResult {
   generation_duration_ms: number;
   execution_duration_ms: number;
   iteration_count: number;
+  protected_files?: string[];
+  unprotected_files?: string[];
+  category_counts?: Record<string, number>;
+  is_measured?: boolean;
+  strength_counts?: Record<string, number>;
+  framework_coverage?: Record<string, { total: number; protected: number; unprotected: number; percentage: number }>;
+  unprotected_modules_detail?: UnprotectedModuleDetail[];
+  manifest?: TestManifest;
 }
 
 // --- Refactor Proposal Interfaces ---
@@ -336,6 +912,62 @@ export interface RefactorWarning {
   breaking_change: boolean;
 }
 
+export type ModernizationState = {
+  findings: number;
+  candidates: number;
+  autofixEligible: number;
+  generatedDiffs: number;
+  staticallyValidated: number;
+  runtimeVerified: number;
+  humanApproved: number;
+};
+
+export type CandidateDisposition =
+  | 'manual_review'
+  | 'unsupported_transform'
+  | 'insufficient_parse_confidence'
+  | 'high_blast_radius'
+  | 'missing_protection'
+  | 'dynamic_behavior'
+  | 'already_modern'
+  | 'other';
+
+export type ModernizationCategory =
+  | 'legacy_syntax'
+  | 'deprecated_api'
+  | 'high_complexity'
+  | 'large_function'
+  | 'duplicate_logic'
+  | 'dependency_coupling'
+  | 'generated_code'
+  | 'unsafe_pattern'
+  | 'framework_modernization'
+  | 'typing_improvement';
+
+export interface ModernizationRule {
+  id: string;
+  name: string;
+  language: string;
+  category: string;
+  deterministic: boolean;
+  requiresFullAst: boolean;
+  requiresProtection: boolean;
+  description: string;
+  exampleBefore?: string;
+  exampleAfter?: string;
+}
+
+export type CandidateFileStatus =
+  | 'CLEAN'
+  | 'FINDINGS'
+  | 'CANDIDATE'
+  | 'MANUAL REVIEW'
+  | 'AUTOFIX ELIGIBLE'
+  | 'DIFF READY'
+  | 'STATIC VALID'
+  | 'RUNTIME VERIFIED'
+  | 'BLOCKED';
+
 export interface RefactoredFile {
   relative_path: string;
   language: 'python' | 'javascript';
@@ -347,6 +979,9 @@ export interface RefactoredFile {
   syntax_valid: boolean;
   syntax_error?: string | null;
   changed: boolean;
+  applied_rule_ids?: string[];
+  candidate_disposition?: CandidateDisposition;
+  candidate_type?: string;
 }
 
 export interface ProjectRefactorResult {
@@ -361,4 +996,151 @@ export interface ProjectRefactorResult {
   breaking_warning_count: number;
   safe_to_apply_automatically: boolean;
   summary: string;
+  findings: Finding[];
+  finding_funnel: FindingFunnel;
+  verification?: RefactorVerificationResult | null;
+  modernization_state?: ModernizationState | null;
+  modernization_rules?: ModernizationRule[];
+}
+
+export interface TestExecutionComparison {
+  total_tests: number;
+  passed_tests: number;
+  failed_tests: number;
+  line_coverage?: number | null;
+  execution_status: string;
+}
+
+export interface VerificationMetricsComparison {
+  readiness_before: number;
+  readiness_after: number;
+  readiness_delta: number;
+  cycles_before: number;
+  cycles_after: number;
+  new_cycles: number;
+  warnings_before: number;
+  warnings_after: number;
+  resolved_warnings_count: number;
+  resolved_warnings: string[];
+}
+
+export interface RefactorVerificationResult {
+  project_id: string;
+  verification_version: string;
+  verified_at: string;
+  status: 'verified' | 'failed' | 'safety_locked' | 'no_changes' | string;
+  verified: boolean;
+  can_execute: boolean;
+  execution_warning?: string | null;
+  syntax_status: 'passed' | 'failed' | string;
+  syntax_errors: string[];
+  changed_files: string[];
+  baseline_tests: TestExecutionComparison;
+  after_tests: TestExecutionComparison;
+  metrics: VerificationMetricsComparison;
+  verification_summary: string;
+}
+
+// --- System Pulse (Repository Health Observatory) Types ---
+
+export type SubsystemId = 'frontend' | 'backend' | 'ml' | 'database' | 'infrastructure';
+
+export interface SubsystemHealth {
+  id: SubsystemId;
+  label: string;
+  fileCount: number;
+  healthScore: number;
+  confidence: 'high' | 'medium' | 'low';
+  highRiskFiles: number;
+  unresolvedDependencies: number;
+  unprotectedFiles: number;
+  modernizationCandidates: number;
+  fullParseCoverage: number;
+}
+
+export interface PressureZone {
+  id: string;
+  path: string;
+  subsystem: string;
+  pressureScore: number;
+  level: 'Critical' | 'High' | 'Moderate' | 'Low' | string;
+  confidence: 'high' | 'medium' | 'low';
+  reasons: string[];
+  riskScore: number;
+  unprotectedCount: number;
+  graphConfidence: string;
+  mainReason: string;
+}
+
+export interface HealthDimensionCard {
+  key: 'parsing' | 'dependencies' | 'complexity' | 'protection' | 'modernization' | string;
+  label: string;
+  score: number;
+  confidence: 'high' | 'medium' | 'low';
+  status: string;
+  mainPressure: string;
+  evidence: string[];
+  metrics: Record<string, any>;
+}
+
+export interface HealthSignal {
+  id: string;
+  type: 'most_important' | 'dependency' | 'modernization' | 'positive' | 'protection';
+  title: string;
+  narrative: string;
+  evidence: string[];
+  severity: 'positive' | 'info' | 'warning' | 'risk';
+}
+
+export interface NextAction {
+  id: string;
+  title: string;
+  reason: string;
+  expectedEffect: string;
+  destinationPage: TabType;
+  targetFile?: string | null;
+}
+
+export interface AnalysisConfidenceSummary {
+  overallConfidence: 'high' | 'medium' | 'low';
+  parseReliability: string;
+  graphResolutionConfidence: string;
+  riskConfidence: string;
+  protectionEvidenceConfidence: string;
+  modernizationEvidenceConfidence: string;
+  reasons: string[];
+}
+
+export interface WhyScoreEvidence {
+  strengths: string[];
+  pressurePoints: string[];
+  evidence: string[];
+}
+
+export interface SnapshotComparison {
+  hasPrevious: boolean;
+  previousScore?: number;
+  healthDelta?: number;
+  riskReduction?: number;
+  unresolvedDependencyReduction?: number;
+  protectionImprovement?: number;
+}
+
+export interface RepositoryHealth {
+  score: number;
+  label: 'Stable' | 'Stable with pressure points' | 'Needs attention' | 'High risk' | 'Analysis incomplete' | string;
+  confidence: 'high' | 'medium' | 'low';
+  isPartial: boolean;
+  whyScore: WhyScoreEvidence;
+  dimensions: Record<string, HealthDimensionCard>;
+  snapshotComparison?: SnapshotComparison | null;
+}
+
+export interface SystemPulseResponse {
+  health: RepositoryHealth;
+  subsystems: SubsystemHealth[];
+  pressureZones: PressureZone[];
+  signals: HealthSignal[];
+  nextActions: NextAction[];
+  confidence: AnalysisConfidenceSummary;
 }

@@ -3,6 +3,8 @@ import { Database, FileCode, Hash, History, ExternalLink, RefreshCw, Search } fr
 import { ProjectMetadataResponse } from '../types';
 import { sourceLabel } from '../utils/presentation';
 import RiskBadge from './common/RiskBadge';
+import Button from './common/Button';
+import Card from './common/Card';
 
 interface RecentProjectsSectionProps {
   onOpenProject: (projectId: string) => void;
@@ -61,17 +63,17 @@ export const RecentProjectsSection: React.FC<RecentProjectsSectionProps> = ({
   });
 
   return (
-    <div className="mx-auto max-w-4xl rounded-[32px] border-2 border-[#C8BEB0] bg-[#FFFDFC] p-6 shadow-warm sm:p-8">
-      <div className="flex flex-col gap-4 border-b-2 border-[#C8BEB0] pb-5 mb-6 sm:flex-row sm:items-center sm:justify-between">
+    <Card variant="primary" padding="lg" className="w-full">
+      <div className="flex flex-col gap-4 border-b border-line pb-5 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#EAE9FB] text-[#4340A0] border border-[#C7C4F7]">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-surface text-indigo border border-indigo/20">
             <Database className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="text-lg font-extrabold text-[#181715] tracking-tight">
+            <h3 className="text-base sm:text-lg font-bold text-ink tracking-tight font-display">
               Stored Database Projects ({projects.length})
             </h3>
-            <p className="text-xs font-semibold text-[#5C554D] mt-0.5">
+            <p className="text-xs text-ink-3 mt-0.5">
               Re-open previously ingested codebases instantly without re-analyzing
             </p>
           </div>
@@ -80,13 +82,13 @@ export const RecentProjectsSection: React.FC<RecentProjectsSectionProps> = ({
         <div className="flex items-center gap-2">
           {projects.length > 0 && (
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-[#6B645A] absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-ink-3 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Filter saved projects..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="bg-[#EFE9DD]/60 border border-[#D8CFC2] rounded-full pl-8 pr-3 py-1.5 text-xs font-semibold text-[#292622] placeholder-[#6B645A] focus:outline-none focus:border-[#4C4FD6]"
+                className="bg-tile border border-line rounded-pill pl-8 pr-3 py-1.5 text-xs font-semibold text-ink placeholder-ink-4 focus:outline-none focus:ring-2 focus:ring-indigo"
               />
             </div>
           )}
@@ -94,8 +96,9 @@ export const RecentProjectsSection: React.FC<RecentProjectsSectionProps> = ({
             type="button"
             onClick={fetchRecentProjects}
             disabled={loading || disabled}
-            className="p-2 rounded-full border border-[#D8CFC2] bg-[#F0EBE2] hover:bg-[#181715] hover:text-white text-[#5C554D] transition-colors shadow-xs disabled:opacity-50"
+            aria-label="Refresh database projects"
             title="Refresh database projects"
+            className="p-2 rounded-full border border-line bg-tile hover:bg-ink hover:text-white text-ink-2 transition-colors shadow-xs disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -103,35 +106,48 @@ export const RecentProjectsSection: React.FC<RecentProjectsSectionProps> = ({
       </div>
 
       {loading && projects.length === 0 ? (
-        <div className="py-12 text-center text-xs font-bold text-[#6B645A]">
-          <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-[#4C4FD6]" />
+        <div className="py-12 text-center text-xs font-bold text-ink-3">
+          <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-indigo" />
           Loading stored project records from SQLite...
         </div>
       ) : error ? (
-        <div className="rounded-2xl border border-[#E3B0A9] bg-[#F5DED9] p-4 text-xs font-bold text-[#7A322D]">
-          {error}
+        <div className="rounded-xl border border-red-line bg-red-surface p-4 text-xs font-semibold text-red-text flex items-center justify-between gap-3">
+          <span>{error}</span>
+          <Button variant="outline" size="sm" onClick={fetchRecentProjects} className="bg-surface text-ink shrink-0">
+            Retry
+          </Button>
         </div>
       ) : filteredProjects.length === 0 ? (
-        <div className="rounded-2xl border-2 border-dashed border-[#C8BEB0] bg-[#E7DFD3]/40 p-8 text-center">
-          <History className="w-8 h-8 text-[#9E9282] mx-auto mb-2" />
-          <p className="text-xs font-extrabold text-[#181715]">
+        <div className="rounded-xl border border-dashed border-line bg-tile/40 p-8 text-center">
+          <History className="w-8 h-8 text-ink-4 mx-auto mb-2" />
+          <p className="text-xs font-bold text-ink">
             {search ? `No saved projects match "${search}".` : 'No stored projects found in the database.'}
           </p>
-          <p className="text-[11px] font-semibold text-[#5C554D] mt-1">
+          <p className="text-[11px] text-ink-3 mt-1">
             Upload a ZIP archive, connect a GitHub repository, or load a demo above to save your first project record.
           </p>
+          {search && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSearch('')}
+              className="mt-3 text-xs"
+            >
+              Clear Filter
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
           {filteredProjects.map((proj) => (
             <div
               key={proj.project_id}
-              className="flex flex-col justify-between rounded-2xl border border-[#D8CFC2] bg-[#F0EBE2]/60 p-4 transition-all hover:bg-[#FFFDFC] hover:border-[#181715] hover:shadow-sm"
+              className="flex flex-col justify-between rounded-xl border border-line bg-tile/40 p-4 transition-all hover:bg-surface hover:border-line-strong hover:shadow-1"
             >
               <div>
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <h4
-                    className="font-extrabold text-xs text-[#181715] truncate flex-1"
+                    className="font-bold text-xs text-ink truncate flex-1 font-mono"
                     title={proj.display_name}
                   >
                     {proj.display_name}
@@ -143,42 +159,44 @@ export const RecentProjectsSection: React.FC<RecentProjectsSectionProps> = ({
                   {proj.detected_languages.map((lang) => (
                     <span
                       key={lang}
-                      className="px-2 py-0.5 rounded-md bg-[#EAE9FB] text-[#4340A0] font-mono text-[10px] font-bold uppercase"
+                      className="px-2 py-0.5 rounded-md bg-indigo-surface text-indigo-text font-mono text-[10px] font-bold uppercase border border-indigo/20"
                     >
                       {lang}
                     </span>
                   ))}
                 </div>
 
-                <div className="space-y-1 text-[11px] text-[#6B645A] font-semibold mb-4">
+                <div className="space-y-1 text-[11px] text-ink-3 font-semibold mb-4">
                   <div className="flex items-center gap-1.5">
-                    <FileCode className="w-3.5 h-3.5 text-[#4C4FD6]" />
+                    <FileCode className="w-3.5 h-3.5 text-indigo" />
                     <span>{proj.total_files} files</span>
-                    <span className="text-[#C8BEB0]">•</span>
-                    <Hash className="w-3.5 h-3.5 text-[#C7953D]" />
+                    <span className="text-line-strong">•</span>
+                    <Hash className="w-3.5 h-3.5 text-amber" />
                     <span>{proj.total_lines.toLocaleString()} lines</span>
                   </div>
-                  <div className="text-[10px] text-[#8C8275]">
+                  <div className="text-[10px] text-ink-4">
                     Saved: {formatDate(proj.created_at)}
                   </div>
                 </div>
               </div>
 
-              <button
-                type="button"
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => onOpenProject(proj.project_id)}
                 disabled={disabled}
-                className="w-full btn-brand-outline-pill py-2 text-xs font-extrabold flex items-center justify-center space-x-1.5"
+                className="w-full text-xs font-bold flex items-center justify-center gap-1.5"
+                icon={<ExternalLink className="w-3.5 h-3.5" />}
               >
-                <span>Open Saved Analysis</span>
-                <ExternalLink className="w-3 h-3" />
-              </button>
+                Open Saved Analysis
+              </Button>
             </div>
           ))}
         </div>
       )}
-    </div>
+    </Card>
   );
 };
 
 export default RecentProjectsSection;
+

@@ -12,8 +12,29 @@ from app.ingestion.discovery import IngestionError
 logger = logging.getLogger(__name__)
 
 GITHUB_URL_REGEX = re.compile(
-    r"^https://github\.com/([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+?)(?:\.git)?$"
+    r"^https://github\.com/([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.+-]+?)(?:\.git)?$"
 )
+
+
+def normalize_github_url(input_url: str) -> str:
+    """
+    Safely normalizes GitHub URLs before validation:
+    - Strips leading/trailing accidental spaces
+    - Strips query parameters (?...) and URL fragments (#...)
+    - Strips duplicate or trailing .git suffixes to canonical form
+    - Preserves legitimate repository names
+    """
+    if not input_url or not isinstance(input_url, str):
+        return ""
+    cleaned = input_url.strip()
+    if "?" in cleaned:
+        cleaned = cleaned.split("?")[0]
+    if "#" in cleaned:
+        cleaned = cleaned.split("#")[0]
+    cleaned = cleaned.rstrip("/")
+    while cleaned.endswith(".git"):
+        cleaned = cleaned[:-4]
+    return cleaned
 
 
 def validate_github_url(url_str: str) -> str:
@@ -48,14 +69,17 @@ def validate_github_url(url_str: str) -> str:
         )
 
     owner, repo = match.groups()
+    # Keep the original repo name for cloning (GitHub accepts trailing dots)
     clean_url = f"https://github.com/{owner}/{repo}.git"
     return clean_url
 
 
 def extract_repo_display_name(clean_url: str) -> str:
-    """Extracts exact repository name, correctly handling suffixes like '.git' or 'audit'."""
+    """Extracts repository display name, stripping .git suffix and trailing dots/hyphens."""
     url_no_git = clean_url[:-4] if clean_url.endswith(".git") else clean_url
-    return url_no_git.split("/")[-1]
+    raw_name = url_no_git.split("/")[-1]
+    # Normalize: strip trailing dots/hyphens that appear in some GitHub repo names
+    return raw_name.rstrip(".-") or raw_name
 
 
 def get_dir_size_bytes(dir_path: Path) -> int:
@@ -87,11 +111,16 @@ def sanitize_git_stderr(stderr: str, target_dir: Path) -> str:
 def clone_github_repository(clean_url: str, target_dir: Path) -> None:
     """
     Executes git clone in a shallow, blobless, non-interactive subprocess with parameter array security.
+
+    Uses --no-progress and --quiet to suppress the verbose 'Updating files: X%' progress lines
+    that git writes to stderr. On Windows, these lines can fill the OS pipe buffer and cause
+    subprocess.run() to stall/deadlock when stderr=PIPE is used in a background thread.
     """
     target_dir.mkdir(parents=True, exist_ok=True)
 
     env = dict(os.environ)
     env["GIT_TERMINAL_PROMPT"] = "0"
+    env["GIT_OPTIONAL_LOCKS"] = "0"  # Prevent lock contention in concurrent clones
     env["LANG"] = "C"
 
     cmd = [
@@ -101,6 +130,8 @@ def clone_github_repository(clean_url: str, target_dir: Path) -> None:
         "1",
         "--filter=blob:none",
         "--single-branch",
+        "--no-progress",  # Suppress 'Updating files: X%' lines from stderr
+        "--quiet",        # Suppress 'Cloning into ...' header line
         clean_url,
         str(target_dir),
     ]
@@ -109,8 +140,8 @@ def clone_github_repository(clean_url: str, target_dir: Path) -> None:
         result = subprocess.run(
             cmd,
             env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,  # Discard stdout (clone has no useful stdout output)
+            stderr=subprocess.PIPE,     # Capture only the small quiet-mode error lines
             text=True,
             timeout=settings.CLONE_TIMEOUT_SECONDS,
         )
@@ -119,20 +150,51 @@ def clone_github_repository(clean_url: str, target_dir: Path) -> None:
             # Log sanitized stderr for diagnostics without exposing raw stderr or local paths
             safe_stderr = sanitize_git_stderr(result.stderr, target_dir)
             logger.error("Git clone failed for %s. Stderr: %s", clean_url, safe_stderr)
-            
+
             # Remove partial clone directory on failure
             if target_dir.exists():
                 shutil.rmtree(target_dir, ignore_errors=True)
 
-            stderr_lower = result.stderr.lower()
-            if "authentication failed" in stderr_lower or "repository not found" in stderr_lower:
+            stderr_lower = (result.stderr or "").lower()
+            if (
+                "authentication failed" in stderr_lower
+                or "terminal prompt" in stderr_lower
+                or "could not read username" in stderr_lower
+                or "permission denied" in stderr_lower
+            ):
                 raise IngestionError(
                     code="GITHUB_CLONE_FAILED",
-                    message="Failed to access public GitHub repository. Please verify the repository is public and the URL is correct.",
+                    subcode="PRIVATE_REPO",
+                    message="Repository could not be cloned. It may be private or require authentication.",
+                    technical_message=safe_stderr,
+                    http_status=403,
+                )
+            elif (
+                "repository not found" in stderr_lower
+                or "not found" in stderr_lower
+                or "does not exist" in stderr_lower
+            ):
+                raise IngestionError(
+                    code="GITHUB_CLONE_FAILED",
+                    subcode="REPO_NOT_FOUND",
+                    message="Repository not found. Please verify the URL or repository name.",
+                    technical_message=safe_stderr,
+                    http_status=404,
+                )
+            elif "rate limit" in stderr_lower or "429" in stderr_lower:
+                raise IngestionError(
+                    code="GITHUB_CLONE_FAILED",
+                    subcode="RATE_LIMITED",
+                    message="GitHub rate limit exceeded. Please wait a moment and try again.",
+                    technical_message=safe_stderr,
+                    http_status=429,
                 )
             raise IngestionError(
                 code="GITHUB_CLONE_FAILED",
-                message="Git clone operation failed while fetching repository.",
+                subcode="CLONE_FAILED",
+                message="Repository could not be cloned. Check repository availability and network connectivity.",
+                technical_message=safe_stderr,
+                http_status=500,
             )
 
         # Check maximum cloned workspace byte size
@@ -142,20 +204,45 @@ def clone_github_repository(clean_url: str, target_dir: Path) -> None:
                 shutil.rmtree(target_dir, ignore_errors=True)
             raise IngestionError(
                 code="CLONE_SIZE_EXCEEDED",
+                subcode="REPO_TOO_LARGE",
                 message=f"Cloned repository size exceeds limit of {settings.MAX_CLONE_SIZE_BYTES // (1024 * 1024)}MB.",
+                technical_message=f"Total cloned size: {cloned_size} bytes",
+                http_status=413,
             )
+
+        # Reject repositories that contain symlinks.
+        # A crafted repo can use symlinks to read host-accessible files outside the workspace.
+        for dirpath, dirnames, filenames in os.walk(target_dir):
+            for name in dirnames + filenames:
+                candidate = Path(dirpath) / name
+                if candidate.is_symlink():
+                    if target_dir.exists():
+                        shutil.rmtree(target_dir, ignore_errors=True)
+                    raise IngestionError(
+                        code="SYMLINK_NOT_ALLOWED",
+                        subcode="CLONE_FAILED",
+                        message="Cloned repository contains symlinks, which are not allowed for security reasons.",
+                        technical_message="Disallowed symlink detected in workspace",
+                        http_status=400,
+                    )
 
     except subprocess.TimeoutExpired:
         if target_dir.exists():
             shutil.rmtree(target_dir, ignore_errors=True)
         raise IngestionError(
             code="CLONE_TIMEOUT",
+            subcode="TIMEOUT",
             message=f"Git clone operation timed out after {settings.CLONE_TIMEOUT_SECONDS} seconds.",
+            technical_message="Git clone process timed out",
+            http_status=408,
         )
     except FileNotFoundError:
         if target_dir.exists():
             shutil.rmtree(target_dir, ignore_errors=True)
         raise IngestionError(
             code="GIT_NOT_INSTALLED",
+            subcode="CLONE_FAILED",
             message="System requirement missing: git binary is not installed or available in PATH.",
+            technical_message="git binary not found in PATH",
+            http_status=500,
         )

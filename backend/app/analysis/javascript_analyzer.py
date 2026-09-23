@@ -31,7 +31,10 @@ def _get_ts_parser() -> tree_sitter.Parser:
 
 ENTRY_POINT_FILENAMES = {
     "index.js", "index.jsx", "index.ts", "index.tsx", "index.mjs", "index.cjs",
-    "main.js", "main.jsx", "server.js", "app.js", "cli.js"
+    "main.js", "main.jsx", "main.ts", "main.tsx",
+    "server.js", "server.ts", "app.js", "app.ts", "app.tsx",
+    "cli.js", "cli.ts",
+    "vite.config.js", "vite.config.ts", "next.config.js", "next.config.mjs", "next.config.ts",
 }
 
 
@@ -107,12 +110,17 @@ class JavaScriptTreeSitterVisitor:
     def _handle_import_statement(self, node: Any, lineno: int) -> None:
         source_mod = ""
         imported_syms = []
+        node_text = self._get_text(node).strip()
+        is_type_only = bool(re.match(r"^import\s+type\b", node_text))
 
         for child in node.children:
             if child.type == "string":
                 source_mod = self._get_text(child).strip("'\"")
             elif child.type == "import_clause":
-                imported_syms.append(self._get_text(child))
+                clause_text = self._get_text(child)
+                imported_syms.append(clause_text)
+                if not is_type_only and clause_text.strip().startswith("type "):
+                    is_type_only = True
 
         is_rel = source_mod.startswith(".")
         self.imports.append(
@@ -121,12 +129,53 @@ class JavaScriptTreeSitterVisitor:
                 imported_symbols=imported_syms,
                 is_relative=is_rel,
                 source_line=lineno,
+                is_type_only=is_type_only,
+                is_dynamic=False,
             )
         )
 
     def _handle_export_statement(self, node: Any, lineno: int) -> None:
         text = self._get_text(node)
         is_default = "default" in text
+        is_type_only = bool(re.match(r"^export\s+type\b", text.strip()))
+
+        # Check for re-export: export { ... } from "..." or export * from "..."
+        source_node = node.child_by_field_name("source") or next(
+            (c for c in node.children if c.type == "string"), None
+        )
+        if source_node:
+            source_mod = self._get_text(source_node).strip("'\"")
+            exported_syms = []
+            for child in node.children:
+                if child.type == "export_clause":
+                    clause_text = self._get_text(child)
+                    exported_syms.append(clause_text)
+                elif child.type == "*":
+                    exported_syms.append("*")
+            if not exported_syms:
+                exported_syms.append("*")
+
+            is_rel = source_mod.startswith(".")
+            self.imports.append(
+                ImportInfo(
+                    module_name=source_mod,
+                    imported_symbols=exported_syms,
+                    is_relative=is_rel,
+                    source_line=lineno,
+                    import_kind="re_export",
+                    is_type_only=is_type_only,
+                    is_dynamic=False,
+                )
+            )
+            for sym in exported_syms:
+                self.exports.append(
+                    ExportInfo(
+                        name=sym,
+                        kind="re_export",
+                        source_line=lineno,
+                    )
+                )
+            return
 
         for child in node.children:
             if child.type in ("function_declaration", "generator_function_declaration"):
@@ -156,6 +205,7 @@ class JavaScriptTreeSitterVisitor:
                         source_line=lineno,
                     )
                 )
+
 
     def _handle_variable_declaration(self, node: Any, lineno: int, is_export: bool = False) -> None:
         for child in node.children:
@@ -364,6 +414,24 @@ class JavaScriptTreeSitterVisitor:
             if fn_child:
                 cname = self._get_text(fn_child)
                 self.calls.append(CallInfo(caller_qualified_name="", target_name=cname, source_line=lineno))
+
+                if cname == "import" or getattr(fn_child, "type", "") == "import":
+                    args_node = node.child_by_field_name("arguments")
+                    if args_node and args_node.children:
+                        for arg in args_node.children:
+                            if arg.type == "string":
+                                dyn_mod = self._get_text(arg).strip("'\"")
+                                self.imports.append(
+                                    ImportInfo(
+                                        module_name=dyn_mod,
+                                        imported_symbols=["*"],
+                                        is_relative=dyn_mod.startswith("."),
+                                        source_line=lineno,
+                                        import_kind="dynamic_import",
+                                        is_type_only=False,
+                                        is_dynamic=True,
+                                    )
+                                )
 
                 if cname == "eval":
                     w = WarningInfo(

@@ -108,6 +108,9 @@ def test_plan_scores_and_blast_radius():
     assert core.affected_entry_points == ["app.py"]
     assert plan.top_priorities[0].relative_path == "core.py"
     assert len(plan.phases) >= 3
+    assert plan.findings
+    assert plan.finding_funnel.total_findings >= 1
+    assert plan.finding_funnel.verified_changes == 0
 
 
 def test_explanation_and_graph_downloads_are_available():
@@ -132,6 +135,7 @@ def test_markdown_report_contains_decision_sections():
     report = migration_plan_markdown(plan, "Migration Sample")
     db.close()
     assert "# Migration Sample Modernization Plan" in report
+    assert "## Finding funnel" in report
     assert "## Readiness breakdown" in report
     assert "## Highest-impact files" in report
     assert "core.py" in report
@@ -147,6 +151,12 @@ def test_migration_plan_api_and_download():
     assert download.status_code == 200
     assert "text/markdown" in download.headers["content-type"]
     assert "attachment" in download.headers["content-disposition"]
+
+    download_json = client.get("/api/projects/proj_migration/migration-plan/download-json")
+    assert download_json.status_code == 200
+    assert "application/json" in download_json.headers["content-type"]
+    assert "attachment" in download_json.headers["content-disposition"]
+    assert download_json.json()["readiness_score"] >= 0
 
 
 def test_regression_no_project_test_record():
@@ -191,8 +201,12 @@ def test_regression_all_syntax_valid_no_coverage():
     db.close()
 
     testability = next(c for c in plan.categories if c.key == "testability")
-    assert testability.score == 76  # 60 * 0.6 + (2/2) * 40 = 76
-    assert "Syntax-based estimation" in testability.reason
+    # New formula: unmeasured suites are capped at 40 (syntax_ratio * 40, max 40).
+    # 2/2 syntax valid => syntax_ratio=1.0 => min(40, 1.0*40) = 40
+    assert testability.score == 40
+    assert testability.status == "Estimated (not executed)"
+    assert "Syntax-based estimation only" in testability.reason
+    assert "execution not measured" in testability.reason
 
 
 def test_regression_partial_syntax_validity():
@@ -233,7 +247,9 @@ def test_regression_partial_syntax_validity():
     db.close()
 
     testability = next(c for c in plan.categories if c.key == "testability")
-    assert testability.score == 56  # 60 * 0.6 + 0.5 * 40 = 56
+    # New formula: 0.5 syntax_ratio => min(40, 0.5*40) = 20
+    assert testability.score == 20
+    assert testability.status == "Estimated (not executed)"
 
 
 def test_regression_measured_coverage():
@@ -318,3 +334,134 @@ def test_regression_e2e_backend_test_generation_and_migration_plan():
 
     testability = next(c for c in plan.categories if c.key == "testability")
     assert testability.score > 35
+
+
+def test_change_impact_depth_transitive_and_evidence():
+    db = TestingSessionLocal()
+    plan = build_migration_plan(db, "proj_migration")
+    db.close()
+
+    core_impact = next(i for i in plan.impacts if i.relative_path == "core.py")
+    assert core_impact.blast_radius == 2
+    assert core_impact.dependency_depth == 1
+    assert "app.py" in core_impact.direct_dependents
+    assert "helper.py" in core_impact.direct_dependents
+    assert "app.py" in core_impact.transitive_dependents
+    assert "helper.py" in core_impact.transitive_dependents
+    assert "app.py" in core_impact.affected_entry_points
+    assert len(core_impact.risk_evidence) >= 3
+    assert any("Complexity:" in ev for ev in core_impact.risk_evidence)
+    assert any("Callers:" in ev for ev in core_impact.risk_evidence)
+    assert core_impact.recommended_action != ""
+
+
+def test_get_module_change_impact_and_endpoint():
+    from app.migration.service import get_module_change_impact
+
+    db = TestingSessionLocal()
+    impact = get_module_change_impact(db, "proj_migration", "core.py")
+    assert impact.relative_path == "core.py"
+    assert impact.blast_radius == 2
+    db.close()
+
+    client = TestClient(app)
+    response = client.get("/api/projects/proj_migration/impact?target=core.py")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["relative_path"] == "core.py"
+    assert data["dependency_depth"] == 1
+    assert "app.py" in data["transitive_dependents"]
+    assert len(data["risk_evidence"]) >= 3
+
+
+def test_page8_canonical_readiness_model_and_dimensions():
+    db = TestingSessionLocal()
+    plan = build_migration_plan(db, "proj_migration")
+    db.close()
+
+    # Readiness assessment object
+    assert plan.readiness is not None
+    assert plan.readiness.overall_score == plan.readiness_score
+    assert plan.readiness.full_ast_coverage_pct == 100.0
+    assert plan.readiness.parser_readiness_score == 100
+    assert plan.readiness.threshold_label in (
+        "90–100: High Readiness",
+        "80–89: Strong Readiness",
+        "60–79: Ready With Care",
+    )
+    assert plan.readiness.why_score is not None
+    assert len(plan.readiness.why_score.strengths) >= 1
+
+    # Check dimensions have formula, evidence, and breakdown
+    parsing = plan.readiness.dimensions["analysis"]
+    assert parsing.formula != ""
+    assert len(parsing.evidence) >= 1
+    assert len(parsing.breakdown) >= 3
+
+    dep_safety = plan.readiness.dimensions["coupling"]
+    assert "Resolved internal edges:" in dep_safety.evidence[0]
+    assert dep_safety.formula != ""
+
+
+def test_page8_strict_migration_waves_and_zero_cycles():
+    db = TestingSessionLocal()
+    plan = build_migration_plan(db, "proj_migration")
+    db.close()
+
+    # Wave 0: Protect
+    w0 = next(w for w in plan.waves if w.wave == 0)
+    assert w0.status == "required"
+    assert len(w0.files) >= 1
+
+    # Wave 1: Leaves (must have blast radius 0)
+    w1 = next(w for w in plan.waves if w.wave == 1)
+    for f in w1.files:
+        impact = next(i for i in plan.impacts if i.relative_path == f)
+        assert impact.blast_radius == 0
+        assert len(impact.direct_dependents) == 0
+
+    # Wave 2: Cycles (project has 0 cycles => not_required)
+    w2 = next(w for w in plan.waves if w.wave == 2)
+    assert w2.status == "not_required"
+    assert len(w2.files) == 0
+    assert "no dependency cycles" in w2.strategy.lower()
+
+    # Wave 4: Entry points (only true runtime root app.py)
+    w4 = next(w for w in plan.waves if w.wave == 4)
+    assert "app.py" in w4.files
+    assert "helper.py" not in w4.files
+
+
+def test_page8_canonical_risk_and_blockers():
+    from app.hotspots.service import calculate_hotspot_score, get_risk_level
+
+    db = TestingSessionLocal()
+    plan = build_migration_plan(db, "proj_migration")
+    db.close()
+
+    core = next(i for i in plan.impacts if i.relative_path == "core.py")
+    expected_score, _ = calculate_hotspot_score(
+        complexity_raw=18,
+        loc_raw=60,
+        fan_in_raw=2,
+        warnings_raw=1,
+        blast_radius_raw=2,
+    )
+    expected_risk = get_risk_level(expected_score)
+    assert core.hotspot_score == expected_score
+    assert core.risk_level == expected_risk
+    assert core.complexity_severity == "high"
+
+    # Global blockers vs file blockers
+    assert plan.global_blockers is not None
+    assert any(b.blocker_type == "global" for b in plan.global_blockers)
+    if plan.file_blockers:
+        assert all(b.blocker_type == "file" for b in plan.file_blockers)
+        # Verify primary blocker is core.py rather than helper.py
+        assert plan.file_blockers[0].target_file == "core.py"
+
+    # Next best action
+    assert plan.next_best_action is not None
+    assert plan.next_best_action.action != ""
+
+

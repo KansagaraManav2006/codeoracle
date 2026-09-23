@@ -249,8 +249,10 @@ def process_github_job(job_id: str, workspace_id: str, clean_url: str) -> None:
         if job:
             job.state = JobState.FAILED
             job.stage = "Failed"
-            job.error_code = ie.code
+            job.error_code = getattr(ie, "subcode", None) or ie.code
             job.error_message = ie.message
+            if getattr(ie, "technical_message", None):
+                job.message = str(ie.technical_message)[:250]
             job.updated_at = datetime.now(timezone.utc)
             db.commit()
         cleanup_workspace(workspace_id)

@@ -1,23 +1,166 @@
 import ast
 import difflib
+import io
 import re
 import time
+import tokenize
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, List, Tuple
+from typing import Callable, List, Set, Tuple
 
 from sqlalchemy.orm import Session
+import tree_sitter
+import tree_sitter_javascript
 
 from app.ingestion.workspace import get_workspace_dir
-from app.models.db import Project, ProjectFile, ProjectRefactorRecord
+from app.analysis.models import ProjectAnalysis, decorate_findings, summarize_findings
+from app.analysis.service import build_analysis_findings, run_analysis_for_project
+from app.models.db import Project, ProjectAnalysisRecord, ProjectFile, ProjectRefactorRecord
 from app.refactor.models import (
     REFACTOR_ENGINE_VERSION,
+    ModernizationRule,
+    ModernizationState,
     ProjectRefactorResult,
     RefactoredFile,
     RefactorWarning,
 )
 
+
+CANONICAL_MODERNIZATION_RULES: List[ModernizationRule] = [
+    ModernizationRule(
+        id="PY2_XRANGE",
+        name="Python 2 xrange to range",
+        language="python",
+        category="legacy_syntax",
+        deterministic=True,
+        requires_full_ast=True,
+        requires_protection=True,
+        description="Replaces legacy Python 2 xrange() generator with Python 3 range().",
+        example_before="for i in xrange(10):",
+        example_after="for i in range(10):",
+    ),
+    ModernizationRule(
+        id="PY2_ITERITEMS",
+        name="Dictionary iteritems to items",
+        language="python",
+        category="deprecated_api",
+        deterministic=True,
+        requires_full_ast=True,
+        requires_protection=True,
+        description="Replaces dict.iteritems() with dict.items(). Returns a view in Python 3.",
+        example_before="for k, v in d.iteritems():",
+        example_after="for k, v in d.items():",
+    ),
+    ModernizationRule(
+        id="PY2_ITERKEYS",
+        name="Dictionary iterkeys to keys",
+        language="python",
+        category="deprecated_api",
+        deterministic=True,
+        requires_full_ast=True,
+        requires_protection=True,
+        description="Replaces dict.iterkeys() with dict.keys().",
+        example_before="for k in d.iterkeys():",
+        example_after="for k in d.keys():",
+    ),
+    ModernizationRule(
+        id="PY2_ITERVALUES",
+        name="Dictionary itervalues to values",
+        language="python",
+        category="deprecated_api",
+        deterministic=True,
+        requires_full_ast=True,
+        requires_protection=True,
+        description="Replaces dict.itervalues() with dict.values().",
+        example_before="for v in d.itervalues():",
+        example_after="for v in d.values():",
+    ),
+    ModernizationRule(
+        id="PY2_RAW_INPUT",
+        name="Python 2 raw_input to input",
+        language="python",
+        category="legacy_syntax",
+        deterministic=True,
+        requires_full_ast=True,
+        requires_protection=True,
+        description="Replaces raw_input() with input().",
+        example_before="name = raw_input('Name: ')",
+        example_after="name = input('Name: ')",
+    ),
+    ModernizationRule(
+        id="PY2_BASESTRING",
+        name="Python 2 basestring to str",
+        language="python",
+        category="legacy_syntax",
+        deterministic=True,
+        requires_full_ast=True,
+        requires_protection=True,
+        description="Replaces basestring abstract type with str.",
+        example_before="isinstance(val, basestring)",
+        example_after="isinstance(val, str)",
+    ),
+    ModernizationRule(
+        id="PY2_UNICODE",
+        name="Python 2 unicode to str",
+        language="python",
+        category="legacy_syntax",
+        deterministic=True,
+        requires_full_ast=True,
+        requires_protection=True,
+        description="Replaces unicode() constructor with str().",
+        example_before="text = unicode(data)",
+        example_after="text = str(data)",
+    ),
+    ModernizationRule(
+        id="PY2_PRINT",
+        name="Python 2 print statement to function",
+        language="python",
+        category="legacy_syntax",
+        deterministic=True,
+        requires_full_ast=True,
+        requires_protection=True,
+        description="Converts legacy print statement to print() function call.",
+        example_before="print 'Hello world'",
+        example_after="print('Hello world')",
+    ),
+    ModernizationRule(
+        id="PY2_EXCEPT",
+        name="Python 2 except syntax to as",
+        language="python",
+        category="legacy_syntax",
+        deterministic=True,
+        requires_full_ast=True,
+        requires_protection=True,
+        description="Converts 'except Exception, e:' to 'except Exception as e:'.",
+        example_before="except ValueError, err:",
+        example_after="except ValueError as err:",
+    ),
+    ModernizationRule(
+        id="JS_VAR_DECLARATION",
+        name="JavaScript var to let/const",
+        language="javascript",
+        category="legacy_syntax",
+        deterministic=True,
+        requires_full_ast=False,
+        requires_protection=True,
+        description="Replaces function-scoped var declaration with block-scoped let declaration.",
+        example_before="var count = 0;",
+        example_after="let count = 0;",
+    ),
+    ModernizationRule(
+        id="JS_EQUALITY_REVIEW_REQUIRED",
+        name="JavaScript loose equality review",
+        language="javascript",
+        category="unsafe_pattern",
+        deterministic=False,
+        requires_full_ast=False,
+        requires_protection=True,
+        description="Identifies loose == / != comparisons that require manual review before strict === conversion.",
+        example_before="if (x == null)",
+        example_after="if (x === null || x === undefined) // manual review",
+    ),
+]
 
 Rule = Tuple[re.Pattern[str], str, str, str, bool]
 
@@ -33,41 +176,163 @@ PYTHON_RULES: List[Rule] = [
 
 JS_RULES: List[Rule] = [
     (re.compile(r"(?m)^(\s*)var\s+"), r"\1let ", "JS_VAR_DECLARATION", "Replaced function-scoped var with block-scoped let.", True),
-    (re.compile(r"(?<![=!])==(?!=)"), "===", "JS_STRICT_EQUALITY", "Replaced loose equality with strict equality.", True),
-    (re.compile(r"(?<![=!])!=(?!=)"), "!==", "JS_STRICT_INEQUALITY", "Replaced loose inequality with strict inequality.", True),
 ]
-
 
 def _line_for(text: str, offset: int) -> int:
     return text.count("\n", 0, offset) + 1
 
 
-def _apply_rules(source: str, rules: List[Rule]) -> Tuple[str, List[str], List[RefactorWarning]]:
+def _python_protected_ranges(source: str) -> List[Tuple[int, int]]:
+    """
+    Returns a list of (start, end) byte-offset ranges covering all string literals
+    (including docstrings and multi-line strings) and inline comments in the source.
+    Matches within these ranges are skipped by _apply_rules to avoid mutating
+    content inside string values or comments.
+    """
+    ranges: List[Tuple[int, int]] = []
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+    except tokenize.TokenError:
+        # Tokenization failed (e.g., broken source); return empty — rules still run
+        return ranges
+
+    for tok_type, tok_string, tok_start, tok_end, _ in tokens:
+        if tok_type in (tokenize.STRING, tokenize.COMMENT):
+            # Convert (line, col) positions to flat byte offsets
+            lines = source.splitlines(keepends=True)
+            start_offset = sum(len(lines[i]) for i in range(tok_start[0] - 1)) + tok_start[1]
+            end_offset = sum(len(lines[i]) for i in range(tok_end[0] - 1)) + tok_end[1]
+            ranges.append((start_offset, end_offset))
+    return ranges
+
+
+def _js_protected_ranges(source: str) -> List[Tuple[int, int]]:
+    """
+    Returns approximate protected ranges for JS/TS string literals (single-quoted,
+    double-quoted, and template literals) and line/block comments.
+    This is a best-effort regex scanner — not a full parser.
+    """
+    ranges: List[Tuple[int, int]] = []
+    # Pattern matches: double-quoted strings, single-quoted strings, template literals,
+    # block comments, and line comments (in that priority order).
+    _JS_LITERAL_RE = re.compile(
+        r'"(?:[^"\\]|\\.)*"'     # double-quoted
+        r"|'(?:[^'\\]|\\.)*'"   # single-quoted
+        r"|`(?:[^`\\]|\\.)*`"   # template literal
+        r"|/\*.*?\*/"            # block comment
+        r"|//[^\n]*",            # line comment
+        re.DOTALL,
+    )
+    for m in _JS_LITERAL_RE.finditer(source):
+        ranges.append((m.start(), m.end()))
+    return ranges
+
+
+def _in_protected_range(offset: int, protected: List[Tuple[int, int]]) -> bool:
+    """Returns True if the given offset falls inside any protected range."""
+    for start, end in protected:
+        if start <= offset < end:
+            return True
+    return False
+
+
+def _first_loose_js_equality_line(source: str) -> int | None:
+    """Find an equality expression, ignoring comments and literal text."""
+    parser = tree_sitter.Parser(tree_sitter.Language(tree_sitter_javascript.language()))
+    root = parser.parse(source.encode("utf-8")).root_node
+    pending = [root]
+    while pending:
+        node = pending.pop()
+        if node.type == "binary_expression":
+            operator = node.child_by_field_name("operator")
+            if operator is not None and operator.type in {"==", "!="}:
+                return operator.start_point.row + 1
+        pending.extend(reversed(node.named_children))
+    return None
+
+
+def _apply_rules(
+    source: str,
+    rules: List[Rule],
+    is_python: bool = False,
+) -> Tuple[str, List[str], List[RefactorWarning]]:
+    """
+    Applies modernization rules to source, skipping matches that fall inside
+    string literals or comments (token-aware for Python, regex-approximate for JS).
+    """
+    # Build protected ranges from the ORIGINAL source before any substitutions.
+    # We use original offsets as a conservative guard; after substitutions offsets
+    # shift, but the guard only needs to protect regions that start protected.
+    if is_python:
+        protected = _python_protected_ranges(source)
+    else:
+        protected = _js_protected_ranges(source)
+
     updated = source
+    # Track cumulative offset shift so we can map original offsets after substitutions.
+    # Since we process rules sequentially and use pattern.subn on the evolving string,
+    # we recompute protected ranges from the current state for each rule to stay accurate.
     changes: List[str] = []
     warnings: List[RefactorWarning] = []
+
     for pattern, replacement, code, message, breaking in rules:
+        # Recompute protected ranges on the current version of the text for accuracy.
+        current_protected = _python_protected_ranges(updated) if is_python else _js_protected_ranges(updated)
+
+        # Find all matches; only count/warn on matches outside protected ranges.
         matches = list(pattern.finditer(updated))
-        if not matches:
+        unprotected_matches = [m for m in matches if not _in_protected_range(m.start(), current_protected)]
+
+        if not unprotected_matches:
             continue
+
         warnings.append(
             RefactorWarning(
                 code=code,
                 severity="risk" if breaking else "info",
                 message=(message + (" Review behavior before merging." if breaking else "")),
-                line=_line_for(updated, matches[0].start()),
+                line=_line_for(updated, unprotected_matches[0].start()),
                 breaking_change=breaking,
             )
         )
-        updated, count = pattern.subn(replacement, updated)
-        changes.append(f"{message} ({count} occurrence{'s' if count != 1 else ''})")
+
+        # Apply substitution only to unprotected matches, rebuilding the string
+        # by replacing from right to left (to preserve offsets for earlier matches).
+        count = 0
+        result_parts = []
+        prev_end = 0
+        for m in matches:
+            if _in_protected_range(m.start(), current_protected):
+                # Inside a string literal or comment — keep as-is.
+                result_parts.append(updated[prev_end:m.end()])
+            else:
+                result_parts.append(updated[prev_end:m.start()])
+                result_parts.append(m.expand(replacement))
+                count += 1
+            prev_end = m.end()
+        result_parts.append(updated[prev_end:])
+        updated = "".join(result_parts)
+
+        changes.append(f"{message} ({count} occurrence{'s' if count != 1 else ''})") 
+
+    if rules is JS_RULES:
+        equality_line = _first_loose_js_equality_line(source)
+        if equality_line is not None:
+            warnings.append(RefactorWarning(
+                code="JS_EQUALITY_REVIEW_REQUIRED",
+                severity="risk",
+                message="Loose equality was left unchanged. Converting it to strict equality can change null/undefined and mixed-type behavior; review each comparison manually.",
+                line=equality_line,
+                breaking_change=False,
+            ))
     return updated, changes, warnings
 
 
 def _modernize_python(source: str) -> Tuple[str, List[str], List[RefactorWarning]]:
-    updated, changes, warnings = _apply_rules(source, PYTHON_RULES)
+    updated, changes, warnings = _apply_rules(source, PYTHON_RULES, is_python=True)
 
     # Handle only the unambiguous one-line Python 2 print statement form.
+    # The pattern requires a line-start anchor, so it cannot match inside strings.
     print_pattern = re.compile(r"(?m)^(\s*)print\s+([^>\n][^\n]*)$")
     matches = list(print_pattern.finditer(updated))
     if matches:
@@ -103,13 +368,24 @@ def _syntax_check(language: str, code: str) -> Tuple[bool, str | None]:
     return (not stack, None if not stack else "Unbalanced brackets after transformation.")
 
 
+def _load_project_findings(db: Session, project_id: str) -> List:
+    record = db.query(ProjectAnalysisRecord).filter(ProjectAnalysisRecord.project_id == project_id).first()
+    analysis = (
+        ProjectAnalysis.model_validate(record.analysis_data)
+        if record else run_analysis_for_project(db, project_id)
+    )
+    return analysis.findings or build_analysis_findings(
+        project_id, analysis.modules, analysis.dependency_edges,
+    )
+
+
 def run_refactor_for_project(db: Session, project_id: str, force: bool = False) -> ProjectRefactorResult:
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise ValueError("Project not found.")
 
     cached = db.query(ProjectRefactorRecord).filter(ProjectRefactorRecord.project_id == project_id).first()
-    if cached and cached.content_hash == project.content_hash and not force:
+    if cached and cached.content_hash == project.content_hash and cached.engine_version == REFACTOR_ENGINE_VERSION and not force:
         return ProjectRefactorResult.model_validate(cached.refactor_data)
 
     raw_dir = get_workspace_dir(project.workspace_id) / "raw"
@@ -130,6 +406,12 @@ def run_refactor_for_project(db: Session, project_id: str, force: bool = False) 
         else:
             modern, changes, warnings = _apply_rules(original, JS_RULES)
         valid, syntax_error = _syntax_check(project_file.language, modern)
+        if project_file.language != "python" and original != modern:
+            warnings.append(RefactorWarning(
+                code="JS_SYNTAX_REVIEW_REQUIRED",
+                severity="risk",
+                message="Only bracket balance was checked. Parse and test this JavaScript or TypeScript change before applying it.",
+            ))
         if not valid:
             warnings.append(RefactorWarning(code="SYNTAX_REVIEW_REQUIRED", severity="risk", message="The proposal did not pass static syntax validation; do not apply it automatically.", breaking_change=True))
 
@@ -137,6 +419,7 @@ def run_refactor_for_project(db: Session, project_id: str, force: bool = False) 
             original.splitlines(keepends=True), modern.splitlines(keepends=True),
             fromfile=f"a/{project_file.relative_path}", tofile=f"b/{project_file.relative_path}",
         ))
+        applied_rule_ids = [w.code for w in warnings if any(r.id == w.code for r in CANONICAL_MODERNIZATION_RULES)]
         results.append(RefactoredFile(
             relative_path=project_file.relative_path,
             language=project_file.language,
@@ -148,11 +431,40 @@ def run_refactor_for_project(db: Session, project_id: str, force: bool = False) 
             syntax_valid=valid,
             syntax_error=syntax_error,
             changed=original != modern,
+            applied_rule_ids=applied_rule_ids,
+            candidate_disposition="diff_ready" if original != modern else "manual_review",
+            candidate_type="Deterministic rule diff" if original != modern else None,
         ))
 
     changed_files = sum(item.changed for item in results)
     total_changes = sum(len(item.changes) for item in results)
     breaking_count = sum(w.breaking_change for item in results for w in item.warnings)
+    findings = decorate_findings(
+        _load_project_findings(db, project_id),
+        {item.relative_path for item in results if item.changed},
+    )
+    mod_findings = [f for f in findings if f.category == "modernization"]
+    candidates_count = len(mod_findings)
+    autofix_count = sum(f.autofixable for f in mod_findings)
+    statically_validated = sum(item.changed and item.syntax_valid for item in results)
+
+    # Verification status if pre-existing
+    runtime_verified = 0
+    if cached and cached.refactor_data.get("verification"):
+        verif = cached.refactor_data.get("verification")
+        if verif.get("verified"):
+            runtime_verified = changed_files
+
+    mod_state = ModernizationState(
+        findings=len(findings),
+        candidates=candidates_count,
+        autofix_eligible=autofix_count,
+        generated_diffs=changed_files,
+        statically_validated=statically_validated,
+        runtime_verified=runtime_verified,
+        human_approved=0,
+    )
+
     result = ProjectRefactorResult(
         project_id=project_id,
         generated_at=datetime.now(timezone.utc).isoformat(),
@@ -161,10 +473,17 @@ def run_refactor_for_project(db: Session, project_id: str, force: bool = False) 
         changed_files=changed_files,
         total_changes=total_changes,
         breaking_warning_count=breaking_count,
-        safe_to_apply_automatically=bool(changed_files) and breaking_count == 0 and all(item.syntax_valid for item in results),
-        summary=(f"Prepared {total_changes} modernization rule group(s) across {changed_files} file(s). "
-                 "Review every diff and run the generated tests before merging." if changed_files else
-                 "No deterministic legacy patterns were found. The engine left all source files unchanged."),
+        # Static syntax checks and rule warnings cannot establish behavioral equivalence.
+        safe_to_apply_automatically=False,
+        summary=(
+            f"Prepared {total_changes} modernization rule group(s) across {changed_files} file(s). "
+            "Review every diff and run the generated tests before merging." if changed_files else
+            f"No deterministic autofix transformations available. {candidates_count} modernization candidates were detected, but none currently match a safe rule-based transformation."
+        ),
+        findings=findings,
+        finding_funnel=summarize_findings(findings),
+        modernization_state=mod_state,
+        modernization_rules=CANONICAL_MODERNIZATION_RULES,
     )
 
     if cached:

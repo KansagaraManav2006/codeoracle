@@ -57,10 +57,20 @@ class DiscoveryResult:
 
 
 class IngestionError(Exception):
-    def __init__(self, code: str, message: str):
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        technical_message: str | None = None,
+        http_status: int | None = None,
+        subcode: str | None = None,
+    ):
         super().__init__(message)
         self.code = code
         self.message = message
+        self.subcode = subcode
+        self.technical_message = technical_message
+        self.http_status = http_status
 
 
 def is_binary_content(content_bytes: bytes) -> bool:
@@ -90,8 +100,14 @@ def discover_source_files(root_dir: Path) -> DiscoveryResult:
     detected_languages: Set[str] = set()
 
     for dirpath, dirnames, filenames in os.walk(root_path, topdown=True):
-        # Prune ignored directory names in-place
-        dirnames[:] = [d for d in dirnames if d.lower() not in IGNORED_DIRS and not d.startswith(".")]
+        # Prune ignored directory names in-place; also reject symlink directories
+        # to prevent traversal into host-accessible targets after a git clone.
+        dirnames[:] = [
+            d for d in dirnames
+            if d.lower() not in IGNORED_DIRS
+            and not d.startswith(".")
+            and not (Path(dirpath) / d).is_symlink()
+        ]
 
         for fname in sorted(filenames):
             lower_fname = fname.lower()
@@ -99,6 +115,12 @@ def discover_source_files(root_dir: Path) -> DiscoveryResult:
                 continue
 
             file_path = Path(dirpath) / fname
+
+            # Reject symlinks: never follow them, as a git repo may contain symlinks
+            # pointing to host-accessible paths outside the workspace.
+            if file_path.is_symlink():
+                continue
+
             ext = file_path.suffix.lower()
 
             if ext not in SUPPORTED_EXTENSIONS:

@@ -19,4 +19,16 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-xyflow': ['@xyflow/react'],
+          'vendor-icons': ['lucide-react'],
+        },
+      },
+    },
+  },
 });
