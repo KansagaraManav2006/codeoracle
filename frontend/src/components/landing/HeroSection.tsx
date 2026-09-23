@@ -166,7 +166,11 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   };
 
   return (
-    <section className="relative isolate pt-32 pb-24 md:pt-40 md:pb-32 px-4 sm:px-6 overflow-hidden">
+    <>
+      <section
+        id="hero-section"
+        className="relative isolate min-h-[100svh] w-full flex flex-col justify-center items-center pt-20 pb-8 px-4 sm:px-6 overflow-hidden"
+      >
       {/* ========================================================================= */}
       {/* HERO BACKGROUND SYSTEM: Soft Glowing Vertical Columns (Inspired by Reference) */}
       {/* ========================================================================= */}
@@ -315,20 +319,20 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 
         {/* Main Headline (Geist Sans 3-line cadence) */}
         <h1
-          className="text-4xl sm:text-6xl md:text-7xl lg:text-[76px] font-extrabold tracking-tight text-[#1D1D1F] leading-[1.04] max-w-[920px] mb-6 font-geist transition-all duration-700 delay-100 ease-out"
+          className="text-4xl sm:text-6xl md:text-7xl lg:text-[76px] font-extrabold tracking-[-0.035em] text-[#1D1D1F] leading-[1.03] max-w-[940px] mb-6 font-geist transition-all duration-700 delay-100 ease-out"
           style={{
             opacity: mounted ? 1 : 0,
             transform: mounted ? 'none' : 'translate3d(0, 20px, 0)',
           }}
         >
           Map your codebase.<br />
-          <span className="text-[#6E6E73]">Understand the risk.</span><br />
+          <span className="text-[#6E6E73] font-bold">Understand the risk.</span><br />
           <span className="text-[#007AFF]">Modernize with confidence.</span>
         </h1>
 
         {/* Short, elegant supporting copy */}
         <p
-          className="text-base sm:text-lg md:text-xl text-[#424245] max-w-[680px] leading-relaxed mb-8 font-normal font-sans transition-all duration-700 delay-150 ease-out"
+          className="text-base sm:text-lg md:text-xl text-[#3A3A3C] max-w-[660px] leading-relaxed mb-8 font-normal font-sans transition-all duration-700 delay-150 ease-out"
           style={{
             opacity: mounted ? 1 : 0,
             transform: mounted ? 'none' : 'translate3d(0, 16px, 0)',
@@ -339,7 +343,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 
         {/* Primary & Secondary Clean CTA Pair (Inspired by Reference) */}
         <div
-          className="flex flex-col sm:flex-row items-center justify-center gap-3.5 mb-14 transition-all duration-700 delay-200 ease-out"
+          className="flex flex-col sm:flex-row items-center justify-center gap-3.5 mb-6 transition-all duration-700 delay-200 ease-out"
           style={{
             opacity: mounted ? 1 : 0,
             transform: mounted ? 'none' : 'translate3d(0, 16px, 0)',
@@ -348,7 +352,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           <button
             type="button"
             onClick={scrollToComposer}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full text-sm font-semibold text-white bg-[#007AFF] hover:bg-[#0066D6] shadow-[0_8px_20px_rgba(0,122,255,0.25)] transition-all duration-180 hover:-translate-y-0.5 active:translate-y-0"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-full text-sm font-semibold text-white bg-[#007AFF] hover:bg-[#0066D6] shadow-[0_8px_24px_rgba(0,122,255,0.28)] transition-all duration-180 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
           >
             <span>Analyze Repository</span>
             <ArrowRight className="w-4 h-4" />
@@ -360,35 +364,71 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
               onLoadDemo();
             }}
             disabled={isSubmitting || isLoading}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full text-sm font-semibold text-[#1D1D1F] bg-white/85 hover:bg-white border border-[#E5E5EA] shadow-apple backdrop-blur-md transition-all duration-180 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full text-sm font-semibold text-[#1D1D1F] bg-white/90 hover:bg-white border border-[#E5E5EA] hover:border-[#D2D2D7] shadow-apple backdrop-blur-md transition-all duration-180 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] disabled:opacity-50"
           >
             <Sparkles className="w-4 h-4 text-[#007AFF]" />
             <span>Try Benchmark Demo</span>
           </button>
         </div>
 
+        {/* Hero Bottom Floating Scroll Hint */}
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={scrollToComposer}
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/80 hover:bg-white backdrop-blur-md border border-[#E5E5EA] text-xs font-medium text-[#6E6E73] hover:text-[#1D1D1F] transition-all shadow-xs group"
+          >
+            <span>Scroll to repository intake</span>
+            <ArrowRight className="w-3 h-3 rotate-90 text-[#007AFF] group-hover:translate-y-0.5 transition-transform" />
+          </button>
+        </div>
+      </div>
+    </section>
+
+    {/* ========================================================================= */}
+    {/* 02. REPOSITORY COMPOSER (Dedicated 100svh Viewport Screen)                */}
+    {/* ========================================================================= */}
+    <section
+      id="repository-composer"
+      className="min-h-[100svh] w-full flex flex-col justify-center items-center py-10 lg:py-14 pt-20 px-4 sm:px-6 relative bg-[#F5F5F7] border-t border-[#E5E5EA]/70"
+    >
+      <div className="max-w-[880px] w-full mx-auto my-auto">
+        {/* Composer Header */}
+        <div className="text-center mb-5 sm:mb-6">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4FF] text-[#007AFF] text-xs font-semibold uppercase tracking-wider mb-2 font-geist-mono">
+            <FolderArchive className="w-3.5 h-3.5" />
+            <span>Repository Intake</span>
+          </div>
+          <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-[#1D1D1F] leading-tight mb-2 font-geist">
+            Analyze any codebase in seconds.
+          </h2>
+          <p className="text-xs sm:text-sm text-[#6E6E73] max-w-[580px] mx-auto leading-relaxed">
+            Enter a public GitHub repository URL or drag and drop a ZIP archive. Read-only static analysis without executing untrusted code.
+          </p>
+        </div>
+
         {/* Hero Repository Composer */}
         <div
-          id="repository-composer"
-          className="w-full max-w-[880px] bg-white/90 backdrop-blur-xl rounded-[32px] sm:rounded-[36px] border border-white/80 shadow-apple-lg p-3 sm:p-5 transition-all duration-700 delay-250 ease-out relative text-left"
+          className="w-full bg-white rounded-[32px] sm:rounded-[36px] border border-[#E5E5EA] shadow-apple-lg p-5 sm:p-7 transition-all duration-700 delay-200 ease-out relative text-left"
           style={{
             opacity: mounted ? 1 : 0,
-            transform: mounted ? 'none' : 'translate3d(0, 24px, 0)',
+            transform: mounted ? 'none' : 'translate3d(0, 20px, 0)',
           }}
         >
           {/* Mode Switcher Tabs */}
-          <div className="flex items-center justify-between border-b border-[#E5E5EA] pb-3 mb-4 px-2">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between border-b border-[#E5E5EA] pb-3.5 mb-4">
+            <div className="inline-flex p-1 rounded-full bg-[#F5F5F7] border border-[#E5E5EA]">
               <button
                 type="button"
                 onClick={() => {
                   setActiveTab('github');
                   setUrlError(null);
                 }}
-                className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold transition-all ${activeTab === 'github'
-                    ? 'bg-[#1D1D1F] text-white shadow-sm'
-                    : 'text-[#6E6E73] hover:text-[#1D1D1F] hover:bg-[#F5F5F7]'
-                  }`}
+                className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                  activeTab === 'github'
+                    ? 'bg-white text-[#1D1D1F] shadow-sm font-bold'
+                    : 'text-[#6E6E73] hover:text-[#1D1D1F]'
+                }`}
               >
                 <Github className="w-3.5 h-3.5" />
                 <span>Public GitHub</span>
@@ -399,10 +439,11 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                   setActiveTab('zip');
                   setZipError(null);
                 }}
-                className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold transition-all ${activeTab === 'zip'
-                    ? 'bg-[#1D1D1F] text-white shadow-sm'
-                    : 'text-[#6E6E73] hover:text-[#1D1D1F] hover:bg-[#F5F5F7]'
-                  }`}
+                className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                  activeTab === 'zip'
+                    ? 'bg-white text-[#1D1D1F] shadow-sm font-bold'
+                    : 'text-[#6E6E73] hover:text-[#1D1D1F]'
+                }`}
               >
                 <FolderArchive className="w-3.5 h-3.5" />
                 <span>ZIP Upload</span>
@@ -427,8 +468,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           {/* Form Content */}
           {activeTab === 'github' ? (
             <form onSubmit={handleGithubSubmit} className="space-y-4">
-              <div className="relative flex flex-col sm:flex-row items-center gap-2 bg-[#F5F5F7] rounded-2xl p-2 border border-[#E5E5EA] focus-within:border-[#007AFF] focus-within:ring-2 focus-within:ring-[#007AFF]/20 transition-all">
-                <div className="flex items-center gap-2 w-full px-3 py-1">
+              <div className="relative flex flex-col sm:flex-row items-center gap-2 bg-[#F5F5F7] rounded-2xl p-2 border border-[#E5E5EA] focus-within:bg-white focus-within:border-[#007AFF] focus-within:ring-2 focus-within:ring-[#007AFF]/20 transition-all">
+                <div className="flex items-center gap-2.5 w-full px-3 py-1.5">
                   <Github className="w-5 h-5 text-[#86868B] shrink-0" />
                   <input
                     type="url"
@@ -439,13 +480,13 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                     }}
                     placeholder="https://github.com/owner/repository"
                     disabled={isSubmitting || isLoading}
-                    className="w-full bg-transparent text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none font-mono"
+                    className="w-full bg-transparent text-xs sm:text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none font-mono font-medium"
                   />
                   {githubUrl && (
                     <button
                       type="button"
                       onClick={() => setGithubUrl('')}
-                      className="text-xs text-[#86868B] hover:text-[#1D1D1F] px-1"
+                      className="text-xs text-[#86868B] hover:text-[#1D1D1F] px-1 font-mono"
                     >
                       Clear
                     </button>
@@ -454,7 +495,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                     type="button"
                     onClick={handlePaste}
                     title="Paste from clipboard"
-                    className="p-1.5 rounded-lg text-[#86868B] hover:text-[#1D1D1F] hover:bg-white transition-colors"
+                    className="p-1.5 rounded-lg text-[#86868B] hover:text-[#1D1D1F] hover:bg-white transition-colors border border-transparent hover:border-[#E5E5EA]"
                   >
                     <Clipboard className="w-4 h-4" />
                   </button>
@@ -463,7 +504,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 <button
                   type="submit"
                   disabled={isSubmitting || isLoading || !githubUrl.trim()}
-                  className="w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white bg-[#007AFF] hover:bg-[#0066D6] disabled:opacity-40 shadow-sm transition-all duration-180 hover:-translate-y-0.5 active:translate-y-0"
+                  className="w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-2 px-7 py-3 rounded-xl text-sm font-semibold text-white bg-[#007AFF] hover:bg-[#0066D6] disabled:opacity-40 shadow-sm transition-all duration-180 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
                 >
                   {isSubmitting || isLoading ? (
                     <>
@@ -497,10 +538,10 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                       setGithubUrl(repo.url);
                       setUrlError(null);
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-[#424245] bg-[#F5F5F7] hover:bg-[#E5E5EA] border border-[#E5E5EA] transition-all"
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-[#424245] bg-[#F5F5F7] hover:bg-white hover:text-[#1D1D1F] border border-[#E5E5EA] hover:border-[#007AFF]/40 hover:shadow-xs transition-all"
                   >
                     <span className="font-semibold">{repo.name}</span>
-                    <span className="text-[#86868B] text-[10px] font-mono">({repo.desc})</span>
+                    <span className="text-[#86868B] text-[11px] font-mono">({repo.desc})</span>
                   </button>
                 ))}
               </div>
@@ -613,7 +654,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
         </div>
       </div>
     </section>
-  );
+  </>
+);
 };
 
 export default HeroSection;

@@ -210,40 +210,40 @@ export const ModernizationSection: React.FC = () => {
     <div
       ref={containerRef}
       id="modernization-section"
-      className={`relative w-full ${prefersReduced ? 'py-16' : 'min-h-[160vh] md:min-h-[190vh]'}`}
+      className={`relative w-full ${prefersReduced ? 'py-16' : 'min-h-[260vh] md:min-h-[300vh]'}`}
     >
       {/* Sticky Scrollytelling Viewport */}
       <section
         ref={sectionRef}
         className={`${
           prefersReduced
-            ? 'relative'
-            : 'sticky top-12 md:top-16 min-h-[calc(100vh-3.5rem)] flex flex-col justify-center'
-        } py-10 md:py-16 px-4 sm:px-6 bg-[#F5F5F7] overflow-hidden`}
+            ? 'relative py-12'
+            : 'sticky top-12 md:top-14 h-[calc(100svh-3.5rem)] flex flex-col justify-center'
+        } py-2 sm:py-3 px-4 sm:px-6 bg-[#F5F5F7] overflow-hidden`}
       >
-        <div className="max-w-[1140px] mx-auto w-full">
+        <div className="max-w-[1140px] w-full mx-auto my-auto flex flex-col">
           {/* Section Header: Remains Pinned and Visible */}
           <div
-            className="text-center max-w-[760px] mx-auto mb-8 transition-all duration-700 ease-out"
+            className="text-center max-w-[760px] mx-auto mb-2.5 sm:mb-3 transition-all duration-700 ease-out"
             style={{
               opacity: prefersReduced || inView ? 1 : 0,
-              transform: prefersReduced || inView ? 'none' : 'translate3d(0, 24px, 0)',
+              transform: prefersReduced || inView ? 'none' : 'translate3d(0, 20px, 0)',
             }}
           >
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4FF] text-[#007AFF] text-xs font-semibold uppercase tracking-wider mb-3 font-geist-mono">
-              <Sparkles className="w-3.5 h-3.5" />
+            <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#EAF4FF] text-[#007AFF] text-[11px] font-semibold uppercase tracking-wider mb-1.5 font-geist-mono">
+              <Sparkles className="w-3 h-3" />
               <span>Pinned Modernization Sequence</span>
             </div>
-            <h2 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-[#1D1D1F] leading-tight mb-3 font-geist">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-[#1D1D1F] leading-tight mb-1 font-geist">
               A suggestion is not the same as a safe change.
             </h2>
-            <p className="text-sm sm:text-base text-[#6E6E73] leading-relaxed font-sans">
+            <p className="text-xs sm:text-sm text-[#6E6E73] leading-relaxed max-w-[660px] mx-auto font-sans">
               CodeOracle enforces a rigorous 6-step transformation sequence — proving behavioral parity before any proposal touches your repository.
             </p>
           </div>
 
           {/* Persistent Step Navigation Tabs */}
-          <div className="flex items-center justify-between gap-1.5 sm:gap-2 mb-6 overflow-x-auto pb-2 scrollbar-none">
+          <div className="flex items-center justify-between gap-1.5 sm:gap-2 mb-3.5 overflow-x-auto pb-1 scrollbar-none">
             {MODERNIZATION_STEPS.map((s, idx) => {
               const isActive = idx === activeStepIndex;
               return (
@@ -251,17 +251,17 @@ export const ModernizationSection: React.FC = () => {
                   key={s.id}
                   type="button"
                   onClick={() => handleStepClick(idx)}
-                  className={`flex-1 min-w-[130px] p-2.5 sm:p-3 rounded-2xl text-left transition-all duration-300 border ${
+                  className={`flex-1 min-w-[120px] p-2.5 rounded-2xl text-left transition-all duration-200 border ${
                     isActive
-                      ? 'bg-white border-[#007AFF] shadow-apple scale-[1.02]'
-                      : 'bg-white/60 border-[#E5E5EA] hover:bg-white text-[#6E6E73] opacity-80 hover:opacity-100'
+                      ? 'bg-white border-[#007AFF] shadow-apple-md scale-[1.02] border-t-2 border-t-[#007AFF]'
+                      : 'bg-white/80 border-[#E5E5EA] hover:bg-white text-[#6E6E73] hover:text-[#1D1D1F]'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span
                       className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
                         isActive
-                          ? 'bg-[#007AFF] text-white'
+                          ? 'bg-[#007AFF] text-white shadow-xs'
                           : 'bg-[#E5E5EA] text-[#6E6E73]'
                       }`}
                     >
@@ -272,7 +272,7 @@ export const ModernizationSection: React.FC = () => {
                     </span>
                   </div>
                   <div
-                    className={`text-xs font-bold truncate ${
+                    className={`text-xs font-bold truncate font-geist ${
                       isActive ? 'text-[#1D1D1F]' : 'text-[#6E6E73]'
                     }`}
                   >
@@ -284,49 +284,49 @@ export const ModernizationSection: React.FC = () => {
           </div>
 
           {/* Dynamic Product Visualization Canvas for Current Step */}
-          <div className="bg-white rounded-[28px] sm:rounded-[36px] border border-[#E5E5EA] shadow-apple-lg p-6 sm:p-8 transition-all duration-500 ease-out">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          <div className="bg-white rounded-3xl border border-[#E5E5EA] shadow-apple-md p-5 sm:p-6 transition-all duration-300">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
               {/* Left Column: Step Description & Metrics (5 cols) */}
-              <div className="lg:col-span-5 space-y-4">
+              <div className="lg:col-span-5 space-y-3.5">
                 <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-[#EAF4FF] text-[#007AFF]">
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-[#EAF4FF] text-[#007AFF]">
                     Step {currentStep.stepNum} of 06
                   </span>
                   <span className="text-xs text-[#86868B] font-mono">•</span>
-                  <span className="text-xs text-[#86868B] font-mono">{currentStep.badge}</span>
+                  <span className="text-xs text-[#86868B] font-mono font-semibold">{currentStep.badge}</span>
                 </div>
 
-                <h3 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1D1D1F] font-geist leading-snug">
+                <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1D1D1F] font-geist leading-snug">
                   {currentStep.title}
                 </h3>
 
-                <p className="text-sm text-[#6E6E73] leading-relaxed font-sans">
+                <p className="text-xs sm:text-sm text-[#6E6E73] leading-relaxed font-sans">
                   {currentStep.summary}
                 </p>
 
                 {/* Key Metric Card */}
-                <div className="p-4 rounded-2xl bg-[#F5F5F7] border border-[#E5E5EA] flex items-center justify-between">
+                <div className="p-3.5 rounded-2xl bg-[#F5F5F7] border border-[#E5E5EA] flex items-center justify-between shadow-xs">
                   <div>
-                    <span className="text-[11px] font-bold text-[#86868B] uppercase tracking-wider block">
+                    <span className="text-[10px] font-bold text-[#86868B] uppercase tracking-wider block font-geist-mono">
                       {currentStep.metricLabel}
                     </span>
-                    <span className="text-2xl sm:text-3xl font-bold font-mono text-[#1D1D1F]">
+                    <span className="text-2xl sm:text-3xl font-extrabold font-mono text-[#1D1D1F]">
                       {currentStep.metric}
                     </span>
                   </div>
-                  <div className="w-10 h-10 rounded-xl bg-white border border-[#E5E5EA] flex items-center justify-center text-[#007AFF] shadow-sm">
-                    {activeStepIndex === 0 && <FileCode2 className="w-5 h-5" />}
-                    {activeStepIndex === 1 && <Sparkles className="w-5 h-5" />}
-                    {activeStepIndex === 2 && <ShieldCheck className="w-5 h-5 text-[#34C759]" />}
-                    {activeStepIndex === 3 && <GitCompare className="w-5 h-5" />}
-                    {activeStepIndex === 4 && <CheckCircle2 className="w-5 h-5 text-[#34C759]" />}
-                    {activeStepIndex === 5 && <Milestone className="w-5 h-5" />}
+                  <div className="w-9 h-9 rounded-xl bg-white border border-[#E5E5EA] flex items-center justify-center text-[#007AFF] shadow-xs">
+                    {activeStepIndex === 0 && <FileCode2 className="w-4.5 h-4.5" />}
+                    {activeStepIndex === 1 && <Sparkles className="w-4.5 h-4.5" />}
+                    {activeStepIndex === 2 && <ShieldCheck className="w-4.5 h-4.5 text-[#34C759]" />}
+                    {activeStepIndex === 3 && <GitCompare className="w-4.5 h-4.5" />}
+                    {activeStepIndex === 4 && <CheckCircle2 className="w-4.5 h-4.5 text-[#34C759]" />}
+                    {activeStepIndex === 5 && <Milestone className="w-4.5 h-4.5" />}
                   </div>
                 </div>
 
                 {/* Next Step Hint */}
-                <div className="pt-2 flex items-center justify-between text-xs text-[#86868B] font-mono">
-                  <span>Scroll or click tabs to progress</span>
+                <div className="pt-1 flex items-center justify-between text-xs text-[#86868B] font-mono">
+                  <span>Scroll or click to advance</span>
                   <button
                     type="button"
                     onClick={() =>
@@ -336,7 +336,7 @@ export const ModernizationSection: React.FC = () => {
                           : 0
                       )
                     }
-                    className="inline-flex items-center gap-1 text-[#007AFF] hover:underline font-semibold"
+                    className="inline-flex items-center gap-1.5 text-[#007AFF] hover:underline font-semibold"
                   >
                     <span>
                       {activeStepIndex < MODERNIZATION_STEPS.length - 1
@@ -349,34 +349,34 @@ export const ModernizationSection: React.FC = () => {
               </div>
 
               {/* Right Column: Interactive Product State Visualization (7 cols) */}
-              <div className="lg:col-span-7 bg-[#F5F5F7] rounded-2xl p-5 sm:p-6 border border-[#E5E5EA] space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-[#E5E5EA] text-xs">
+              <div className="lg:col-span-7 bg-[#F5F5F7] rounded-2xl p-4 sm:p-5 border border-[#E5E5EA] space-y-3">
+                <div className="flex items-center justify-between pb-2.5 border-b border-[#E5E5EA] text-xs">
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-[#34C759] animate-pulse" />
-                    <span className="font-bold text-[#1D1D1F] font-mono">
+                    <span className="font-bold text-[#1D1D1F] font-geist">
                       {currentStep.detail.heading}
                     </span>
                   </div>
-                  <span className="text-[11px] text-[#86868B] font-mono">
+                  <span className="text-xs text-[#86868B] font-mono">
                     Phase // {currentStep.id}
                   </span>
                 </div>
 
-                <p className="text-xs text-[#6E6E73] font-medium">
+                <p className="text-xs text-[#6E6E73] font-medium leading-snug">
                   {currentStep.detail.subheading}
                 </p>
 
                 {/* Live Code / Unified Diff View */}
                 {currentStep.detail.codeSnippet && (
-                  <div className="bg-[#1D1D1F] rounded-xl p-4 text-xs font-mono text-white/90 overflow-x-auto shadow-sm">
-                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10 text-[10px] text-white/50">
+                  <div className="bg-[#1D1D1F] rounded-2xl p-3.5 text-xs font-mono text-white/90 overflow-x-auto shadow-apple-md">
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10 text-[11px] text-white/60">
                       <span className="flex items-center gap-1.5">
                         <Terminal className="w-3 h-3 text-[#007AFF]" />
                         <span>transformation_preview.diff</span>
                       </span>
-                      <span className="text-[#34C759]">AST Verified</span>
+                      <span className="text-[#34C759] font-bold">AST Verified</span>
                     </div>
-                    <pre className="text-[11px] leading-relaxed text-[#34C759]">
+                    <pre className="text-xs leading-relaxed text-[#34C759]">
                       {currentStep.detail.codeSnippet}
                     </pre>
                   </div>
@@ -384,13 +384,13 @@ export const ModernizationSection: React.FC = () => {
 
                 {/* Checklist of Verification Points */}
                 {currentStep.detail.items && (
-                  <div className="space-y-2 pt-1">
+                  <div className="space-y-1.5 pt-0.5">
                     {currentStep.detail.items.map((item) => (
                       <div
                         key={item}
-                        className="flex items-center gap-2.5 text-xs text-[#1D1D1F] bg-white p-2.5 rounded-xl border border-[#E5E5EA]/80"
+                        className="flex items-center gap-2 text-[11px] text-[#1D1D1F] bg-white p-2 rounded-lg border border-[#E5E5EA]/80"
                       >
-                        <CheckCircle2 className="w-4 h-4 text-[#34C759] shrink-0" />
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#34C759] shrink-0" />
                         <span className="font-medium">{item}</span>
                       </div>
                     ))}

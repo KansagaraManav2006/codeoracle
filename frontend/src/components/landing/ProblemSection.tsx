@@ -5,7 +5,7 @@ import {
   Radio,
   ShieldOff,
   Compass,
-  ChevronRight,
+  ArrowRight,
 } from 'lucide-react';
 import { useInView, useReducedMotion } from '../../hooks/useScrollAnimation';
 
@@ -17,62 +17,82 @@ export const ProblemSection: React.FC = () => {
     {
       num: '01',
       title: 'Unknown dependencies',
+      tag: 'Hidden Influx',
       desc: 'Subtle imports, dynamic re-exports, and undocumented callers make it impossible to see where data or errors propagate.',
       icon: Network,
-      direction: 'translate3d(-24px, 32px, 0)',
+      accentColor: '#007AFF',
+      badgeBg: 'bg-[#EAF4FF] text-[#007AFF] border-[#007AFF]/20',
+      iconBg: 'bg-[#EAF4FF] text-[#007AFF]',
+      direction: 'translate3d(-20px, 24px, 0)',
       delay: '0ms',
     },
     {
       num: '02',
       title: 'Hidden blast radius',
+      tag: 'Cascade Risk',
       desc: 'A one-line signature refactoring in a shared utility quietly breaks three distant consumers in production.',
       icon: Radio,
-      direction: 'translate3d(-12px, 32px, 0)',
-      delay: '120ms',
+      accentColor: '#FF9500',
+      badgeBg: 'bg-[#FFF8E6] text-[#B26A00] border-[#FF9500]/25',
+      iconBg: 'bg-[#FFF8E6] text-[#B26A00]',
+      direction: 'translate3d(-10px, 24px, 0)',
+      delay: '100ms',
     },
     {
       num: '03',
       title: 'Missing behavioral protection',
+      tag: 'Unwritten Contracts',
       desc: 'Legacy code lacks characterization tests. Teams are afraid to touch critical loops because existing contracts are unwritten.',
       icon: ShieldOff,
-      direction: 'translate3d(12px, 32px, 0)',
-      delay: '240ms',
+      accentColor: '#D7261C',
+      badgeBg: 'bg-[#FFF1F0] text-[#D7261C] border-[#FFC5C2]',
+      iconBg: 'bg-[#FFF1F0] text-[#D7261C]',
+      direction: 'translate3d(10px, 24px, 0)',
+      delay: '200ms',
     },
     {
       num: '04',
       title: 'Modernization without context',
+      tag: 'Semantic Drift',
       desc: 'AI coding tools rewrite syntax into modern idioms without verifying semantic parity, breaking legacy edge-case assumptions.',
       icon: Compass,
-      direction: 'translate3d(24px, 32px, 0)',
-      delay: '360ms',
+      accentColor: '#5856D6',
+      badgeBg: 'bg-[#F2F1FD] text-[#5856D6] border-[#5856D6]/20',
+      iconBg: 'bg-[#F2F1FD] text-[#5856D6]',
+      direction: 'translate3d(20px, 24px, 0)',
+      delay: '300ms',
     },
   ];
 
   return (
-    <section ref={sectionRef} className="py-24 md:py-32 px-4 sm:px-6 bg-[#F5F5F7] overflow-hidden">
-      <div className="max-w-[1120px] mx-auto">
-        {/* Editorial Heading Header with smooth mask reveal */}
+    <section
+      id="problem-section"
+      ref={sectionRef}
+      className="min-h-[100svh] w-full flex flex-col justify-center py-10 lg:py-14 pt-20 px-4 sm:px-6 bg-[#F5F5F7] overflow-hidden"
+    >
+      <div className="max-w-[1140px] w-full mx-auto my-auto">
+        {/* Editorial Heading Header */}
         <div
           style={{
             opacity: inView || reducedMotion ? 1 : 0,
-            transform: inView || reducedMotion ? 'none' : 'translate3d(0, 24px, 0)',
+            transform: inView || reducedMotion ? 'none' : 'translate3d(0, 20px, 0)',
             transition: 'opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
-          className="max-w-[820px] mb-16"
+          className="max-w-[780px] mb-5 sm:mb-7"
         >
-          <p className="text-xs font-semibold text-[#007AFF] tracking-widest uppercase mb-4 font-geist-mono">
+          <p className="text-xs font-semibold text-[#007AFF] tracking-widest uppercase mb-2 font-geist-mono">
             Why Codebase Intelligence Matters
           </p>
-          <h2 className="text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-[#1D1D1F] leading-[1.06] mb-6 font-geist">
+          <h2 className="text-2xl sm:text-4xl lg:text-[44px] font-extrabold tracking-tight text-[#1D1D1F] leading-[1.08] mb-2 font-geist">
             Old code rarely fails because one file is old.
           </h2>
-          <p className="text-lg sm:text-xl text-[#6E6E73] leading-relaxed font-normal font-sans">
+          <p className="text-xs sm:text-sm lg:text-base text-[#6E6E73] leading-relaxed font-normal font-sans">
             The real difficulty is understanding what depends on what, where behavior is fragile, and what a seemingly small change can affect.
           </p>
         </div>
 
-        {/* 4 Signals Editorial Layout with Staggered Directional Slide */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 relative">
+        {/* 4 Signals Editorial Layout */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4 relative">
           {problemSignals.map((sig, idx) => {
             const Icon = sig.icon;
             const isVisible = inView || reducedMotion;
@@ -84,29 +104,29 @@ export const ProblemSection: React.FC = () => {
                   transform: isVisible ? 'none' : sig.direction,
                   transition: `opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1) ${sig.delay}, transform 0.65s cubic-bezier(0.16, 1, 0.3, 1) ${sig.delay}`,
                 }}
-                className="bg-white rounded-2xl p-6 sm:p-7 border border-[#E5E5EA] shadow-apple flex flex-col justify-between group hover:-translate-y-1.5 hover:shadow-apple-md transition-all duration-200"
+                className="bg-white rounded-2xl p-4 sm:p-5 border border-[#E5E5EA] shadow-apple flex flex-col justify-between group hover:-translate-y-1 hover:shadow-apple-md hover:border-[#D2D2D7] transition-all duration-200"
               >
                 <div>
-                  <div className="flex items-center justify-between mb-5">
-                    <span className="font-mono text-xs font-semibold text-[#86868B] tracking-wider">
-                      {sig.num}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-mono text-xs font-bold text-[#86868B] tracking-wider">
+                      SIGNAL {sig.num}
                     </span>
-                    <div className="w-8 h-8 rounded-full bg-[#F5F5F7] flex items-center justify-center text-[#6E6E73] group-hover:text-[#007AFF] group-hover:bg-[#EAF4FF] transition-colors">
+                    <div className={`w-8 h-8 rounded-xl ${sig.iconBg} flex items-center justify-center transition-transform group-hover:scale-110 duration-200`}>
                       <Icon className="w-4 h-4" />
                     </div>
                   </div>
-                  <h3 className="text-base sm:text-lg font-bold text-[#1D1D1F] mb-3 leading-snug">
+                  <h3 className="text-sm sm:text-base font-bold text-[#1D1D1F] mb-1.5 leading-snug font-geist">
                     {sig.title}
                   </h3>
-                  <p className="text-xs sm:text-sm text-[#6E6E73] leading-relaxed">
+                  <p className="text-xs text-[#6E6E73] leading-relaxed">
                     {sig.desc}
                   </p>
                 </div>
 
-                <div className="pt-6 mt-6 border-t border-[#E5E5EA] flex items-center justify-between text-[11px] font-semibold text-[#86868B]">
-                  <span>Signal {idx + 1}</span>
-                  <span className="text-[#D7261C] flex items-center gap-1">
-                    Compound Risk <ChevronRight className="w-3 h-3" />
+                <div className="pt-3 mt-4 border-t border-[#E5E5EA] flex items-center justify-between text-[11px] font-mono">
+                  <span className="text-[#86868B]">Risk Vector {idx + 1}</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${sig.badgeBg}`}>
+                    {sig.tag}
                   </span>
                 </div>
               </div>
@@ -118,17 +138,17 @@ export const ProblemSection: React.FC = () => {
         <div
           style={{
             opacity: inView || reducedMotion ? 1 : 0,
-            transform: inView || reducedMotion ? 'none' : 'translate3d(0, 20px, 0) scale(0.98)',
-            transition: 'opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1) 480ms, transform 0.7s cubic-bezier(0.16, 1, 0.3, 1) 480ms',
+            transform: inView || reducedMotion ? 'none' : 'translate3d(0, 16px, 0) scale(0.98)',
+            transition: 'opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1) 400ms, transform 0.7s cubic-bezier(0.16, 1, 0.3, 1) 400ms',
           }}
-          className="mt-8 bg-white rounded-2xl p-5 sm:p-6 border border-[#E5E5EA] shadow-apple flex flex-col sm:flex-row items-center justify-between gap-4"
+          className="mt-5 bg-white rounded-2xl p-3.5 sm:p-4 border border-[#E5E5EA] shadow-apple flex flex-col sm:flex-row items-center justify-between gap-3"
         >
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#FFF1F0] border border-[#FFC5C2] flex items-center justify-center text-[#D7261C] shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-[#FFF1F0] border border-[#FFC5C2] flex items-center justify-center text-[#D7261C] shrink-0">
               <AlertTriangle className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-xs font-bold text-[#D7261C] uppercase tracking-wider block">
+              <span className="text-xs font-bold text-[#D7261C] uppercase tracking-wider block font-geist-mono">
                 The Core Bottleneck: Unbounded Change Risk
               </span>
               <p className="text-xs text-[#6E6E73]">
@@ -137,9 +157,12 @@ export const ProblemSection: React.FC = () => {
             </div>
           </div>
 
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#F5F5F7] border border-[#E5E5EA] text-xs font-mono font-semibold text-[#1D1D1F]">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#F5F5F7] border border-[#E5E5EA] text-xs font-mono font-semibold text-[#1D1D1F]">
             <span>CodeOracle flips the model:</span>
-            <span className="text-[#007AFF]">Understand → Pin → Refactor</span>
+            <span className="text-[#007AFF] font-bold flex items-center gap-1">
+              Understand → Pin → Refactor
+              <ArrowRight className="w-3.5 h-3.5" />
+            </span>
           </div>
         </div>
       </div>

@@ -22,7 +22,7 @@ export const FaqSection: React.FC = () => {
     },
     {
       q: 'How is hotspot risk calculated?',
-      a: 'Hotspot risk is an explainable weighted equation: 35% Cyclomatic Complexity (CC), 20% AST syntax warnings/debt, 25% incoming caller count (Fan-In), and 20% downstream blast radius. The breakdown is transparently displayed for every module.',
+      a: 'Hotspot risk is an explainable weighted equation: 35% Cyclomatic Complexity (CC), 20% AST syntax debt, 25% incoming caller count (Fan-In), and 20% downstream blast radius. The breakdown is transparently displayed for every module.',
     },
     {
       q: 'What does "unresolved dependency" mean?',
@@ -33,7 +33,7 @@ export const FaqSection: React.FC = () => {
       a: 'No. Generated characterization tests are statically validated for syntax correctness, but never executed against untrusted user uploads. You can download the generated pytest/Vitest suite as a ZIP to run in your own isolated CI sandbox.',
     },
     {
-      q: 'What is the difference between a modernization finding and autofix?',
+      q: 'What is the difference between a finding and autofix?',
       a: 'A modernization finding represents a detected legacy pattern (e.g. Python 2 print statements or old callbacks). An autofix candidate is an extremely pure transformation with zero breaking changes. CodeOracle requires explicit human review before any code transformation.',
     },
     {
@@ -58,63 +58,128 @@ export const FaqSection: React.FC = () => {
     },
   ];
 
+  const col1 = faqs.slice(0, 6);
+  const col2 = faqs.slice(6);
+
   return (
-    <section ref={sectionRef} className="py-24 md:py-32 px-4 sm:px-6 bg-[#FFFFFF] overflow-hidden">
-      <div className="max-w-[920px] mx-auto">
+    <section
+      id="faq-section"
+      ref={sectionRef}
+      className="w-full min-h-[100svh] flex flex-col justify-center py-8 lg:py-12 pt-20 px-4 sm:px-6 bg-[#FFFFFF] overflow-hidden"
+    >
+      <div className="max-w-[1140px] mx-auto w-full">
+        {/* Header (10-15% top area) */}
         <div
-          className="text-center mb-16 transition-all duration-700 ease-out"
+          className="text-center max-w-[760px] mx-auto mb-6 lg:mb-8 transition-all duration-700 ease-out"
           style={{
             opacity: prefersReduced || inView ? 1 : 0,
             transform: prefersReduced || inView ? 'none' : 'translate3d(0, 24px, 0)',
           }}
         >
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4FF] text-[#007AFF] text-xs font-semibold uppercase tracking-wider mb-4 font-geist-mono">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4FF] text-[#007AFF] text-xs font-semibold uppercase tracking-wider mb-2.5 font-geist-mono">
             <HelpCircle className="w-3.5 h-3.5" />
             <span>Frequently Asked Questions</span>
           </div>
-          <h2 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-[#1D1D1F] leading-tight mb-4 font-geist">
+          <h2 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-[#1D1D1F] leading-tight mb-2.5 font-geist">
             Answers for curious engineers.
           </h2>
-          <p className="text-base sm:text-lg text-[#6E6E73] leading-relaxed font-sans">
+          <p className="text-xs sm:text-sm lg:text-base text-[#6E6E73] leading-relaxed font-sans max-w-[620px] mx-auto">
             Everything you need to know about our AST parsing, security boundaries, and modernization philosophy.
           </p>
         </div>
 
-        {/* Accordion List with Stagger */}
-        <div className="space-y-3">
-          {faqs.map((faq, idx) => {
-            const isOpen = openIndex === idx;
-            return (
-              <div
-                key={faq.q}
-                className="rounded-2xl bg-[#F5F5F7] border border-[#E5E5EA] overflow-hidden transition-all duration-500 ease-out hover:border-[#D2D2D7]"
-                style={{
-                  opacity: prefersReduced || inView ? 1 : 0,
-                  transform: prefersReduced || inView ? 'none' : 'translate3d(0, 16px, 0)',
-                  transitionDelay: prefersReduced ? '0ms' : `${idx * 40}ms`,
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setOpenIndex(isOpen ? null : idx)}
-                  className="w-full text-left p-5 sm:p-6 flex items-center justify-between gap-4 focus:outline-none"
+        {/* 2-Column Accordion Grid (65-75% main content) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 lg:gap-3.5 mb-6">
+          {/* Column 1 */}
+          <div className="space-y-2.5">
+            {col1.map((faq, idx) => {
+              const actualIdx = idx;
+              const isOpen = openIndex === actualIdx;
+              return (
+                <div
+                  key={faq.q}
+                  className={`rounded-xl border overflow-hidden transition-all duration-300 ease-out ${
+                    isOpen ? 'bg-white border-[#007AFF]/40 shadow-apple' : 'bg-[#F5F5F7] border-[#E5E5EA] hover:border-[#D2D2D7]'
+                  }`}
+                  style={{
+                    opacity: prefersReduced || inView ? 1 : 0,
+                    transform: prefersReduced || inView ? 'none' : 'translate3d(0, 12px, 0)',
+                    transitionDelay: prefersReduced ? '0ms' : `${idx * 30}ms`,
+                  }}
                 >
-                  <span className="text-sm sm:text-base font-bold text-[#1D1D1F]">
-                    {faq.q}
-                  </span>
-                  <div className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-[#6E6E73] shrink-0 shadow-sm">
-                    {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </div>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setOpenIndex(isOpen ? null : actualIdx)}
+                    className="w-full text-left p-3 sm:p-3.5 flex items-center justify-between gap-3 focus:outline-none"
+                  >
+                    <span className={`text-xs sm:text-sm font-bold leading-snug font-geist ${isOpen ? 'text-[#007AFF]' : 'text-[#1D1D1F]'}`}>
+                      {faq.q}
+                    </span>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 shadow-xs transition-colors ${
+                      isOpen ? 'bg-[#EAF4FF] text-[#007AFF]' : 'bg-white text-[#6E6E73]'
+                    }`}>
+                      {isOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3 text-[#007AFF]" />}
+                    </div>
+                  </button>
 
-                {isOpen && (
-                  <div className="px-5 pb-6 sm:px-6 text-xs sm:text-sm text-[#424245] leading-relaxed border-t border-[#E5E5EA] pt-4">
-                    {faq.a}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                  {isOpen && (
+                    <div className="px-3.5 pb-3.5 text-xs text-[#424245] leading-relaxed border-t border-[#E5E5EA] pt-2.5 bg-white/60 font-sans">
+                      {faq.a}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Column 2 */}
+          <div className="space-y-2.5">
+            {col2.map((faq, idx) => {
+              const actualIdx = idx + 6;
+              const isOpen = openIndex === actualIdx;
+              return (
+                <div
+                  key={faq.q}
+                  className={`rounded-xl border overflow-hidden transition-all duration-300 ease-out ${
+                    isOpen ? 'bg-white border-[#007AFF]/40 shadow-apple' : 'bg-[#F5F5F7] border-[#E5E5EA] hover:border-[#D2D2D7]'
+                  }`}
+                  style={{
+                    opacity: prefersReduced || inView ? 1 : 0,
+                    transform: prefersReduced || inView ? 'none' : 'translate3d(0, 12px, 0)',
+                    transitionDelay: prefersReduced ? '0ms' : `${(idx + 6) * 30}ms`,
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setOpenIndex(isOpen ? null : actualIdx)}
+                    className="w-full text-left p-3 sm:p-3.5 flex items-center justify-between gap-3 focus:outline-none"
+                  >
+                    <span className={`text-xs sm:text-sm font-bold leading-snug font-geist ${isOpen ? 'text-[#007AFF]' : 'text-[#1D1D1F]'}`}>
+                      {faq.q}
+                    </span>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 shadow-xs transition-colors ${
+                      isOpen ? 'bg-[#EAF4FF] text-[#007AFF]' : 'bg-white text-[#6E6E73]'
+                    }`}>
+                      {isOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3 text-[#007AFF]" />}
+                    </div>
+                  </button>
+
+                  {isOpen && (
+                    <div className="px-3.5 pb-3.5 text-xs text-[#424245] leading-relaxed border-t border-[#E5E5EA] pt-2.5 bg-white/60 font-sans">
+                      {faq.a}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Bottom Reassurance (10-15% breathing room) */}
+        <div className="flex items-center justify-center">
+          <span className="text-xs font-geist-mono text-[#86868B]">
+            Have more questions? All analyses are locally reproducible in isolated environments.
+          </span>
         </div>
       </div>
     </section>

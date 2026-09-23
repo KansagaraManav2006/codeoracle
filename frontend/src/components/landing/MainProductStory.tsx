@@ -112,21 +112,25 @@ export const MainProductStory: React.FC = () => {
     <section
       id="product-story"
       ref={containerRef}
-      className="relative bg-[#FFFFFF] min-h-[140vh] md:min-h-[160vh]"
+      className={`relative bg-[#FFFFFF] ${prefersReduced ? 'py-16' : 'min-h-[280vh] md:min-h-[320vh]'}`}
     >
       {/* Sticky presentation viewport */}
-      <div className="sticky top-16 md:top-20 py-10 md:py-14 px-4 sm:px-6">
-        <div className="max-w-[1180px] mx-auto">
+      <div className={`${
+        prefersReduced
+          ? 'relative py-8'
+          : 'sticky top-12 md:top-14 h-[calc(100svh-3.5rem)] flex flex-col justify-center'
+      } py-2 sm:py-3 px-4 sm:px-6 overflow-hidden`}>
+        <div className="max-w-[1180px] w-full mx-auto my-auto flex flex-col">
           {/* Header with Reveal */}
           <div
             ref={headerRef}
-            className="max-w-[760px] mb-8 transition-all duration-700 ease-out"
+            className="max-w-[760px] mb-3 sm:mb-4 transition-all duration-700 ease-out"
             style={{
               opacity: prefersReduced || headerInView ? 1 : 0,
-              transform: prefersReduced || headerInView ? 'none' : 'translate3d(0, 24px, 0)',
+              transform: prefersReduced || headerInView ? 'none' : 'translate3d(0, 20px, 0)',
             }}
           >
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-1.5">
               <span className="text-xs font-semibold text-[#007AFF] tracking-wider uppercase font-geist-mono">
                 The 7-Stage Intelligence Story
               </span>
@@ -135,18 +139,18 @@ export const MainProductStory: React.FC = () => {
                 Stage {activeStageIndex + 1} of 7 (Scroll or Click)
               </span>
             </div>
-            <h2 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-[#1D1D1F] leading-[1.06] mb-3 font-geist">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-[#1D1D1F] leading-[1.08] mb-1 font-geist">
               How CodeOracle sequences safe modernization.
             </h2>
-            <p className="text-base sm:text-lg text-[#6E6E73] leading-relaxed">
+            <p className="text-xs sm:text-sm text-[#6E6E73] leading-relaxed max-w-[660px]">
               From the initial ingestion pulse to an executable migration wave, every stage provides evidence-backed guardrails for engineers.
             </p>
           </div>
 
           {/* Two-Column Layout: Left Stage List, Right Dynamic Product Canvas */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 items-stretch">
             {/* Left Navigation (4 cols) */}
-            <div className="lg:col-span-4 flex flex-col gap-2">
+            <div className="lg:col-span-4 flex flex-col gap-1.5 justify-center">
               {STAGES.map((stg, idx) => {
                 const isActive = idx === activeStageIndex;
                 const Icon = stg.icon;
@@ -154,32 +158,34 @@ export const MainProductStory: React.FC = () => {
                   <button
                     key={stg.id}
                     onClick={() => handleStageClick(idx)}
-                    className={`text-left p-3.5 sm:p-4 rounded-2xl transition-all duration-300 border flex items-start gap-4 ${
+                    className={`text-left p-2.5 sm:p-3 rounded-2xl transition-all duration-300 border flex items-center gap-3 relative ${
                       isActive
-                        ? 'bg-[#F5F5F7] border-[#007AFF]/40 shadow-apple scale-[1.02]'
-                        : 'bg-transparent border-transparent hover:bg-[#F5F5F7]/60 text-[#6E6E73] opacity-75 hover:opacity-100'
+                        ? 'bg-white border-[#007AFF] shadow-apple-md scale-[1.02] border-l-4 border-l-[#007AFF]'
+                        : 'bg-transparent border-transparent hover:bg-black/[0.03] text-[#6E6E73] hover:text-[#1D1D1F]'
                     }`}
                   >
                     <span
-                      className={`font-mono text-xs font-bold px-2 py-1 rounded-md flex items-center gap-1.5 transition-colors ${
-                        isActive ? 'bg-[#007AFF] text-white shadow-sm' : 'bg-[#E5E5EA] text-[#6E6E73]'
+                      className={`font-mono text-xs font-bold px-2 py-0.5 rounded-md transition-colors ${
+                        isActive ? 'bg-[#007AFF] text-white shadow-xs' : 'bg-[#E5E5EA] text-[#6E6E73]'
                       }`}
                     >
-                      <span>{stg.number}</span>
+                      {stg.number}
                     </span>
-                    <Icon className={`w-4 h-4 shrink-0 mt-0.5 transition-colors ${isActive ? 'text-[#007AFF]' : 'text-[#86868B]'}`} />
+                    <Icon className={`w-4 h-4 shrink-0 transition-colors ${isActive ? 'text-[#007AFF]' : 'text-[#86868B]'}`} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <span
-                          className={`text-sm font-bold transition-colors ${
+                          className={`text-xs sm:text-sm font-bold transition-colors font-geist ${
                             isActive ? 'text-[#1D1D1F]' : 'text-[#6E6E73]'
                           }`}
                         >
                           {stg.title}
                         </span>
-                        {isActive && <ChevronRight className="w-4 h-4 text-[#007AFF] animate-pulse" />}
+                        {isActive && <ChevronRight className="w-3.5 h-3.5 text-[#007AFF]" />}
                       </div>
-                      <p className="text-xs text-[#86868B] truncate mt-0.5">{stg.tagline}</p>
+                      <p className={`text-[11px] truncate leading-tight mt-0.5 ${isActive ? 'text-[#424245]' : 'text-[#86868B]'}`}>
+                        {stg.tagline}
+                      </p>
                     </div>
                   </button>
                 );
@@ -187,32 +193,32 @@ export const MainProductStory: React.FC = () => {
             </div>
 
             {/* Right Product Canvas (8 cols) */}
-            <div className="lg:col-span-8 bg-[#F5F5F7] rounded-[32px] border border-[#E5E5EA] p-6 sm:p-8 shadow-apple-md min-h-[540px] flex flex-col justify-between transition-all duration-300">
+            <div className="lg:col-span-8 bg-white rounded-3xl border border-[#E5E5EA] p-5 sm:p-6 shadow-apple-md flex flex-col justify-between transition-all duration-300">
             {/* Stage Header Banner */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-[#E5E5EA]">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3.5 border-b border-[#E5E5EA]">
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-mono font-bold text-[#007AFF]">
+                <div className="flex items-center gap-1.5 mb-1 font-mono text-xs">
+                  <span className="font-bold text-[#007AFF] bg-[#EAF4FF] px-2 py-0.5 rounded-full">
                     STAGE {currentStage.number}
                   </span>
-                  <span className="text-xs text-[#86868B]">•</span>
-                  <span className="text-xs text-[#86868B] font-semibold">{currentStage.title}</span>
+                  <span className="text-[#86868B]">•</span>
+                  <span className="text-[#86868B] font-semibold">{currentStage.title}</span>
                 </div>
-                <h3 className="text-xl sm:text-2xl font-bold text-[#1D1D1F]">
+                <h3 className="text-lg sm:text-xl font-bold text-[#1D1D1F] font-geist">
                   {currentStage.tagline}
                 </h3>
               </div>
-              <div className="p-2.5 rounded-2xl bg-white border border-[#E5E5EA] shadow-sm text-[#007AFF]">
-                <currentStage.icon className="w-6 h-6" />
+              <div className="p-2.5 rounded-2xl bg-[#F5F5F7] border border-[#E5E5EA] shadow-xs text-[#007AFF]">
+                <currentStage.icon className="w-4 h-4" />
               </div>
             </div>
 
             {/* Dynamic Interactive Stage Body */}
-            <div className="py-6 flex-1 flex flex-col justify-center">
+            <div className="py-3 flex-1 flex flex-col justify-center min-h-[200px]">
               {/* STAGE 01: UNDERSTAND */}
               {activeStageIndex === 0 && (
-                <div className="space-y-6">
-                  <div className="bg-white rounded-2xl p-6 border border-[#E5E5EA] shadow-sm">
+                <div className="space-y-3">
+                  <div className="bg-white rounded-xl p-4 border border-[#E5E5EA] shadow-sm">
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <span className="text-xs font-bold text-[#6E6E73] uppercase tracking-wider">
@@ -484,8 +490,8 @@ export const MainProductStory: React.FC = () => {
             </div>
 
             {/* Stage Bottom Footer */}
-            <div className="pt-6 border-t border-[#E5E5EA] flex items-center justify-between">
-              <p className="text-xs sm:text-sm text-[#1D1D1F] font-medium max-w-[500px]">
+            <div className="pt-3 mt-1 border-t border-[#E5E5EA] flex items-center justify-between">
+              <p className="text-xs text-[#1D1D1F] font-medium max-w-[500px]">
                 {currentStage.message}
               </p>
               <button

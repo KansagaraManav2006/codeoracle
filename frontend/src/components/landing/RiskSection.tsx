@@ -83,59 +83,63 @@ export const RiskSection: React.FC = () => {
   }, [inView, current.overallScore, prefersReduced]);
 
   return (
-    <section id="risk-section" ref={sectionRef} className="py-24 md:py-32 px-4 sm:px-6 bg-[#F5F5F7] overflow-hidden">
-      <div className="max-w-[1140px] mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+    <section
+      id="risk-section"
+      ref={sectionRef}
+      className="min-h-[100svh] w-full flex flex-col justify-center py-10 lg:py-14 pt-20 px-4 sm:px-6 bg-[#F5F5F7] overflow-hidden"
+    >
+      <div className="max-w-[1140px] w-full mx-auto my-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
           {/* Left Column: Text & Editorial Explanation (5 cols) */}
           <div
-            className="lg:col-span-5 space-y-6 transition-all duration-700 ease-out"
+            className="lg:col-span-5 space-y-4 transition-all duration-700 ease-out"
             style={{
               opacity: prefersReduced || inView ? 1 : 0,
-              transform: prefersReduced || inView ? 'none' : 'translate3d(-36px, 0, 0)',
+              transform: prefersReduced || inView ? 'none' : 'translate3d(-28px, 0, 0)',
             }}
           >
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FFF1F0] text-[#D7261C] text-xs font-semibold uppercase tracking-wider font-geist-mono">
-              <Flame className="w-3.5 h-3.5" />
+            <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#FFF1F0] text-[#D7261C] text-[11px] font-semibold uppercase tracking-wider font-geist-mono">
+              <Flame className="w-3 h-3" />
               <span>Hotspot Explainability</span>
             </div>
 
-            <h2 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-[#1D1D1F] leading-[1.06] font-geist">
+            <h2 className="text-2xl sm:text-4xl lg:text-[40px] font-extrabold tracking-tight text-[#1D1D1F] leading-[1.08] font-geist">
               Complexity is not the same as risk.
             </h2>
 
-            <p className="text-base text-[#6E6E73] leading-relaxed font-sans">
+            <p className="text-xs sm:text-sm text-[#6E6E73] leading-relaxed font-sans">
               A 500-line utility with pure functions and zero callers is harmless. A 60-line authentication middleware with high fan-in and missing tests can bring down an entire service.
             </p>
 
-            <div className="space-y-4 pt-2">
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-white border border-[#E5E5EA] flex items-center justify-center font-bold text-xs text-[#007AFF] shrink-0 mt-0.5 shadow-sm">
+            <div className="space-y-3 pt-1">
+              <div className="flex items-start gap-2.5">
+                <div className="w-5 h-5 rounded-full bg-white border border-[#E5E5EA] flex items-center justify-center font-bold text-[11px] text-[#007AFF] shrink-0 mt-0.5 shadow-xs">
                   1
                 </div>
-                <p className="text-xs sm:text-sm text-[#424245]">
+                <p className="text-xs text-[#424245] leading-relaxed">
                   <strong className="text-[#1D1D1F]">Multi-Factor Decomposition:</strong> CodeOracle factors cyclomatic complexity, AST warnings, fan-in callers, and blast radius into an explainable 0–100 score.
                 </p>
               </div>
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-white border border-[#E5E5EA] flex items-center justify-center font-bold text-xs text-[#007AFF] shrink-0 mt-0.5 shadow-sm">
+              <div className="flex items-start gap-2.5">
+                <div className="w-5 h-5 rounded-full bg-white border border-[#E5E5EA] flex items-center justify-center font-bold text-[11px] text-[#007AFF] shrink-0 mt-0.5 shadow-xs">
                   2
                 </div>
-                <p className="text-xs sm:text-sm text-[#424245]">
-                  <strong className="text-[#1D1D1F]">Zero Black Boxes:</strong> Every score directly shows the contributing variables and weights so engineering leads can audit why a file was ranked #1.
+                <p className="text-xs text-[#424245] leading-relaxed">
+                  <strong className="text-[#1D1D1F]">Zero Black Boxes:</strong> Every score directly shows contributing variables so engineering leads can audit why a file was ranked #1.
                 </p>
               </div>
             </div>
 
             {/* Quick Module Switcher */}
-            <div className="pt-4 flex items-center gap-2">
-              <span className="text-xs text-[#86868B] font-semibold">Inspect Target:</span>
-              <div className="inline-flex rounded-full bg-white p-1 border border-[#E5E5EA] shadow-sm">
+            <div className="pt-1 flex items-center gap-2">
+              <span className="text-xs text-[#86868B] font-semibold font-geist-mono">Target:</span>
+              <div className="inline-flex rounded-full bg-white p-1 border border-[#E5E5EA] shadow-xs">
                 <button
                   type="button"
                   onClick={() => setActiveModule('anomaly')}
                   className={`px-3 py-1 text-xs rounded-full font-mono transition-all ${
                     activeModule === 'anomaly'
-                      ? 'bg-[#1D1D1F] text-white font-bold shadow-sm'
+                      ? 'bg-[#1D1D1F] text-white font-bold shadow-xs'
                       : 'text-[#6E6E73] hover:text-[#1D1D1F]'
                   }`}
                 >
@@ -146,7 +150,7 @@ export const RiskSection: React.FC = () => {
                   onClick={() => setActiveModule('demand')}
                   className={`px-3 py-1 text-xs rounded-full font-mono transition-all ${
                     activeModule === 'demand'
-                      ? 'bg-[#1D1D1F] text-white font-bold shadow-sm'
+                      ? 'bg-[#1D1D1F] text-white font-bold shadow-xs'
                       : 'text-[#6E6E73] hover:text-[#1D1D1F]'
                   }`}
                 >
@@ -157,7 +161,7 @@ export const RiskSection: React.FC = () => {
                   onClick={() => setActiveModule('auth')}
                   className={`px-3 py-1 text-xs rounded-full font-mono transition-all ${
                     activeModule === 'auth'
-                      ? 'bg-[#1D1D1F] text-white font-bold shadow-sm'
+                      ? 'bg-[#1D1D1F] text-white font-bold shadow-xs'
                       : 'text-[#6E6E73] hover:text-[#1D1D1F]'
                   }`}
                 >
@@ -165,36 +169,64 @@ export const RiskSection: React.FC = () => {
                 </button>
               </div>
             </div>
+
+            {/* Elevated Weighted Formula Card: Balances Left Vertical Rhythm */}
+            <div className="p-3.5 rounded-2xl bg-white border border-[#E5E5EA] shadow-apple space-y-2">
+              <div className="flex items-center justify-between text-xs font-mono">
+                <span className="font-bold text-[#1D1D1F] uppercase tracking-wider text-[11px]">
+                  Explainable Weight Formula
+                </span>
+                <span className="text-[#007AFF] font-bold">100% Deterministic</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                <div className="p-2 rounded-xl bg-[#F5F5F7] border border-[#E5E5EA]/70">
+                  <span className="text-[#86868B] block text-[10px]">35% WEIGHT</span>
+                  <span className="font-bold text-[#1D1D1F]">Cyclomatic CC</span>
+                </div>
+                <div className="p-2 rounded-xl bg-[#F5F5F7] border border-[#E5E5EA]/70">
+                  <span className="text-[#86868B] block text-[10px]">20% WEIGHT</span>
+                  <span className="font-bold text-[#1D1D1F]">AST Debt Warnings</span>
+                </div>
+                <div className="p-2 rounded-xl bg-[#F5F5F7] border border-[#E5E5EA]/70">
+                  <span className="text-[#86868B] block text-[10px]">25% WEIGHT</span>
+                  <span className="font-bold text-[#1D1D1F]">Caller Fan-In</span>
+                </div>
+                <div className="p-2 rounded-xl bg-[#F5F5F7] border border-[#E5E5EA]/70">
+                  <span className="text-[#86868B] block text-[10px]">20% WEIGHT</span>
+                  <span className="font-bold text-[#1D1D1F]">Blast Radius</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Right Column: Interactive Score Breakdown Card (7 cols) */}
           <div
-            className="lg:col-span-7 bg-white rounded-[32px] border border-[#E5E5EA] shadow-apple-md p-6 sm:p-8 transition-all duration-700 delay-100 ease-out"
+            className="lg:col-span-7 bg-white rounded-2xl sm:rounded-3xl border border-[#E5E5EA] shadow-apple-md p-5 sm:p-6 transition-all duration-700 delay-100 ease-out"
             style={{
               opacity: prefersReduced || inView ? 1 : 0,
-              transform: prefersReduced || inView ? 'none' : 'translate3d(36px, 0, 0)',
+              transform: prefersReduced || inView ? 'none' : 'translate3d(28px, 0, 0)',
             }}
           >
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-6 border-b border-[#E5E5EA]">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-4 border-b border-[#E5E5EA]">
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <FileCode className="w-4 h-4 text-[#007AFF]" />
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <FileCode className="w-3.5 h-3.5 text-[#007AFF]" />
                   <h3 className="font-mono text-sm sm:text-base font-bold text-[#1D1D1F]">
                     {current.name}
                   </h3>
                 </div>
-                <p className="text-xs text-[#86868B] font-mono">{current.path}</p>
+                <p className="text-[11px] text-[#86868B] font-mono">{current.path}</p>
               </div>
 
               <div className="flex items-center gap-3">
                 <div className="text-right">
-                  <div className="text-xs text-[#86868B] uppercase font-bold">Hotspot Score</div>
-                  <div className="text-3xl font-bold font-mono text-[#D7261C] tracking-tight">
-                    {displayScore} <span className="text-xs text-[#86868B]">/ 100</span>
+                  <div className="text-[10px] text-[#86868B] uppercase font-bold">Hotspot Score</div>
+                  <div className="text-2xl sm:text-3xl font-bold font-mono text-[#D7261C] tracking-tight">
+                    {displayScore} <span className="text-[10px] text-[#86868B]">/ 100</span>
                   </div>
                 </div>
                 <span
-                  className={`px-3 py-1 rounded-full text-xs font-bold font-mono ${
+                  className={`px-2.5 py-0.5 rounded-full text-xs font-bold font-mono ${
                     current.riskLevel === 'HIGH'
                       ? 'bg-[#FFF1F0] text-[#D7261C] border border-[#FFC5C2]'
                       : 'bg-[#FFF7EA] text-[#B26A00] border border-[#FFE1B0]'
@@ -206,24 +238,24 @@ export const RiskSection: React.FC = () => {
             </div>
 
             {/* Score Factor Breakdown Rows */}
-            <div className="space-y-4 pt-6">
+            <div className="space-y-2.5 pt-4">
               {current.factors.map((f, i) => (
                 <div
                   key={f.name}
-                  className="p-4 rounded-2xl bg-[#F5F5F7] border border-[#E5E5EA] hover:border-[#D2D2D7] transition-all"
+                  className="p-3 rounded-xl bg-[#F5F5F7] border border-[#E5E5EA] hover:border-[#D2D2D7] transition-all"
                 >
-                  <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center justify-between mb-1">
                     <span className="text-xs sm:text-sm font-bold text-[#1D1D1F]">
                       {f.name}
                     </span>
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-mono text-[#86868B]">Weight: {f.weight}</span>
-                      <span className="font-mono text-xs sm:text-sm font-bold text-[#007AFF] bg-white px-2 py-0.5 rounded-md border border-[#E5E5EA]">
+                      <span className="text-[10px] font-mono text-[#86868B]">Weight: {f.weight}</span>
+                      <span className="font-mono text-xs font-bold text-[#007AFF] bg-white px-1.5 py-0.5 rounded border border-[#E5E5EA]">
                         {f.value}
                       </span>
                     </div>
                   </div>
-                  <p className="text-xs text-[#6E6E73] leading-relaxed mb-2">{f.desc}</p>
+                  <p className="text-[11px] text-[#6E6E73] leading-relaxed mb-1.5">{f.desc}</p>
                   
                   {/* Subtle Factor Bar Indicator */}
                   <div className="w-full bg-[#E5E5EA] h-1.5 rounded-full overflow-hidden">
@@ -240,7 +272,7 @@ export const RiskSection: React.FC = () => {
             </div>
 
             {/* Formula Footnote */}
-            <div className="mt-6 pt-4 border-t border-[#E5E5EA] flex items-center justify-between text-[11px] text-[#86868B] font-mono">
+            <div className="mt-4 pt-3 border-t border-[#E5E5EA] flex items-center justify-between text-[10px] text-[#86868B] font-mono">
               <span>Risk = 0.35(CC) + 0.20(Warnings) + 0.25(FanIn) + 0.20(BlastRadius)</span>
               <span className="text-[#34C759] font-bold">100% Explainable</span>
             </div>

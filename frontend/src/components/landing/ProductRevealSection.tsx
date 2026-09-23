@@ -137,10 +137,10 @@ export const ProductRevealSection: React.FC<ProductRevealSectionProps> = ({ onEx
       {/* Sticky Viewport Stage: Pinned during scroll expansion */}
       <section
         className={`${
-          reducedMotion ? 'relative' : 'sticky top-10 md:top-14 min-h-[calc(100vh-3.5rem)] flex flex-col justify-center'
-        } py-6 px-4 sm:px-6 overflow-hidden`}
+          reducedMotion ? 'relative py-12' : 'sticky top-12 md:top-14 h-[calc(100svh-3.5rem)] flex flex-col justify-center'
+        } py-3 px-4 sm:px-6 overflow-hidden`}
       >
-        <div className="max-w-[1240px] w-full mx-auto flex flex-col items-center">
+        <div className="max-w-[1240px] w-full mx-auto flex flex-col items-center my-auto">
           {/* Progressively Revealing Header with Staggered Parallax Float */}
           <div
             style={{
@@ -148,41 +148,39 @@ export const ProductRevealSection: React.FC<ProductRevealSectionProps> = ({ onEx
               transform: `translate3d(0, ${headerTranslateY}px, 0)`,
               willChange: 'opacity, transform',
             }}
-            className="text-center max-w-[780px] mx-auto mb-6 transition-opacity duration-200"
+            className="text-center max-w-[760px] mx-auto mb-3 transition-opacity duration-200"
           >
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4FF] text-[#007AFF] text-xs font-semibold uppercase tracking-wider mb-2.5 shadow-sm font-geist-mono">
-              <Sparkles className="w-3.5 h-3.5" />
+            <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#EAF4FF] text-[#007AFF] text-[11px] font-semibold uppercase tracking-wider mb-1.5 shadow-sm font-geist-mono">
+              <Sparkles className="w-3 h-3" />
               <span>Immediate Grounded Evidence</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-[#1D1D1F] leading-[1.08] mb-2.5 font-geist">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[#1D1D1F] leading-[1.08] mb-1.5 font-geist">
               A repository becomes a system you can reason about.
             </h2>
-            <p className="text-sm sm:text-base text-[#6E6E73] leading-relaxed max-w-[660px] mx-auto font-sans">
+            <p className="text-xs sm:text-sm text-[#6E6E73] leading-relaxed max-w-[640px] mx-auto font-sans">
               Real static analysis extracts unambiguous architectural primitives from your codebase — replacing guesswork with measured complexity, dependencies, and behavioral boundaries.
             </p>
-          </div>
-
-          {/* Staggered Metric Tiles: Fade & Float in progressively */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 sm:gap-3.5 w-full max-w-[1140px] mb-5">
+          </div>          {/* Staggered Metric Tiles: Fade & Float in progressively */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 sm:gap-3 w-full max-w-[1140px] mb-3.5">
             {metrics.map((item, idx) => (
               <div
                 key={item.label}
                 style={getMetricCardStyle(idx)}
-                className={`p-3.5 rounded-2xl bg-white border border-[#E5E5EA] shadow-apple transition-shadow duration-300 ${
+                className={`p-3 rounded-2xl bg-white border border-[#E5E5EA] shadow-apple flex flex-col justify-between transition-all duration-300 hover:-translate-y-0.5 ${
                   idx === 4 ? 'col-span-2 md:col-span-1 border-[#FF3B30]/30 bg-[#FFF8F8]' : ''
                 }`}
               >
-                <div className="text-[10px] sm:text-[11px] font-semibold text-[#6E6E73] uppercase tracking-wider mb-0.5 truncate">
+                <div className="text-[11px] font-semibold text-[#86868B] uppercase tracking-wider mb-1 truncate font-geist-mono">
                   {item.label}
                 </div>
                 <div
-                  className={`text-xl sm:text-2xl font-bold tracking-tight mb-0.5 font-mono ${
+                  className={`text-2xl sm:text-3xl font-extrabold tracking-tight font-mono mb-0.5 ${
                     idx === 4 ? 'text-[#D7261C]' : 'text-[#1D1D1F]'
                   }`}
                 >
                   {item.value}
                 </div>
-                <div className="text-[11px] text-[#86868B] leading-tight truncate">{item.desc}</div>
+                <div className="text-[11px] text-[#6E6E73] leading-tight truncate">{item.desc}</div>
               </div>
             ))}
           </div>
@@ -202,23 +200,23 @@ export const ProductRevealSection: React.FC<ProductRevealSectionProps> = ({ onEx
                 maxWidth: `${maxWidthPx}px`,
                 willChange: 'transform, filter, max-width',
               }}
-              className="w-full bg-[#FFFFFF] border border-[#E5E5EA] shadow-apple-lg p-4 sm:p-6 transition-shadow duration-300 relative transform-gpu"
+              className="w-full bg-[#FFFFFF] border border-[#E5E5EA] shadow-apple-lg p-3.5 sm:p-5 transition-shadow duration-300 relative transform-gpu"
             >
               {/* Window Chrome Header with macOS Dots & Status */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 mb-4 border-b border-[#E5E5EA]">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 mb-3 border-b border-[#E5E5EA]">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded-full bg-[#FF5F56] border border-[#E0443E]" />
-                    <span className="w-3 h-3 rounded-full bg-[#FFBD2E] border border-[#DEA123]" />
-                    <span className="w-3 h-3 rounded-full bg-[#27C93F] border border-[#1AAB29]" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#FF5F56] border border-[#E0443E]" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#FFBD2E] border border-[#DEA123]" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#27C93F] border border-[#1AAB29]" />
                   </div>
-                  <div className="h-4 w-px bg-[#E5E5EA] mx-1 hidden sm:block" />
+                  <div className="h-3.5 w-px bg-[#E5E5EA] mx-1 hidden sm:block" />
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-sm sm:text-base font-bold text-[#1D1D1F] tracking-tight">
+                      <h3 className="text-xs sm:text-sm font-bold text-[#1D1D1F] tracking-tight font-geist">
                         End-to-End Demand Forecasting Platform
                       </h3>
-                      <span className="px-2 py-0.5 text-[10px] font-semibold bg-[#EAF4FF] text-[#007AFF] rounded-full">
+                      <span className="px-2 py-0.5 text-[10px] font-semibold bg-[#EAF4FF] text-[#007AFF] rounded-full font-mono">
                         Reference Benchmark
                       </span>
                     </div>
@@ -229,14 +227,14 @@ export const ProductRevealSection: React.FC<ProductRevealSectionProps> = ({ onEx
                 </div>
 
                 <div className="flex items-center gap-3 text-xs">
-                  <div className="flex items-center gap-1.5 text-[#248A3D] bg-[#E8F9ED] px-3 py-1 rounded-full font-medium">
+                  <div className="flex items-center gap-1.5 text-[#248A3D] bg-[#E8F9ED] px-3 py-1 rounded-full text-xs font-semibold">
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>98 Backend Unit Tests Validated</span>
+                    <span>98 Backend Tests Validated</span>
                   </div>
                   {onExploreDemo && (
                     <button
                       onClick={onExploreDemo}
-                      className="inline-flex items-center gap-1 text-[#007AFF] hover:underline font-semibold"
+                      className="inline-flex items-center gap-1 text-xs text-[#007AFF] hover:underline font-semibold"
                     >
                       <span>Open Full Demo</span>
                       <ArrowUpRight className="w-3.5 h-3.5" />
@@ -245,38 +243,41 @@ export const ProductRevealSection: React.FC<ProductRevealSectionProps> = ({ onEx
                 </div>
               </div>
 
-              {/* Subsystem Architecture Grid: Illuminates as Canvas Expands */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+              {/* Subsystem Architecture Grid: 3 Clear Pillars (Architecture, Risk, Safety) */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {/* Subsystem Card 1: Core Architecture Layers */}
                 <div
                   style={getInternalCardStyle(0)}
                   className="bg-[#F5F5F7] rounded-2xl p-4 border border-[#E5E5EA] space-y-2.5 transition-all duration-300"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-[#1D1D1F] uppercase tracking-wider">
-                      Architecture Layers
-                    </span>
-                    <span className="text-[10px] font-mono text-[#007AFF] font-bold">5 Detected</span>
+                  <div className="flex items-center justify-between pb-1.5 border-b border-[#E5E5EA]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-[#007AFF]" />
+                      <span className="text-xs font-bold text-[#1D1D1F] uppercase tracking-wider font-geist">
+                        Architecture
+                      </span>
+                    </div>
+                    <span className="text-xs font-mono text-[#007AFF] font-bold">5 Layers Detected</span>
                   </div>
-                  <div className="space-y-1.5 text-xs">
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#E5E5EA]/60">
-                      <span className="font-medium text-[#1D1D1F]">Presentation Layer</span>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#E5E5EA]/70 text-xs">
+                      <span className="font-semibold text-[#1D1D1F]">Presentation Layer</span>
                       <span className="font-mono text-[#6E6E73] text-[11px]">48 files (React)</span>
                     </div>
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#E5E5EA]/60">
-                      <span className="font-medium text-[#1D1D1F]">API &amp; Endpoints</span>
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#E5E5EA]/70 text-xs">
+                      <span className="font-semibold text-[#1D1D1F]">API &amp; Endpoints</span>
                       <span className="font-mono text-[#6E6E73] text-[11px]">24 files (FastAPI)</span>
                     </div>
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#E5E5EA]/60">
-                      <span className="font-medium text-[#1D1D1F]">Domain Services</span>
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#E5E5EA]/70 text-xs">
+                      <span className="font-semibold text-[#1D1D1F]">Domain Services</span>
                       <span className="font-mono text-[#6E6E73] text-[11px]">39 files (Python)</span>
                     </div>
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#E5E5EA]/60">
-                      <span className="font-medium text-[#1D1D1F]">Data &amp; Persistence</span>
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#E5E5EA]/70 text-xs">
+                      <span className="font-semibold text-[#1D1D1F]">Data &amp; Persistence</span>
                       <span className="font-mono text-[#6E6E73] text-[11px]">18 files (SQLAlchemy)</span>
                     </div>
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#E5E5EA]/60">
-                      <span className="font-medium text-[#1D1D1F]">ML Pipeline Models</span>
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#E5E5EA]/70 text-xs">
+                      <span className="font-semibold text-[#1D1D1F]">ML Models</span>
                       <span className="font-mono text-[#6E6E73] text-[11px]">16 files (PyTorch)</span>
                     </div>
                   </div>
@@ -285,29 +286,32 @@ export const ProductRevealSection: React.FC<ProductRevealSectionProps> = ({ onEx
                 {/* Subsystem Card 2: Highest-Risk Hotspot */}
                 <div
                   style={getInternalCardStyle(1)}
-                  className="bg-[#F5F5F7] rounded-2xl p-4 border border-[#E5E5EA] space-y-2.5 transition-all duration-300"
+                  className="bg-[#FFF8F8] rounded-2xl p-4 border border-[#FFC5C2] space-y-2.5 transition-all duration-300"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-[#1D1D1F] uppercase tracking-wider">
-                      Top Hotspot #1
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FFF1F0] text-[#D7261C]">
-                      Risk: HIGH
+                  <div className="flex items-center justify-between pb-1.5 border-b border-[#FFC5C2]/60">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-[#D7261C]" />
+                      <span className="text-xs font-bold text-[#D7261C] uppercase tracking-wider font-geist">
+                        Risk Hotspots
+                      </span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-[#FFF1F0] text-[#D7261C] border border-[#FFC5C2]">
+                      #1 Priority
                     </span>
                   </div>
                   <div className="p-3 rounded-xl bg-white border border-[#FFC5C2] space-y-2 shadow-xs">
                     <p className="font-mono text-xs font-bold text-[#D7261C] truncate">
                       AnomalyExplainPanel.tsx
                     </p>
-                    <div className="grid grid-cols-2 gap-2 text-[11px] pt-1.5 border-t border-[#FFC5C2]/40 font-mono text-[#424245]">
-                      <div>Score: <strong className="text-[#1D1D1F]">63 / 100</strong></div>
+                    <div className="grid grid-cols-2 gap-2 text-xs pt-1.5 border-t border-[#FFC5C2]/40 font-mono text-[#424245]">
+                      <div>Score: <strong className="text-[#D7261C]">63 / 100</strong></div>
                       <div>CC: <strong className="text-[#1D1D1F]">21</strong></div>
-                      <div>Warnings: <strong className="text-[#1D1D1F]">6</strong></div>
+                      <div>Debt Warnings: <strong className="text-[#1D1D1F]">6</strong></div>
                       <div>Blast Radius: <strong className="text-[#1D1D1F]">1 module</strong></div>
                     </div>
                   </div>
-                  <p className="text-[11px] text-[#6E6E73] leading-relaxed">
-                    High conditional nesting and implicit state mutations without characterization test protection.
+                  <p className="text-xs text-[#6E6E73] leading-relaxed">
+                    High cyclomatic nesting and implicit mutable state without characterization test protection.
                   </p>
                 </div>
 
@@ -316,28 +320,31 @@ export const ProductRevealSection: React.FC<ProductRevealSectionProps> = ({ onEx
                   style={getInternalCardStyle(2)}
                   className="bg-[#F5F5F7] rounded-2xl p-4 border border-[#E5E5EA] space-y-2.5 transition-all duration-300"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-[#1D1D1F] uppercase tracking-wider">
-                      Safety Generation
-                    </span>
-                    <span className="text-[10px] font-mono text-[#248A3D] font-bold">100% Syntax Valid</span>
+                  <div className="flex items-center justify-between pb-1.5 border-b border-[#E5E5EA]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-[#34C759]" />
+                      <span className="text-xs font-bold text-[#1D1D1F] uppercase tracking-wider font-geist">
+                        Safety Guardrails
+                      </span>
+                    </div>
+                    <span className="text-xs font-mono text-[#248A3D] font-bold">100% AST Valid</span>
                   </div>
-                  <div className="space-y-1.5 text-xs">
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#E5E5EA]/60">
-                      <span className="text-[#6E6E73]">Characterization Test Cases</span>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#E5E5EA]/70 text-xs">
+                      <span className="text-[#6E6E73]">Characterization Tests</span>
                       <span className="font-mono font-bold text-[#1D1D1F]">1,172 tests</span>
                     </div>
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#E5E5EA]/60">
-                      <span className="text-[#6E6E73]">Generated Test Files</span>
-                      <span className="font-mono font-bold text-[#1D1D1F]">133 files</span>
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#E5E5EA]/70 text-xs">
+                      <span className="text-[#6E6E73]">Generated Test Suites</span>
+                      <span className="font-mono font-bold text-[#1D1D1F]">133 suites</span>
                     </div>
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#E5E5EA]/60">
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#E5E5EA]/70 text-xs">
                       <span className="text-[#6E6E73]">Protected Modules</span>
                       <span className="font-mono font-bold text-[#1D1D1F]">116 / 145 (80%)</span>
                     </div>
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#E5E5EA]/60">
-                      <span className="text-[#6E6E73]">Runtime Execution Guard</span>
-                      <span className="font-semibold text-[#86868B]">Strict Read-Only</span>
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#E5E5EA]/70 text-xs">
+                      <span className="text-[#6E6E73]">Execution Boundary</span>
+                      <span className="font-semibold text-[#248A3D] text-[11px] font-mono">Strict Read-Only</span>
                     </div>
                   </div>
                 </div>
@@ -348,11 +355,11 @@ export const ProductRevealSection: React.FC<ProductRevealSectionProps> = ({ onEx
             {!reducedMotion && hintOpacity > 0.05 && (
               <div
                 style={{ opacity: hintOpacity }}
-                className="absolute -bottom-10 left-1/2 -translate-x-1/2 pointer-events-none transition-opacity duration-200"
+                className="absolute -bottom-8 left-1/2 -translate-x-1/2 pointer-events-none transition-opacity duration-200"
               >
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 backdrop-blur-md border border-[#E5E5EA] shadow-apple text-[11px] font-medium text-[#6E6E73]">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/90 backdrop-blur-md border border-[#E5E5EA] shadow-apple text-[10px] font-medium text-[#6E6E73]">
                   <span>Scroll to expand architecture intelligence</span>
-                  <ChevronDown className="w-3.5 h-3.5 animate-bounce text-[#007AFF]" />
+                  <ChevronDown className="w-3 h-3 animate-bounce text-[#007AFF]" />
                 </div>
               </div>
             )}
