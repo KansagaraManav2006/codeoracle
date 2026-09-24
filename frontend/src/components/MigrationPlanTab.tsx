@@ -37,9 +37,8 @@ import { FilterChip } from './common/Chips';
 import { StatusTag } from './common/Tags';
 import { useToast } from './common/Toast';
 import LoadingState from './common/LoadingState';
-import Badge from './common/Badge';
 import Card from './common/Card';
-import PageHeader from './common/PageHeader';
+import PageHeroHeader from './common/PageHeroHeader';
 import FindingFunnel from './common/FindingFunnel';
 import ChangeImpactView from './common/ChangeImpactView';
 import PriorityMatrix from './migration/PriorityMatrix';
@@ -340,56 +339,40 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
         </div>
       )}
 
-      {/* 1. Hero Card: Modernization Intelligence & Executive Plan */}
+      {/* 1. Page Header Card */}
+      <PageHeroHeader
+        icon={Map}
+        title="MIGRATION PLAN"
+        eyebrow="Decision Support"
+        confidence={plan.readiness_confidence || 'medium'}
+        description="Sequence repository modernization through evidence-backed migration waves and impact-aware execution planning."
+        actions={[
+          {
+            label: 'Download Markdown Plan',
+            variant: 'primary' as const,
+            onClick: handleDownloadReport,
+            icon: <Download className="w-3.5 h-3.5" strokeWidth={1.75} />,
+          },
+          {
+            label: 'Export JSON Plan',
+            variant: 'secondary' as const,
+            onClick: handleDownloadJson,
+            icon: <FileJson className="w-3.5 h-3.5" strokeWidth={1.75} />,
+          },
+        ]}
+      />
+
+      {/* 2. Hero Card: Modernization Intelligence & Executive Plan */}
       <Card variant="primary" padding="lg" className="space-y-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="max-w-2xl space-y-3">
-            <PageHeader
-              icon={Map}
-              title="Migration Plan"
-              description="Explainable readiness scoring, blast-radius ripple analysis, and staged modernization waves."
-              badge={
-                <>
-                  <Badge tone="indigo" size="sm">
-                    Decision support
-                  </Badge>
-                  <Badge
-                    tone={
-                      (plan.readiness_confidence || 'medium') === 'high'
-                        ? 'green'
-                        : (plan.readiness_confidence || 'medium') === 'low'
-                        ? 'red'
-                        : 'amber'
-                    }
-                    size="sm"
-                  >
-                    Confidence: {plan.readiness_confidence || 'medium'}
-                  </Badge>
-                </>
-              }
-            />
-
-            <p className="font-sans text-[13px] text-ink-2 leading-[1.6] pt-1">
-              {plan.executive_summary}
-            </p>
-
-            <div className="flex flex-wrap items-center gap-2.5 pt-1">
-              <Button
-                variant="ink"
-                size="md"
-                onClick={handleDownloadReport}
-                icon={<Download className="w-4 h-4" strokeWidth={1.75} />}
-              >
-                Download Markdown Plan
-              </Button>
-              <Button
-                variant="outline"
-                size="md"
-                onClick={handleDownloadJson}
-                icon={<FileJson className="w-4 h-4" strokeWidth={1.75} />}
-              >
-                Export JSON Plan
-              </Button>
+            <div>
+              <span className="font-sans text-[11px] font-bold uppercase tracking-wider text-ink-3">
+                Executive Modernization Summary
+              </span>
+              <p className="font-sans text-[13px] text-ink-2 leading-[1.6] pt-1.5">
+                {plan.executive_summary}
+              </p>
             </div>
           </div>
 

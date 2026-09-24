@@ -39,9 +39,8 @@ import DiffViewer, { DiffMode } from './common/DiffViewer';
 import SearchField from './common/SearchField';
 import { useToast } from './common/Toast';
 import LoadingState from './common/LoadingState';
-import Badge from './common/Badge';
 import Card from './common/Card';
-import PageHeader from './common/PageHeader';
+import PageHeroHeader from './common/PageHeroHeader';
 import ModernizationPipeline from './modernization/ModernizationPipeline';
 import CandidateDispositionPanel, {
   DispositionCount,
@@ -801,47 +800,40 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
       id="tabpanel-refactor"
       aria-labelledby="tab-refactor"
     >
-      <PageHeader
+      <PageHeroHeader
         icon={Wand2}
-        title="Refactored Code"
-        description="Review candidates, deterministic rule diffs, and verification pipeline before merging."
+        title="REFACTORED CODE"
+        eyebrow="Static Analysis"
         badge={
-          <Badge tone={trustedDemo ? 'green' : 'indigo'} size="sm">
-            {trustedDemo ? 'Sandbox verified' : 'Static analysis'}
-          </Badge>
+          trustedDemo ? (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              Sandbox Verified
+            </span>
+          ) : undefined
         }
-        actions={
-          <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setRulesModalOpen(true)}
-            icon={<Sparkles className="w-3.5 h-3.5 text-indigo" />}
-          >
-            Rule Registry
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownloadProposal}
-            icon={<Download className="w-3.5 h-3.5" strokeWidth={1.75} />}
-          >
-            Download proposal
-          </Button>
-
-          <Button
-            variant="indigo"
-            size="sm"
-            onClick={handleRegenerate}
-            loading={regenerating}
-            loadingText="Regenerating…"
-            icon={<Wand2 className="w-3.5 h-3.5" strokeWidth={1.75} />}
-          >
-            Regenerate
-          </Button>
-          </div>
-        }
+        description="Review modernization candidates, deterministic transforms, generated diffs, and verification state before merging."
+        actions={[
+          {
+            label: 'Rule Registry',
+            variant: 'secondary' as const,
+            onClick: () => setRulesModalOpen(true),
+            icon: <Sparkles className="w-3.5 h-3.5 text-[#5AC8FA]" />,
+          },
+          {
+            label: 'Download Proposal',
+            variant: 'secondary' as const,
+            onClick: handleDownloadProposal,
+            icon: <Download className="w-3.5 h-3.5" strokeWidth={1.75} />,
+          },
+          {
+            label: 'Regenerate',
+            variant: 'primary' as const,
+            onClick: handleRegenerate,
+            loading: regenerating,
+            loadingText: 'Regenerating…',
+            icon: <Wand2 className="w-3.5 h-3.5" strokeWidth={1.75} />,
+          },
+        ]}
       />
 
       {/* 2. Six Canonical Summary KPI Cards */}

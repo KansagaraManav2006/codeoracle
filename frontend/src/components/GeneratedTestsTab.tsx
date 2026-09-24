@@ -36,9 +36,8 @@ import { FilterChip } from './common/Chips';
 import { StatusTag } from './common/Tags';
 import { useToast } from './common/Toast';
 import LoadingState from './common/LoadingState';
-import Badge from './common/Badge';
 import Card from './common/Card';
-import PageHeader from './common/PageHeader';
+import PageHeroHeader from './common/PageHeroHeader';
 
 interface GeneratedTestsTabProps {
   projectId?: string | null;
@@ -333,38 +332,32 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
       id="tabpanel-tests"
       aria-labelledby="tab-tests"
     >
-      <PageHeader
+      <PageHeroHeader
         icon={TestTube}
-        title="Generated Tests"
-        description="Review-ready pytest and Vitest characterization suites generated to preserve legacy contracts and prevent regressions during modernization."
+        title="GENERATED TESTS"
+        eyebrow="Characterization"
         badge={
-          <Badge tone="indigo" size="sm">
-            Characterization
-          </Badge>
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            Static Verified
+          </span>
         }
-        actions={
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setDownloadModalOpen(true)}
-              icon={<Download className="w-3.5 h-3.5" strokeWidth={1.75} />}
-            >
-              Download Tests
-            </Button>
-
-            <Button
-              variant="indigo"
-              size="sm"
-              onClick={handleRegenerate}
-              loading={regenerating}
-              loadingText="Regenerating…"
-              icon={<Play className="w-3.5 h-3.5" strokeWidth={1.75} />}
-            >
-              Regenerate Safety Tests
-            </Button>
-          </>
-        }
+        description="Review generated characterization suites that preserve existing contracts before modernization."
+        actions={[
+          {
+            label: 'Download Tests',
+            variant: 'secondary' as const,
+            onClick: () => setDownloadModalOpen(true),
+            icon: <Download className="w-3.5 h-3.5" strokeWidth={1.75} />,
+          },
+          {
+            label: 'Regenerate Safety Tests',
+            variant: 'primary' as const,
+            onClick: handleRegenerate,
+            loading: regenerating,
+            loadingText: 'Regenerating…',
+            icon: <Play className="w-3.5 h-3.5 fill-current" strokeWidth={1.75} />,
+          },
+        ]}
       />
 
       {/* 2. Verification Ladder Bar (Static vs Runtime Clearly Delineated) */}

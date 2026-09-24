@@ -6,7 +6,9 @@ import {
   Sparkles,
   ArrowRight,
   Compass,
+  Maximize2,
 } from 'lucide-react';
+import PageHeroHeader from '../common/PageHeroHeader';
 import type { GraphResponse, HotspotItem, TabType } from '../../types';
 import {
   buildNeuralGraphData,
@@ -223,54 +225,39 @@ export default function NeuralMapPage({
     >
       {/* 1. Header & Confidence Banner (hidden in fullscreen mode for clean presentation) */}
       {!isFullscreen && (
-        <div className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-line">
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-10 h-10 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
-                <Compass className="w-5 h-5 text-indigo" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <h2 className="font-display font-bold text-xl text-ink leading-tight">
-                    Neural Universe
-                  </h2>
-                  <span
-                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-pill font-mono text-[10px] font-bold tracking-wider uppercase border ${
-                      summary.graphConfidence === 'high'
-                        ? 'bg-teal-surface text-teal-text border-teal-line'
-                        : summary.graphConfidence === 'medium'
-                        ? 'bg-amber-surface text-amber-text border-amber-line'
-                        : 'bg-amber-surface text-amber-text border-amber-line'
-                    }`}
-                    title={
-                      summary.graphConfidenceReason ||
-                      'Confidence level of AST parsing and edge resolution'
-                    }
-                  >
-                    GRAPH CONFIDENCE: {summary.graphConfidence.toUpperCase()}
-                  </span>
-                  <span className="font-mono text-[10px] text-ink-3 px-2 py-0.5 rounded bg-tile border border-line">
-                    {summary.fullAstPercentage}% Full AST Coverage
-                  </span>
-                </div>
-                <p className="font-sans text-xs text-ink-3 mt-1">
-                  Cinematic software architecture observatory. Subsystem Constellations · Semantic Nodes · Directional Highways · Risk Halos.
-                </p>
-              </div>
-            </div>
+        <>
+          <PageHeroHeader
+            icon={Compass}
+            title="NEURAL MAP"
+            eyebrow="Architecture Explorer"
+            confidence={summary.graphConfidence.toUpperCase()}
+            confidenceReason={
+              summary.graphConfidenceReason ||
+              'Confidence level of AST parsing and edge resolution'
+            }
+            badge={
+              <span className="font-mono text-xs text-white/70 px-2.5 py-0.5 rounded-full bg-white/[0.08] border border-white/10">
+                {summary.fullAstPercentage}% Full AST Coverage
+              </span>
+            }
+            description="Explore the codebase as an interactive architecture universe with semantic roles, dependencies, risk, and impact."
+            actions={[
+              {
+                label: 'Guided Tour',
+                variant: 'secondary' as const,
+                onClick: () => setIsTourOpen(true),
+                icon: <Sparkles className="w-3.5 h-3.5 text-[#5AC8FA]" />,
+              },
+              {
+                label: 'Fullscreen',
+                variant: 'primary' as const,
+                onClick: () => setIsFullscreen(true),
+                icon: <Maximize2 className="w-3.5 h-3.5" />,
+              },
+            ]}
+          />
 
-            {/* Quick Trigger for Command Palette & Tour */}
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsTourOpen(true)}
-                className="px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Guided Tour</span>
-              </button>
-            </div>
-          </div>
+          <div className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1 space-y-4">
 
           {/* 6 Canonical Stat Tiles */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -343,7 +330,8 @@ export default function NeuralMapPage({
             )}
           </div>
         </div>
-      )}
+      </>
+    )}
 
       {/* 2. Main Neural Universe Canvas & Controls */}
       {!graph.nodes.length ? (

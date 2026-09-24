@@ -25,6 +25,7 @@ import KpiCard from './common/KpiCard';
 import SearchField from './common/SearchField';
 import { FilterChip } from './common/Chips';
 import EmptyState from './common/EmptyState';
+import PageHeroHeader from './common/PageHeroHeader';
 
 interface HotspotsTabProps {
   projectId: string;
@@ -360,39 +361,28 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
       id="tabpanel-hotspots"
       aria-labelledby="tab-hotspots"
     >
-      {/* 1. Header Card & 5 KPI Cards */}
+      {/* 1. Page Header Card */}
+      <PageHeroHeader
+        icon={Flame}
+        title="RISK HOTSPOTS"
+        eyebrow="Static Prioritization"
+        badge={
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/25">
+            Canonical Risk Engine
+          </span>
+        }
+        description="Prioritize refactoring targets using explainable complexity, findings, fan-in, and downstream blast radius."
+        actions={
+          <div className="flex items-center gap-2 px-3.5 py-1.5 bg-white/[0.08] border border-white/10 rounded-xl text-xs font-mono text-white/80 shrink-0 backdrop-blur-sm">
+            <span className="w-2 h-2 rounded-full bg-[#34C759] inline-block shadow-[0_0_8px_rgba(52,199,89,0.5)]" />
+            <span>Static AST &amp; Dependency Graph</span>
+          </div>
+        }
+      />
+
+      {/* 5 KPI Cards */}
       <section className="bg-surface border border-line rounded-xl p-5 sm:p-6 shadow-1">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-line">
-          <div className="flex items-center gap-3.5 min-w-0">
-            <div
-              className="w-11 h-11 rounded-md bg-amber-surface text-amber-strong flex items-center justify-center shrink-0 border border-amber/20"
-              aria-hidden="true"
-            >
-              <Flame className="w-5 h-5" strokeWidth={1.75} />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="font-display font-bold text-lg sm:text-[20px] text-ink leading-tight">
-                  Risk Hotspots &amp; Refactoring Prioritization
-                </h2>
-                <span className="px-2 py-0.5 text-[10px] font-bold rounded-pill bg-ink text-white uppercase tracking-wider">
-                  CANONICAL RISK ENGINE
-                </span>
-              </div>
-              <p className="font-sans text-xs text-ink-3 mt-0.5">
-                Deterministic static ranking of codebase refactoring priority using complexity, fan-in callers, warnings, and downstream blast radius.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-tile border border-line rounded-lg text-xs font-mono text-ink-2 shrink-0">
-            <span className="w-2 h-2 rounded-full bg-teal-strong inline-block" />
-            <span>Mode: Static AST &amp; Dependency Graph (No Git Churn)</span>
-          </div>
-        </div>
-
-        {/* 5 KPI Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mt-5">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
           <KpiCard
             label="FILES EVALUATED"
             value={formatNumber(totalFilesCount)}

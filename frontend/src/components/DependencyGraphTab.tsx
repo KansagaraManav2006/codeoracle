@@ -50,9 +50,8 @@ import { ToggleChip, FilterChip } from './common/Chips';
 import { LanguageTag, StatusTag } from './common/Tags';
 import { useToast } from './common/Toast';
 import LoadingState from './common/LoadingState';
-import Badge from './common/Badge';
 import Card from './common/Card';
-import PageHeader from './common/PageHeader';
+import PageHeroHeader from './common/PageHeroHeader';
 
 interface DependencyGraphTabProps {
   projectId?: string | null;
@@ -1015,47 +1014,31 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
       id="tabpanel-graph"
       aria-labelledby="tab-graph"
     >
-      <PageHeader
+      <PageHeroHeader
         icon={Workflow}
-        title="Dependency Graph"
-        description="Deterministic module coupling, semantic entry points, and verified cycles. Single canonical source of truth for blast radius and impact."
-        badge={
-          <>
-            <Badge tone="indigo" size="sm">
-              Canonical map
-            </Badge>
-            <Badge
-              tone={graphConfidence === 'high' ? 'green' : 'amber'}
-              size="sm"
-              title={graph.summary.graph_confidence_reason || 'Graph confidence score'}
-            >
-              Confidence: {graphConfidence}
-            </Badge>
-          </>
-        }
-        actions={
-          <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-            {unresolvedCount > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowNeedsReviewModal(true)}
-                icon={<AlertTriangle className="w-3.5 h-3.5 text-amber" />}
-                className="border-amber-line bg-amber-surface/40 text-amber-text hover:bg-amber-surface"
-              >
-                Needs Review ({unresolvedCount})
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDownloadMermaid}
-              icon={<Download className="w-3.5 h-3.5" strokeWidth={1.75} />}
-            >
-              Download Mermaid
-            </Button>
-          </div>
-        }
+        title="DEPENDENCY GRAPH"
+        eyebrow="Canonical Map"
+        confidence={graphConfidence}
+        confidenceReason={graph.summary.graph_confidence_reason || 'Graph confidence score'}
+        description="Explore the canonical module graph, resolved relationships, semantic entry points, cycle evidence, and change-impact foundations."
+        actions={[
+          ...(unresolvedCount > 0
+            ? [
+                {
+                  label: `Needs Review · ${unresolvedCount}`,
+                  variant: 'warning' as const,
+                  onClick: () => setShowNeedsReviewModal(true),
+                  icon: <AlertTriangle className="w-3.5 h-3.5 text-[#FFB340]" />,
+                },
+              ]
+            : []),
+          {
+            label: 'Download Mermaid',
+            variant: 'secondary' as const,
+            onClick: handleDownloadMermaid,
+            icon: <Download className="w-3.5 h-3.5" strokeWidth={1.75} />,
+          },
+        ]}
       />
 
       <Card variant="primary" padding="lg">
