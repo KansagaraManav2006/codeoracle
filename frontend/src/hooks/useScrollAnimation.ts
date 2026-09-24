@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef, RefObject } from 'react';
 
+// ─── Reduced Motion ────────────────────────────────────────────────────────────
+
 export function useReducedMotion(): boolean {
   const [reducedMotion, setReducedMotion] = useState(false);
 
@@ -13,6 +15,8 @@ export function useReducedMotion(): boolean {
 
   return reducedMotion;
 }
+
+// ─── In-View Observer ─────────────────────────────────────────────────────────
 
 interface InViewOptions {
   threshold?: number;
@@ -50,8 +54,10 @@ export function useInView(options: InViewOptions = {}): [RefObject<HTMLDivElemen
   return [ref, inView];
 }
 
+// ─── Full Page Scroll Progress (for sticky pinned sections) ───────────────────
+
 interface ScrollProgressOptions {
-  offset?: [number, number]; // [startOffsetRatio, endOffsetRatio] e.g. [0, 1]
+  offset?: [number, number];
 }
 
 export function useScrollProgress(_options: ScrollProgressOptions = {}): [RefObject<HTMLDivElement>, number] {
@@ -101,6 +107,141 @@ export function useScrollProgress(_options: ScrollProgressOptions = {}): [RefObj
   return [ref, progress];
 }
 
+// ─── Section Viewport Progress ─────────────────────────────────────────────────
+// Progress 0→1 as the section travels from "just entered viewport" to "fully scrolled past"
+// Useful for scroll-gating individual reveals within a section
+
+export function useSectionScrollProgress(): [RefObject<HTMLDivElement>, number] {
+  const ref = useRef<HTMLDivElement>(null);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    let ticking = false;
+
+    const update = () => {
+      const el = ref.current;
+      if (!el) return;
+
+      const rect = el.getBoundingClientRect();
+      const windowH = window.innerHeight;
+
+      // 0 when top of section is at bottom of viewport
+      // 1 when bottom of section is at top of viewport
+      const totalTravel = rect.height + windowH;
+      const traveled = windowH - rect.top;
+      const raw = Math.min(Math.max(traveled / totalTravel, 0), 1);
+      setProgress(raw);
+      ticking = false;
+    };
+
+    const onScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(update);
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    update();
+
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, []);
+
+  return [ref, progress];
+}
+
+// ─── Parallax Offset ──────────────────────────────────────────────────────────
+// Returns a Y offset in px based on scroll position + a speed multiplier.
+
+export function useParallaxOffset(speed: number = 0.1): number {
+  const [offset, setOffset] = useState(0);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (mq.matches) return;
+
+    let ticking = false;
+    const update = () => {
+      setOffset(window.scrollY * speed);
+      ticking = false;
+    };
+    const onScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(update);
+        ticking = true;
+      }
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    update();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [speed]);
+
+  return offset;
+}
+
+// ─── Count-Up Animation ───────────────────────────────────────────────────────
+
+export function useCountUp(target: number, active: boolean, duration = 800): number {
+  const [value, setValue] = useState(0);
+  const frameRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!active) return;
+    const start = performance.now();
+    const from = 0;
+
+    const animate = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+      setValue(Math.round(from + (target - from) * ease));
+      if (progress < 1) {
+        frameRef.current = requestAnimationFrame(animate);
+      }
+    };
+
+    frameRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameRef.current);
+  }, [target, active, duration]);
+
+  return value;
+}
+
+// ─── Stagger Visible (trigger each item individually) ─────────────────────────
+
+export function useStaggerVisible(count: number, inView: boolean, delayMs = 120): boolean[] {
+  const [visibles, setVisibles] = useState<boolean[]>(Array(count).fill(false));
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    if (!inView) return;
+
+    timersRef.current.forEach(clearTimeout);
+    timersRef.current = [];
+
+    for (let i = 0; i < count; i++) {
+      const t = setTimeout(() => {
+        setVisibles(prev => {
+          const next = [...prev];
+          next[i] = true;
+          return next;
+        });
+      }, i * delayMs);
+      timersRef.current.push(t);
+    }
+
+    return () => timersRef.current.forEach(clearTimeout);
+  }, [inView, count, delayMs]);
+
+  return visibles;
+}
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+
 export function clamp(val: number, min: number, max: number): number {
   return Math.min(Math.max(val, min), max);
 }
@@ -116,4 +257,72 @@ export function interpolate(
   if (progress >= inMax) return outMax;
   const ratio = (progress - inMin) / (inMax - inMin);
   return outMin + ratio * (outMax - outMin);
+}
+
+// Premium easing functions
+export function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+export function easeOutQuart(t: number): number {
+  return 1 - Math.pow(1 - t, 4);
+}
+
+export function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+// ─── useScrollY (simple scroll position) ─────────────────────────────────────
+
+export function useScrollY(): number {
+  const [scrollY, setScrollY] = useState(0);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (mq.matches) return;
+    let ticking = false;
+    const handle = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          setScrollY(window.scrollY);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+    window.addEventListener('scroll', handle, { passive: true });
+    return () => window.removeEventListener('scroll', handle);
+  }, []);
+
+  return scrollY;
+}
+
+// ─── useInViewRef (overload with generic element type) ────────────────────────
+
+export function useInViewElement<T extends Element>(options: InViewOptions = {}): [RefObject<T>, boolean] {
+  const { threshold = 0.15, rootMargin = '0px', triggerOnce = true } = options;
+  const ref = useRef<T>(null);
+  const [inView, setInView] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInView(true);
+          if (triggerOnce) observer.unobserve(el);
+        } else if (!triggerOnce) {
+          setInView(false);
+        }
+      },
+      { threshold, rootMargin }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [threshold, rootMargin, triggerOnce]);
+
+  return [ref, inView];
 }

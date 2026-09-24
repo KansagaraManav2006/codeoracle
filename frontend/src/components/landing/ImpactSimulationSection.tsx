@@ -129,11 +129,12 @@ export const ImpactSimulationSection: React.FC = () => {
           <div className="py-4 grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4 relative">
             {/* Step 1: Selected Node */}
             <div
-              className={`p-4 rounded-2xl bg-white border border-[#E5E5EA] shadow-apple space-y-2.5 transition-all duration-500 ${isSimulating ? 'ring-2 ring-[#007AFF] scale-[1.01]' : ''}`}
+              className={`p-4 rounded-2xl bg-white border border-[#E5E5EA] shadow-apple space-y-2.5 ${isSimulating ? 'ring-2 ring-[#007AFF] scale-[1.01]' : ''}`}
               style={{
                 opacity: prefersReduced || inView ? 1 : 0,
-                transform: prefersReduced || inView ? 'none' : 'translate3d(-20px, 0, 0)',
-                transitionDelay: '100ms',
+                transform: prefersReduced || inView ? (isSimulating ? 'scale(1.01)' : 'none') : 'translate3d(-36px, 0, 0) scale(0.96)',
+                filter: prefersReduced || inView ? 'blur(0px)' : 'blur(3px)',
+                transition: 'opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.1s, transform 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.1s, filter 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.1s',
               }}
             >
               <div className="flex items-center justify-between pb-1 border-b border-[#E5E5EA]">
@@ -146,11 +147,12 @@ export const ImpactSimulationSection: React.FC = () => {
 
             {/* Step 2: Direct Dependents */}
             <div
-              className={`p-4 rounded-2xl bg-[#FFFDF5] border border-[#FFE8A3] shadow-apple space-y-2.5 transition-all duration-500 ${isSimulating ? 'ring-2 ring-[#FF9500] scale-[1.01] delay-100' : ''}`}
+              className={`p-4 rounded-2xl bg-[#FFFDF5] border border-[#FFE8A3] shadow-apple space-y-2.5 ${isSimulating ? 'ring-2 ring-[#FF9500] scale-[1.01]' : ''}`}
               style={{
                 opacity: prefersReduced || inView ? 1 : 0,
-                transform: prefersReduced || inView ? 'none' : 'translate3d(0, 20px, 0)',
-                transitionDelay: '200ms',
+                transform: prefersReduced || inView ? (isSimulating ? 'scale(1.01)' : 'none') : 'translate3d(0, 36px, 0) scale(0.96)',
+                filter: prefersReduced || inView ? 'blur(0px)' : 'blur(3px)',
+                transition: 'opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.22s, transform 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.22s, filter 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.22s',
               }}
             >
               <div className="flex items-center justify-between pb-1 border-b border-[#FFE8A3]/70">
@@ -171,11 +173,12 @@ export const ImpactSimulationSection: React.FC = () => {
 
             {/* Step 3: Transitive Ripple & Entry Points */}
             <div
-              className={`p-4 rounded-2xl bg-[#FFF8F8] border border-[#FFC5C2] shadow-apple space-y-2.5 transition-all duration-500 ${isSimulating ? 'ring-2 ring-[#D7261C] scale-[1.01] delay-200' : ''}`}
+              className={`p-4 rounded-2xl bg-[#FFF8F8] border border-[#FFC5C2] shadow-apple space-y-2.5 ${isSimulating ? 'ring-2 ring-[#D7261C] scale-[1.01]' : ''}`}
               style={{
                 opacity: prefersReduced || inView ? 1 : 0,
-                transform: prefersReduced || inView ? 'none' : 'translate3d(20px, 0, 0)',
-                transitionDelay: '300ms',
+                transform: prefersReduced || inView ? (isSimulating ? 'scale(1.01)' : 'none') : 'translate3d(36px, 0, 0) scale(0.96)',
+                filter: prefersReduced || inView ? 'blur(0px)' : 'blur(3px)',
+                transition: 'opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.34s, transform 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.34s, filter 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.34s',
               }}
             >
               <div className="flex items-center justify-between pb-1 border-b border-[#FFC5C2]/60">
@@ -196,7 +199,14 @@ export const ImpactSimulationSection: React.FC = () => {
           </div>
 
           {/* Blast Radius Metrics Summary */}
-          <div className="pt-3.5 border-t border-[#E5E5EA] grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-center text-xs font-mono">
+          <div
+            className="pt-3.5 border-t border-[#E5E5EA] grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-center text-xs font-mono"
+            style={{
+              opacity: prefersReduced || inView ? 1 : 0,
+              transform: prefersReduced || inView ? 'none' : 'translate3d(0, 20px, 0)',
+              transition: 'opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.5s, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.5s',
+            }}
+          >
             <div className="bg-white p-2.5 rounded-xl border border-[#E5E5EA] shadow-xs">
               <span className="text-[10px] text-[#86868B] uppercase font-bold block mb-0.5">Blast Radius</span>
               <strong className="text-sm sm:text-base text-[#1D1D1F] font-extrabold">{sim.blastRadius} module(s)</strong>

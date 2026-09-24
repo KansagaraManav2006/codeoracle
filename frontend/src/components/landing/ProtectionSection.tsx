@@ -8,35 +8,25 @@ import {
 import { useInView, useReducedMotion } from '../../hooks/useScrollAnimation';
 
 export const ProtectionSection: React.FC = () => {
-  const [sectionRef, inView] = useInView({ threshold: 0.15 });
+  const [sectionRef, inView] = useInView({ threshold: 0.12 });
   const prefersReduced = useReducedMotion();
 
   const ladderSteps = [
-    {
-      stage: 'Generated',
-      status: 'valid',
-      detail: 'Deterministic pytest / Vitest characterization test files generated via AST analysis',
-      proof: '133 suites created',
-    },
-    {
-      stage: 'Syntax Valid',
-      status: 'valid',
-      detail: 'Parser verification guarantees 0 syntax errors and valid import contracts',
-      proof: '133 / 133 validated',
-    },
-    {
-      stage: 'Runtime Executed',
-      status: 'pending',
-      detail: 'Uploaded untrusted code is NEVER executed without explicit container isolation',
-      proof: 'Strict Read-Only Guard',
-    },
-    {
-      stage: 'Behavior Verified',
-      status: 'pending',
-      detail: 'Runtime assertion verification reserved for trusted sandbox runs only',
-      proof: 'Explicit Boundary',
-    },
+    { stage: 'Generated', status: 'valid', detail: 'Deterministic pytest / Vitest characterization test files generated via AST analysis', proof: '133 suites created', delay: 0 },
+    { stage: 'Syntax Valid', status: 'valid', detail: 'Parser verification guarantees 0 syntax errors and valid import contracts', proof: '133 / 133 validated', delay: 180 },
+    { stage: 'Runtime Executed', status: 'pending', detail: 'Uploaded untrusted code is NEVER executed without explicit container isolation', proof: 'Strict Read-Only Guard', delay: 360 },
+    { stage: 'Behavior Verified', status: 'pending', detail: 'Runtime assertion verification reserved for trusted sandbox runs only', proof: 'Explicit Boundary', delay: 540 },
   ];
+
+  // Code block reveals with clip-path mask (top→bottom)
+  const codeBlockStyle = prefersReduced
+    ? {}
+    : {
+        clipPath: inView ? 'inset(0 0 0% 0)' : 'inset(0 0 100% 0)',
+        opacity: inView ? 1 : 0,
+        transition: 'clip-path 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.72s, opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.5s',
+        willChange: 'clip-path, opacity',
+      };
 
   return (
     <section
@@ -48,20 +38,18 @@ export const ProtectionSection: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
           {/* Left Column: Verification Ladder UI (7 cols) */}
           <div
-            className="lg:col-span-7 bg-[#F5F5F7] rounded-2xl sm:rounded-3xl border border-[#E5E5EA] shadow-apple-md p-5 sm:p-6 space-y-4 transition-all duration-700 ease-out"
+            className="lg:col-span-7 bg-[#F5F5F7] rounded-2xl sm:rounded-3xl border border-[#E5E5EA] shadow-apple-md p-5 sm:p-6 space-y-4"
             style={{
               opacity: prefersReduced || inView ? 1 : 0,
-              transform: prefersReduced || inView ? 'none' : 'translate3d(0, 24px, 0)',
+              transform: prefersReduced || inView ? 'none' : 'translate3d(0, 32px, 0) scale(0.97)',
+              transition: 'opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1)',
+              willChange: 'opacity, transform',
             }}
           >
             <div className="flex items-center justify-between pb-3 border-b border-[#E5E5EA]">
               <div>
-                <span className="text-[11px] font-mono font-bold text-[#007AFF] uppercase">
-                  Behavioral Guardrail Ladder
-                </span>
-                <h3 className="text-sm sm:text-base font-bold text-[#1D1D1F] mt-0.5">
-                  Verification State Hierarchy
-                </h3>
+                <span className="text-[11px] font-mono font-bold text-[#007AFF] uppercase">Behavioral Guardrail Ladder</span>
+                <h3 className="text-sm sm:text-base font-bold text-[#1D1D1F] mt-0.5">Verification State Hierarchy</h3>
               </div>
               <div className="px-2.5 py-0.5 rounded-full bg-white border border-[#E5E5EA] text-[11px] font-mono text-[#248A3D] font-semibold flex items-center gap-1.5 shadow-xs">
                 <ShieldCheck className="w-3.5 h-3.5" />
@@ -69,9 +57,9 @@ export const ProtectionSection: React.FC = () => {
               </div>
             </div>
 
-            {/* Ladder Steps with ascending stagger */}
+            {/* Ladder Steps — sequential reveal */}
             <div className="space-y-2">
-              {ladderSteps.map((step, idx) => (
+              {ladderSteps.map((step) => (
                 <div
                   key={step.stage}
                   className={`p-3 sm:p-3.5 rounded-2xl border transition-all duration-500 ${
@@ -81,8 +69,9 @@ export const ProtectionSection: React.FC = () => {
                   }`}
                   style={{
                     opacity: prefersReduced || inView ? 1 : 0,
-                    transform: prefersReduced || inView ? 'none' : 'translate3d(0, 16px, 0)',
-                    transitionDelay: prefersReduced ? '0ms' : `${idx * 80}ms`,
+                    transform: prefersReduced || inView ? 'none' : 'translate3d(0, 20px, 0)',
+                    transitionDelay: prefersReduced ? '0ms' : `${step.delay}ms`,
+                    willChange: 'opacity, transform',
                   }}
                 >
                   <div className="flex items-center justify-between mb-1">
@@ -96,17 +85,13 @@ export const ProtectionSection: React.FC = () => {
                           <MinusCircle className="w-3.5 h-3.5 text-[#86868B] shrink-0" />
                         </div>
                       )}
-                      <span className="text-xs sm:text-sm font-bold text-[#1D1D1F] font-geist">
-                        {step.stage}
-                      </span>
+                      <span className="text-xs sm:text-sm font-bold text-[#1D1D1F] font-geist">{step.stage}</span>
                     </div>
-                    <span
-                      className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
-                        step.status === 'valid'
-                          ? 'bg-[#E8F9ED] text-[#248A3D] border-[#34C759]/20'
-                          : 'bg-[#F2F2F7] text-[#636366] border-[#D2D2D7]'
-                      }`}
-                    >
+                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                      step.status === 'valid'
+                        ? 'bg-[#E8F9ED] text-[#248A3D] border-[#34C759]/20'
+                        : 'bg-[#F2F2F7] text-[#636366] border-[#D2D2D7]'
+                    }`}>
                       {step.proof}
                     </span>
                   </div>
@@ -115,8 +100,11 @@ export const ProtectionSection: React.FC = () => {
               ))}
             </div>
 
-            {/* Test Sample Code Snippet Box */}
-            <div className="bg-[#1D1D1F] rounded-2xl p-4 text-xs font-mono text-white/90 overflow-hidden shadow-apple-md">
+            {/* Test Sample Code Block — vertical clip-path mask reveal */}
+            <div
+              className="bg-[#1D1D1F] rounded-2xl p-4 text-xs font-mono text-white/90 overflow-hidden shadow-apple-md"
+              style={codeBlockStyle}
+            >
               <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10 text-xs">
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1">
@@ -126,9 +114,7 @@ export const ProtectionSection: React.FC = () => {
                   </div>
                   <span className="text-white/70 font-semibold ml-1">tests/test_anomaly_explain.py</span>
                 </div>
-                <span className="text-[#34C759] text-[11px] font-bold bg-[#34C759]/15 px-2 py-0.5 rounded-full">
-                  pytest validated
-                </span>
+                <span className="text-[#34C759] text-[11px] font-bold bg-[#34C759]/15 px-2 py-0.5 rounded-full">pytest validated</span>
               </div>
               <pre className="text-[11px] leading-relaxed text-[#007AFF] overflow-x-auto py-1">
 {`def test_characterization_anomaly_explain_defaults():
@@ -140,12 +126,14 @@ export const ProtectionSection: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Column: Editorial Text & Trust Differentiator (5 cols) */}
+          {/* Right Column: Editorial Text (5 cols) */}
           <div
-            className="lg:col-span-5 space-y-4 transition-all duration-700 delay-150 ease-out"
+            className="lg:col-span-5 space-y-4"
             style={{
               opacity: prefersReduced || inView ? 1 : 0,
-              transform: prefersReduced || inView ? 'none' : 'translate3d(0, 20px, 0)',
+              transform: prefersReduced || inView ? 'none' : 'translate3d(0, 24px, 0)',
+              transition: 'opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.15s, transform 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.15s',
+              willChange: 'opacity, transform',
             }}
           >
             <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#EAF4FF] text-[#007AFF] text-xs font-semibold uppercase tracking-wider font-geist-mono">

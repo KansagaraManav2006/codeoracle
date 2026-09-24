@@ -12,6 +12,7 @@ import {
   FileCode2,
 } from 'lucide-react';
 import { validateGithubUrl } from '../../utils/github';
+import { useInView, useReducedMotion } from '../../hooks/useScrollAnimation';
 
 interface HeroSectionProps {
   onAnalyzeGithub: (url: string) => void;
@@ -44,8 +45,18 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   const [currentStageIndex, setCurrentStageIndex] = useState(0);
   const [scrollY, setScrollY] = useState(0);
   const [mounted, setMounted] = useState(false);
+  const prefersReduced = useReducedMotion();
 
-  // Sample repositories
+  // Staggered mount — each element reveals at its own time
+  const [badgeVisible, setBadgeVisible] = useState(false);
+  const [headlineVisible, setHeadlineVisible] = useState(false);
+  const [descVisible, setDescVisible] = useState(false);
+  const [ctasVisible, setCtasVisible] = useState(false);
+  const [hintVisible, setHintVisible] = useState(false);
+
+  // Repository composer in-view
+  const [composerRef, composerInView] = useInView({ threshold: 0.12 });
+
   const sampleRepos = [
     { name: 'Flask', url: 'https://github.com/pallets/flask', desc: 'Python 2/3 core' },
     { name: 'Express', url: 'https://github.com/expressjs/express', desc: 'Node.js web framework' },
@@ -57,12 +68,30 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
     },
   ];
 
-  // Gentle mount rise + scroll parallax
+  // Staggered mount sequence
   useEffect(() => {
     setMounted(true);
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    if (mq.matches) return;
+    if (prefersReduced) {
+      setBadgeVisible(true);
+      setHeadlineVisible(true);
+      setDescVisible(true);
+      setCtasVisible(true);
+      setHintVisible(true);
+      return;
+    }
+    const timers = [
+      setTimeout(() => setBadgeVisible(true), 80),
+      setTimeout(() => setHeadlineVisible(true), 240),
+      setTimeout(() => setDescVisible(true), 420),
+      setTimeout(() => setCtasVisible(true), 560),
+      setTimeout(() => setHintVisible(true), 680),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [prefersReduced]);
 
+  // Scroll parallax
+  useEffect(() => {
+    if (prefersReduced) return;
     let ticking = false;
     const handleScroll = () => {
       if (!ticking) {
@@ -73,10 +102,9 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
         ticking = true;
       }
     };
-
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [prefersReduced]);
 
   // Stage animation when submitting
   useEffect(() => {
@@ -165,164 +193,203 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
     }
   };
 
+  // Hero scroll-out: as user scrolls, hero gently scales down (subtle depth shift)
+  const heroScrollProgress = prefersReduced ? 0 : Math.min(scrollY / (window.innerHeight || 900), 1);
+  const heroScale = prefersReduced ? 1 : 1 - heroScrollProgress * 0.04; // 1 → 0.96 max
+  const heroContentOpacity = prefersReduced ? 1 : Math.max(1 - heroScrollProgress * 1.8, 0);
+  // Bloom expands as you scroll
+  const bloomScale = prefersReduced ? 1 : 1 + heroScrollProgress * 0.25;
+
+  // Composer panel scale/blur entrance
+  const composerPanelStyle = prefersReduced
+    ? {}
+    : {
+        opacity: composerInView ? 1 : 0,
+        transform: composerInView ? 'scale(1) translateY(0px)' : 'scale(0.93) translateY(28px)',
+        filter: composerInView ? 'blur(0px)' : 'blur(4px)',
+        transition: 'opacity 0.75s cubic-bezier(0.16, 1, 0.3, 1), transform 0.75s cubic-bezier(0.16, 1, 0.3, 1), filter 0.75s cubic-bezier(0.16, 1, 0.3, 1)',
+        transitionDelay: '0.12s',
+      };
+
   return (
     <>
       <section
         id="hero-section"
         className="relative isolate min-h-[100svh] w-full flex flex-col justify-center items-center pt-20 pb-8 px-4 sm:px-6 overflow-hidden"
+        style={{
+          transform: prefersReduced ? 'none' : `scale(${heroScale})`,
+          transformOrigin: 'center top',
+          willChange: 'transform',
+        }}
       >
       {/* ========================================================================= */}
-      {/* HERO BACKGROUND SYSTEM: Soft Glowing Vertical Columns (Inspired by Reference) */}
+      {/* HERO BACKGROUND SYSTEM */}
       {/* ========================================================================= */}
       <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden flex justify-center">
-        {/* Core Radiant Atmosphere Bloom (Directly behind the pillar crest) */}
+        {/* Core Radiant Atmosphere Bloom — enlarges on scroll */}
         <div
-          className="absolute top-24 sm:top-20 w-[640px] sm:w-[820px] md:w-[940px] h-[480px] sm:h-[540px] rounded-full pointer-events-none transition-transform duration-700 ease-out"
+          className="absolute top-24 sm:top-20 w-[640px] sm:w-[820px] md:w-[940px] h-[480px] sm:h-[540px] rounded-full pointer-events-none"
           style={{
             background:
               'radial-gradient(ellipse at 50% 40%, rgba(0, 122, 255, 0.45) 0%, rgba(88, 86, 214, 0.32) 42%, rgba(255, 149, 0, 0.16) 65%, transparent 80%)',
             filter: 'blur(70px)',
-            transform: `translate3d(0, ${scrollY * 0.08}px, 0)`,
+            transform: `translate3d(0, ${scrollY * 0.06}px, 0) scale(${bloomScale})`,
+            willChange: 'transform',
           }}
         />
 
-        {/* Vertical Translucent Glass Pillars / Columns Stage */}
+        {/* Vertical Translucent Glass Pillars */}
         <div className="absolute top-16 w-full max-w-[1040px] h-[640px] pointer-events-none">
-          {/* Pillar 1: Outer Left (Cyan Glass) */}
+          {/* Pillar 1: Outer Left (Cyan Glass) — slowest */}
           <div
-            className="absolute backdrop-blur-[6px] border border-white/50 transition-transform duration-500 ease-out"
+            className="absolute backdrop-blur-[6px] border border-white/50"
             style={{
-              width: '110px',
-              height: '370px',
-              top: '190px',
+              width: '110px', height: '370px', top: '190px',
               left: 'calc(50% - 410px)',
               background: 'linear-gradient(180deg, rgba(50, 173, 230, 0.65) 0%, rgba(0, 122, 255, 0.25) 55%, transparent 100%)',
               borderRadius: '42px 42px 24px 24px',
               boxShadow: '0 10px 40px rgba(50, 173, 230, 0.28), inset 0 2px 4px rgba(255, 255, 255, 0.7)',
-              transform: `translate3d(0, ${scrollY * 0.09}px, 0)`,
+              transform: `translate3d(0, ${scrollY * 0.06}px, 0)`,
+              willChange: 'transform',
+              opacity: mounted ? 1 : 0,
+              transition: 'opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.1s',
             }}
           />
 
-          {/* Pillar 2: Mid Left (Soft Purple / Lavender) */}
+          {/* Pillar 2: Mid Left */}
           <div
-            className="absolute backdrop-blur-[6px] border border-white/60 transition-transform duration-500 ease-out"
+            className="absolute backdrop-blur-[6px] border border-white/60"
             style={{
-              width: '135px',
-              height: '460px',
-              top: '130px',
+              width: '135px', height: '460px', top: '130px',
               left: 'calc(50% - 315px)',
               background: 'linear-gradient(180deg, rgba(175, 82, 222, 0.72) 0%, rgba(88, 86, 214, 0.40) 50%, transparent 100%)',
               borderRadius: '48px 48px 28px 28px',
               boxShadow: '0 15px 50px rgba(175, 82, 222, 0.32), inset 0 2px 4px rgba(255, 255, 255, 0.8)',
-              transform: `translate3d(0, ${scrollY * 0.14}px, 0)`,
+              transform: `translate3d(0, ${scrollY * 0.11}px, 0)`,
+              willChange: 'transform',
+              opacity: mounted ? 1 : 0,
+              transition: 'opacity 1.1s cubic-bezier(0.16, 1, 0.3, 1) 0.15s',
             }}
           />
 
-          {/* Pillar 3: Inner Left (Apple Blue Core) */}
+          {/* Pillar 3: Inner Left */}
           <div
-            className="absolute backdrop-blur-[6px] border border-white/75 transition-transform duration-500 ease-out"
+            className="absolute backdrop-blur-[6px] border border-white/75"
             style={{
-              width: '155px',
-              height: '540px',
-              top: '70px',
+              width: '155px', height: '540px', top: '70px',
               left: 'calc(50% - 195px)',
               background: 'linear-gradient(180deg, rgba(0, 122, 255, 0.82) 0%, rgba(0, 122, 255, 0.45) 45%, rgba(88, 86, 214, 0.20) 80%, transparent 100%)',
               borderRadius: '56px 56px 32px 32px',
               boxShadow: '0 20px 60px rgba(0, 122, 255, 0.42), inset 0 2px 5px rgba(255, 255, 255, 0.9)',
-              transform: `translate3d(0, ${scrollY * 0.20}px, 0)`,
+              transform: `translate3d(0, ${scrollY * 0.17}px, 0)`,
+              willChange: 'transform',
+              opacity: mounted ? 1 : 0,
+              transition: 'opacity 1.0s cubic-bezier(0.16, 1, 0.3, 1) 0.2s',
             }}
           />
 
-          {/* Pillar 4: Center Cathedral Column (Tallest & Most Luminous) */}
+          {/* Pillar 4: Center Cathedral — moves slowest (most distant depth feel) */}
           <div
-            className="absolute backdrop-blur-[6px] border border-white/85 transition-transform duration-500 ease-out"
+            className="absolute backdrop-blur-[6px] border border-white/85"
             style={{
-              width: '180px',
-              height: '620px',
-              top: '15px',
+              width: '180px', height: '620px', top: '15px',
               left: 'calc(50% - 90px)',
               background: 'linear-gradient(180deg, rgba(0, 122, 255, 0.90) 0%, rgba(56, 139, 253, 0.65) 45%, rgba(88, 86, 214, 0.30) 75%, transparent 100%)',
               borderRadius: '64px 64px 36px 36px',
               boxShadow: '0 25px 70px rgba(0, 122, 255, 0.55), inset 0 3px 6px rgba(255, 255, 255, 1)',
-              transform: `translate3d(0, ${scrollY * 0.26}px, 0)`,
+              transform: `translate3d(0, ${scrollY * 0.22}px, 0)`,
+              willChange: 'transform',
+              opacity: mounted ? 1 : 0,
+              transition: 'opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.05s',
             }}
           >
             {/* Center specular gleam */}
             <div className="absolute inset-0 rounded-t-[64px] bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none" />
           </div>
 
-          {/* Pillar 5: Inner Right (Apple Blue with Warm Amber Accent) */}
+          {/* Pillar 5: Inner Right */}
           <div
-            className="absolute backdrop-blur-[6px] border border-white/70 transition-transform duration-500 ease-out"
+            className="absolute backdrop-blur-[6px] border border-white/70"
             style={{
-              width: '155px',
-              height: '530px',
-              top: '75px',
+              width: '155px', height: '530px', top: '75px',
               left: 'calc(50% + 40px)',
               background: 'linear-gradient(180deg, rgba(0, 122, 255, 0.78) 0%, rgba(255, 149, 0, 0.45) 48%, rgba(255, 149, 0, 0.15) 80%, transparent 100%)',
               borderRadius: '56px 56px 32px 32px',
               boxShadow: '0 20px 60px rgba(255, 149, 0, 0.35), inset 0 2px 5px rgba(255, 255, 255, 0.85)',
-              transform: `translate3d(0, ${scrollY * 0.19}px, 0)`,
+              transform: `translate3d(0, ${scrollY * 0.16}px, 0)`,
+              willChange: 'transform',
+              opacity: mounted ? 1 : 0,
+              transition: 'opacity 1.0s cubic-bezier(0.16, 1, 0.3, 1) 0.2s',
             }}
           />
 
-          {/* Pillar 6: Mid Right (Cyan / Lavender Glass) */}
+          {/* Pillar 6: Mid Right */}
           <div
-            className="absolute backdrop-blur-[6px] border border-white/60 transition-transform duration-500 ease-out"
+            className="absolute backdrop-blur-[6px] border border-white/60"
             style={{
-              width: '135px',
-              height: '450px',
-              top: '135px',
+              width: '135px', height: '450px', top: '135px',
               left: 'calc(50% + 180px)',
               background: 'linear-gradient(180deg, rgba(0, 199, 190, 0.70) 0%, rgba(88, 86, 214, 0.35) 50%, transparent 100%)',
               borderRadius: '48px 48px 28px 28px',
               boxShadow: '0 15px 50px rgba(0, 199, 190, 0.30), inset 0 2px 4px rgba(255, 255, 255, 0.8)',
-              transform: `translate3d(0, ${scrollY * 0.13}px, 0)`,
+              transform: `translate3d(0, ${scrollY * 0.10}px, 0)`,
+              willChange: 'transform',
+              opacity: mounted ? 1 : 0,
+              transition: 'opacity 1.1s cubic-bezier(0.16, 1, 0.3, 1) 0.15s',
             }}
           />
 
-          {/* Pillar 7: Outer Right (Frosted Neutral Glass) */}
+          {/* Pillar 7: Outer Right — slowest */}
           <div
-            className="absolute backdrop-blur-[6px] border border-white/55 transition-transform duration-500 ease-out"
+            className="absolute backdrop-blur-[6px] border border-white/55"
             style={{
-              width: '110px',
-              height: '360px',
-              top: '195px',
+              width: '110px', height: '360px', top: '195px',
               left: 'calc(50% + 300px)',
               background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.90) 0%, rgba(0, 122, 255, 0.32) 55%, transparent 100%)',
               borderRadius: '42px 42px 24px 24px',
               boxShadow: '0 10px 40px rgba(255, 255, 255, 0.40), inset 0 2px 4px rgba(255, 255, 255, 0.85)',
-              transform: `translate3d(0, ${scrollY * 0.08}px, 0)`,
+              transform: `translate3d(0, ${scrollY * 0.06}px, 0)`,
+              willChange: 'transform',
+              opacity: mounted ? 1 : 0,
+              transition: 'opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.1s',
             }}
           />
         </div>
 
-        {/* Soft bottom diffusion gradient smoothly fading pillars into the canvas */}
+        {/* Soft bottom fade */}
         <div className="absolute bottom-0 inset-x-0 h-44 bg-gradient-to-t from-[#F5F5F7] via-[#F5F5F7]/85 to-transparent pointer-events-none" />
       </div>
 
       {/* ========================================================================= */}
-      {/* HERO FOREGROUND CONTENT: Clean, Apple-Modern, Uncluttered */}
+      {/* HERO FOREGROUND CONTENT */}
       {/* ========================================================================= */}
-      <div className="max-w-[1020px] mx-auto text-center flex flex-col items-center relative z-10">
-        {/* Eyebrow */}
+      <div
+        className="max-w-[1020px] mx-auto text-center flex flex-col items-center relative z-10"
+        style={{
+          opacity: heroContentOpacity,
+          willChange: 'opacity',
+        }}
+      >
+        {/* Eyebrow — reveals first */}
         <div
-          className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/90 backdrop-blur-md border border-[#E5E5EA] shadow-apple text-xs font-semibold text-[#1D1D1F] tracking-tight mb-8 transition-all duration-700 ease-out"
+          className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/90 backdrop-blur-md border border-[#E5E5EA] shadow-apple text-xs font-semibold text-[#1D1D1F] tracking-tight mb-8"
           style={{
-            opacity: mounted ? 1 : 0,
-            transform: mounted ? 'none' : 'translate3d(0, 16px, 0)',
+            opacity: badgeVisible ? 1 : 0,
+            transform: badgeVisible ? 'none' : 'translate3d(0, 18px, 0)',
+            transition: prefersReduced ? 'none' : 'opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
         >
           <span className="w-2 h-2 rounded-full bg-[#007AFF] animate-ping" />
           <span className="font-geist">Codebase Intelligence Engine</span>
         </div>
 
-        {/* Main Headline (Geist Sans 3-line cadence) */}
+        {/* Main Headline — reveals second */}
         <h1
-          className="text-4xl sm:text-6xl md:text-7xl lg:text-[76px] font-extrabold tracking-[-0.035em] text-[#1D1D1F] leading-[1.03] max-w-[940px] mb-6 font-geist transition-all duration-700 delay-100 ease-out"
+          className="text-4xl sm:text-6xl md:text-7xl lg:text-[76px] font-extrabold tracking-[-0.035em] text-[#1D1D1F] leading-[1.03] max-w-[940px] mb-6 font-geist"
           style={{
-            opacity: mounted ? 1 : 0,
-            transform: mounted ? 'none' : 'translate3d(0, 20px, 0)',
+            opacity: headlineVisible ? 1 : 0,
+            transform: headlineVisible ? 'none' : 'translate3d(0, 24px, 0)',
+            transition: prefersReduced ? 'none' : 'opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
         >
           Map your codebase.<br />
@@ -330,23 +397,25 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           <span className="text-[#007AFF]">Modernize with confidence.</span>
         </h1>
 
-        {/* Short, elegant supporting copy */}
+        {/* Description — reveals third */}
         <p
-          className="text-base sm:text-lg md:text-xl text-[#3A3A3C] max-w-[660px] leading-relaxed mb-8 font-normal font-sans transition-all duration-700 delay-150 ease-out"
+          className="text-base sm:text-lg md:text-xl text-[#3A3A3C] max-w-[660px] leading-relaxed mb-8 font-normal font-sans"
           style={{
-            opacity: mounted ? 1 : 0,
-            transform: mounted ? 'none' : 'translate3d(0, 16px, 0)',
+            opacity: descVisible ? 1 : 0,
+            transform: descVisible ? 'none' : 'translate3d(0, 18px, 0)',
+            transition: prefersReduced ? 'none' : 'opacity 0.75s cubic-bezier(0.16, 1, 0.3, 1), transform 0.75s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
         >
           Analyze architecture, dependencies, risk hotspots, and test guardrails before touching production code.
         </p>
 
-        {/* Primary & Secondary Clean CTA Pair (Inspired by Reference) */}
+        {/* CTAs — reveals fourth */}
         <div
-          className="flex flex-col sm:flex-row items-center justify-center gap-3.5 mb-6 transition-all duration-700 delay-200 ease-out"
+          className="flex flex-col sm:flex-row items-center justify-center gap-3.5 mb-6"
           style={{
-            opacity: mounted ? 1 : 0,
-            transform: mounted ? 'none' : 'translate3d(0, 16px, 0)',
+            opacity: ctasVisible ? 1 : 0,
+            transform: ctasVisible ? 'none' : 'translate3d(0, 18px, 0)',
+            transition: prefersReduced ? 'none' : 'opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
         >
           <button
@@ -371,8 +440,15 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           </button>
         </div>
 
-        {/* Hero Bottom Floating Scroll Hint */}
-        <div className="pt-2">
+        {/* Scroll hint — reveals last */}
+        <div
+          className="pt-2"
+          style={{
+            opacity: hintVisible ? 1 : 0,
+            transform: hintVisible ? 'none' : 'translate3d(0, 12px, 0)',
+            transition: prefersReduced ? 'none' : 'opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1), transform 0.65s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}
+        >
           <button
             type="button"
             onClick={scrollToComposer}
@@ -386,34 +462,53 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
     </section>
 
     {/* ========================================================================= */}
-    {/* 02. REPOSITORY COMPOSER (Dedicated 100svh Viewport Screen)                */}
+    {/* 02. REPOSITORY COMPOSER — Scale/blur entrance from below                  */}
     {/* ========================================================================= */}
     <section
       id="repository-composer"
+      ref={composerRef as React.RefObject<HTMLDivElement>}
       className="min-h-[100svh] w-full flex flex-col justify-center items-center py-10 lg:py-14 pt-20 px-4 sm:px-6 relative bg-[#F5F5F7] border-t border-[#E5E5EA]/70"
     >
       <div className="max-w-[880px] w-full mx-auto my-auto">
-        {/* Composer Header */}
+        {/* Composer Header — staggered */}
         <div className="text-center mb-5 sm:mb-6">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4FF] text-[#007AFF] text-xs font-semibold uppercase tracking-wider mb-2 font-geist-mono">
+          <div
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4FF] text-[#007AFF] text-xs font-semibold uppercase tracking-wider mb-2 font-geist-mono"
+            style={{
+              opacity: composerInView ? 1 : 0,
+              transform: composerInView ? 'none' : 'translate3d(0, 14px, 0)',
+              transition: prefersReduced ? 'none' : 'opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1), transform 0.65s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          >
             <FolderArchive className="w-3.5 h-3.5" />
             <span>Repository Intake</span>
           </div>
-          <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-[#1D1D1F] leading-tight mb-2 font-geist">
+          <h2
+            className="text-2xl sm:text-4xl font-extrabold tracking-tight text-[#1D1D1F] leading-tight mb-2 font-geist"
+            style={{
+              opacity: composerInView ? 1 : 0,
+              transform: composerInView ? 'none' : 'translate3d(0, 18px, 0)',
+              transition: prefersReduced ? 'none' : 'opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.08s, transform 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.08s',
+            }}
+          >
             Analyze any codebase in seconds.
           </h2>
-          <p className="text-xs sm:text-sm text-[#6E6E73] max-w-[580px] mx-auto leading-relaxed">
+          <p
+            className="text-xs sm:text-sm text-[#6E6E73] max-w-[580px] mx-auto leading-relaxed"
+            style={{
+              opacity: composerInView ? 1 : 0,
+              transform: composerInView ? 'none' : 'translate3d(0, 14px, 0)',
+              transition: prefersReduced ? 'none' : 'opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.16s, transform 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.16s',
+            }}
+          >
             Enter a public GitHub repository URL or drag and drop a ZIP archive. Read-only static analysis without executing untrusted code.
           </p>
         </div>
 
-        {/* Hero Repository Composer */}
+        {/* Repository Panel — scale+blur approach, enters last */}
         <div
-          className="w-full bg-white rounded-[32px] sm:rounded-[36px] border border-[#E5E5EA] shadow-apple-lg p-5 sm:p-7 transition-all duration-700 delay-200 ease-out relative text-left"
-          style={{
-            opacity: mounted ? 1 : 0,
-            transform: mounted ? 'none' : 'translate3d(0, 20px, 0)',
-          }}
+          className="w-full bg-white rounded-[32px] sm:rounded-[36px] border border-[#E5E5EA] shadow-apple-lg p-5 sm:p-7 relative text-left"
+          style={composerPanelStyle}
         >
           {/* Mode Switcher Tabs */}
           <div className="flex items-center justify-between border-b border-[#E5E5EA] pb-3.5 mb-4">
@@ -616,7 +711,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             </div>
           )}
 
-          {/* Analysis Stages Animated Overlay when Active */}
+          {/* Analysis Stages Overlay */}
           {(isSubmitting || isLoading) && (
             <div className="mt-4 pt-4 border-t border-[#E5E5EA] space-y-2">
               <div className="flex items-center justify-between text-xs">
