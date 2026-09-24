@@ -12,6 +12,7 @@ interface ProjectContextBarProps {
   onReset: () => void;
   onOpenImpactModal?: (filePath: string) => void;
   onOpenSidebar: () => void;
+  onViewLanding?: () => void;
 }
 
 export const ProjectContextBar: React.FC<ProjectContextBarProps> = ({
@@ -21,6 +22,7 @@ export const ProjectContextBar: React.FC<ProjectContextBarProps> = ({
   onReset,
   onOpenImpactModal,
   onOpenSidebar,
+  onViewLanding,
 }) => {
   return (
     <div className="sticky top-0 z-sticky bg-surface/90 backdrop-blur-md border-b border-line">
@@ -84,16 +86,28 @@ export const ProjectContextBar: React.FC<ProjectContextBarProps> = ({
             <StatusPill />
           </div>
           {project && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onReset}
-              icon={<RotateCcw className="w-3.5 h-3.5" />}
-              className="text-xs h-8"
-            >
-              <span className="hidden sm:inline">Analyze another</span>
-              <span className="sm:hidden">Reset</span>
-            </Button>
+            <>
+              {onViewLanding && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onViewLanding}
+                  className="text-xs h-8 hidden sm:inline-flex"
+                >
+                  Landing
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onReset}
+                icon={<RotateCcw className="w-3.5 h-3.5" />}
+                className="text-xs h-8"
+              >
+                <span className="hidden sm:inline">Analyze another</span>
+                <span className="sm:hidden">Reset</span>
+              </Button>
+            </>
           )}
         </div>
       </div>

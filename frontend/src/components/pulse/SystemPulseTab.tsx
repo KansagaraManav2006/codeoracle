@@ -13,7 +13,7 @@ import PressureZonesSection from './PressureZonesSection';
 import SubsystemHealthMatrix from './SubsystemHealthMatrix';
 import IntelligentSignalsSection from './IntelligentSignalsSection';
 import NextActionsSection from './NextActionsSection';
-import PageHeader from '../common/PageHeader';
+import PageHeroHeader from '../common/PageHeroHeader';
 import Card from '../common/Card';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
@@ -114,35 +114,28 @@ export const SystemPulseTab: React.FC<SystemPulseTabProps> = ({
       id="tabpanel-pulse"
       aria-labelledby="tab-pulse"
     >
-      {/* 1. Standard Page Header */}
-      <PageHeader
+      {/* 1. Shared Apple-Modern Page Header Card */}
+      <PageHeroHeader
         icon={Activity}
-        title="System Pulse"
+        title="SYSTEM PULSE"
+        eyebrow="Observatory"
+        confidence={confidence.overallConfidence}
         description="Executive repository health, architectural pressure, confidence, and next-action intelligence."
-        badge={
-          <>
-            <Badge tone="indigo" size="sm">
-              Observatory
-            </Badge>
-            <Badge
-              tone={isHighConf ? 'green' : isMediumConf ? 'amber' : 'red'}
-              size="sm"
-            >
-              Confidence: {confidence.overallConfidence}
-            </Badge>
-          </>
-        }
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
             {/* Health vs Confidence Lens Toggle */}
-            <div className="flex items-center p-0.5 bg-tile rounded-lg border border-line shadow-xs">
+            <div
+              className="inline-flex items-center p-1 rounded-xl bg-white/[0.08] border border-white/10 backdrop-blur-sm"
+              role="group"
+              aria-label="View lens mode"
+            >
               <button
                 type="button"
                 onClick={() => setLensMode('health')}
-                className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
                   lensMode === 'health'
-                    ? 'bg-surface text-ink shadow-xs border border-line'
-                    : 'text-ink-3 hover:text-ink'
+                    ? 'bg-[#007AFF] text-white shadow-[0_2px_8px_rgba(0,122,255,0.4)]'
+                    : 'text-white/65 hover:text-white/90 hover:bg-white/[0.04]'
                 }`}
                 aria-pressed={lensMode === 'health'}
               >
@@ -151,10 +144,10 @@ export const SystemPulseTab: React.FC<SystemPulseTabProps> = ({
               <button
                 type="button"
                 onClick={() => setLensMode('confidence')}
-                className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
                   lensMode === 'confidence'
-                    ? 'bg-surface text-ink shadow-xs border border-line'
-                    : 'text-ink-3 hover:text-ink'
+                    ? 'bg-[#007AFF] text-white shadow-[0_2px_8px_rgba(0,122,255,0.4)]'
+                    : 'text-white/65 hover:text-white/90 hover:bg-white/[0.04]'
                 }`}
                 aria-pressed={lensMode === 'confidence'}
               >
@@ -162,15 +155,20 @@ export const SystemPulseTab: React.FC<SystemPulseTabProps> = ({
               </button>
             </div>
 
-            <Button
-              variant="outline"
-              size="sm"
+            {/* Refresh Button */}
+            <button
+              type="button"
               onClick={fetchSystemPulse}
-              icon={<RefreshCw className="w-3.5 h-3.5" strokeWidth={1.75} />}
+              disabled={loading}
               title="Refresh System Pulse"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white bg-white/[0.08] hover:bg-white/[0.14] active:scale-[0.98] border border-white/10 transition-all duration-200 backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007AFF]"
             >
-              Refresh
-            </Button>
+              <RefreshCw
+                className={`w-3.5 h-3.5 text-white/90 transition-transform ${loading ? 'animate-spin' : ''}`}
+                strokeWidth={2}
+              />
+              <span>Refresh</span>
+            </button>
           </div>
         }
       />

@@ -40,7 +40,7 @@ import EmptyState from './common/EmptyState';
 import LoadingState from './common/LoadingState';
 import Badge from './common/Badge';
 import Card from './common/Card';
-import PageHeader from './common/PageHeader';
+import PageHeroHeader from './common/PageHeroHeader';
 
 interface ExplanationTabProps {
   projectId?: string | null;
@@ -815,42 +815,33 @@ ${
       {/* ========================================================================= */}
       {/* 1. EXECUTIVE OVERVIEW: CORE ARCHITECTURE FACTS & KPIS                     */}
       {/* ========================================================================= */}
-      <PageHeader
+      <PageHeroHeader
         icon={BookOpen}
-        title={`${projectName} — Architecture overview`}
-        description="Deterministic AST evidence for languages, coverage, coupling, and dependency loops."
+        title="EXPLANATION"
+        contextLabel={projectName ? `ACTIVE CODEBASE: ${projectName}` : undefined}
+        eyebrow="Architecture Intelligence"
         badge={
-          <>
-            <Badge tone="indigo" size="sm">
-              Explanation
-            </Badge>
-            <Badge tone="neutral" size="sm">
-              AST evidence
-            </Badge>
-          </>
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/[0.08] text-white/80 border border-white/10">
+            AST Evidence
+          </span>
         }
-        actions={
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDownloadMarkdown}
-              icon={<Download className="w-3.5 h-3.5" strokeWidth={1.75} />}
-            >
-              Download Markdown
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fetchData(true)}
-              loading={refreshing}
-              loadingText="Refreshing…"
-              icon={<RefreshCw className="w-3.5 h-3.5" strokeWidth={1.75} />}
-            >
-              Refresh
-            </Button>
-          </>
-        }
+        description="Deterministic AST evidence for languages, parse coverage, coupling, entry points, and dependency topology."
+        actions={[
+          {
+            label: "Download Markdown",
+            variant: "secondary",
+            onClick: handleDownloadMarkdown,
+            icon: <Download className="w-3.5 h-3.5" strokeWidth={1.75} />,
+          },
+          {
+            label: "Refresh",
+            variant: "secondary",
+            onClick: () => fetchData(true),
+            loading: refreshing,
+            loadingText: "Refreshing…",
+            icon: <RefreshCw className="w-3.5 h-3.5" strokeWidth={1.75} />,
+          },
+        ]}
       />
 
       <Card variant="primary" padding="lg">
