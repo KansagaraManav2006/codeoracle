@@ -63,6 +63,9 @@ workspaces/
 temp_sandboxes/
 scratch/
 .env
+.env.*
+!.env.example
+!**/.env.example
 
 # Local smoke-test artifacts
 test.zip

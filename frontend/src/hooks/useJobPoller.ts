@@ -30,7 +30,7 @@ export interface UseJobPollerReturn {
   reset: () => void;
 }
 
-function toRepoFetchErrorCode(rawCode?: string | null): RepoFetchErrorCode {
+export function toRepoFetchErrorCode(rawCode?: string | null): RepoFetchErrorCode {
   if (!rawCode) return 'UNKNOWN';
   const c = rawCode.toUpperCase();
   if (c.includes('INVALID') || c.includes('URL')) return 'INVALID_URL';
@@ -43,12 +43,14 @@ function toRepoFetchErrorCode(rawCode?: string | null): RepoFetchErrorCode {
   return 'UNKNOWN';
 }
 
-function deriveFetchStage(loading: boolean, job: JobResponse | null, error: string | null): FetchStage {
+export function deriveFetchStage(loading: boolean, job: JobResponse | null, error: string | null): FetchStage {
   if (error || job?.state === 'failed') return 'failed';
   if (job?.state === 'completed') return 'completed';
   if (!loading && !job) return 'idle';
 
   const stage = (job?.stage || '').toLowerCase();
+  const jState = (job?.state || '').toLowerCase();
+
   if (stage.includes('clone') || stage.includes('fetch') || stage.includes('extract') || stage.includes('download')) {
     return 'fetching_repo';
   }
@@ -58,13 +60,60 @@ function deriveFetchStage(loading: boolean, job: JobResponse | null, error: stri
   if (stage.includes('graph') || stage.includes('dependenc')) {
     return 'building_graph';
   }
-  if (stage.includes('analyz') || stage.includes('generat') || stage.includes('score')) {
+  if (
+    stage.includes('analyz') ||
+    stage.includes('generat') ||
+    stage.includes('score') ||
+    stage.includes('finaliz') ||
+    stage.includes('architect') ||
+    jState === 'generating'
+  ) {
     return 'generating_analysis';
   }
   if (loading && !job) {
     return 'validating_url';
   }
   return 'fetching_repo';
+}
+
+export async function loadProjectData(
+  projectId: string,
+  fetchFn: typeof fetch = fetch
+): Promise<{
+  project: ProjectMetadataResponse;
+  files: ProjectFileResponse[];
+  summary: ProjectSummary | null;
+}> {
+  const [resMeta, resFiles, resSummary] = await Promise.all([
+    fetchFn(`/api/projects/${projectId}`),
+    fetchFn(`/api/projects/${projectId}/files`),
+    fetchFn(`/api/projects/${projectId}/summary`),
+  ]);
+
+  if (!resMeta.ok) {
+    throw new Error(`Failed to load project metadata (HTTP ${resMeta.status}).`);
+  }
+  if (!resFiles.ok) {
+    throw new Error(`Failed to load project file inventory (HTTP ${resFiles.status}).`);
+  }
+
+  const metaData: ProjectMetadataResponse = await resMeta.json();
+  const filesData = await resFiles.json();
+
+  let summaryData: ProjectSummary | null = null;
+  if (resSummary.ok) {
+    try {
+      summaryData = await resSummary.json();
+    } catch {
+      summaryData = null;
+    }
+  }
+
+  return {
+    project: metaData,
+    files: filesData.files || [],
+    summary: summaryData,
+  };
 }
 
 export const useJobPoller = (): UseJobPollerReturn => {
@@ -89,35 +138,35 @@ export const useJobPoller = (): UseJobPollerReturn => {
   }, []);
 
   const fetchProjectData = useCallback(async (projectId: string) => {
-    try {
-      const [resMeta, resFiles, resSummary] = await Promise.all([
-        fetch(`/api/projects/${projectId}`),
-        fetch(`/api/projects/${projectId}/files`),
-        fetch(`/api/projects/${projectId}/summary`),
-      ]);
-
-      if (!resMeta.ok) throw new Error('Failed to load project metadata.');
-      if (!resFiles.ok) throw new Error('Failed to load project file inventory.');
-
-      const metaData: ProjectMetadataResponse = await resMeta.json();
-      const filesData = await resFiles.json();
-
-      let summaryData: ProjectSummary | null = null;
-      if (resSummary.ok) {
-        summaryData = await resSummary.json();
-      }
-
-      setProject(metaData);
-      setFiles(filesData.files || []);
-      setProjectSummary(summaryData);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch project details.');
-    }
+    const data = await loadProjectData(projectId, fetch);
+    // State updates happen only after all required metadata and files loads succeed
+    setProject(data.project);
+    setFiles(data.files);
+    setProjectSummary(data.summary);
+    return data;
   }, []);
+
+  const pollAttemptsRef = useRef<number>(0);
 
   const pollJobStatus = useCallback(
     async (jobId: string, delayMs: number = 1000) => {
       if (activeJobIdRef.current !== jobId) return;
+
+      pollAttemptsRef.current += 1;
+      if (pollAttemptsRef.current > 180) {
+        // Polling timeout protection (approx 4-5 minutes)
+        clearPolling();
+        activeJobIdRef.current = null;
+        setLoading(false);
+        const timeoutMsg = 'Analysis timed out waiting for server completion. Please verify your repository or retry.';
+        setError(timeoutMsg);
+        setRepoFetchError({
+          code: 'TIMEOUT',
+          message: timeoutMsg,
+          stage: 'generating_analysis',
+        });
+        return;
+      }
 
       try {
         const res = await fetch(`/api/jobs/${jobId}`);
@@ -126,18 +175,65 @@ export const useJobPoller = (): UseJobPollerReturn => {
         }
 
         const data: JobResponse = await res.json();
+        if (activeJobIdRef.current !== jobId) return;
+
         setJob(data);
 
+        // A job is only complete when backend returns state === 'completed', NOT solely progress_percentage === 100
         if (data.state === 'completed') {
-          setLoading(false);
-          setRepoFetchError(null);
+          clearPolling();
           if (data.project_id) {
-            await fetchProjectData(data.project_id);
+            try {
+              await fetchProjectData(data.project_id);
+              // Modal closes ONLY after both backend job completes and project results load successfully
+              if (activeJobIdRef.current === jobId) {
+                activeJobIdRef.current = null;
+                setJob(null);
+                setLoading(false);
+                setRepoFetchError(null);
+                setError(null);
+              }
+              return;
+            } catch (fetchErr: any) {
+              if (activeJobIdRef.current === jobId) {
+                // Stop polling, keep the user in a clear recoverable error state, and do not show stale/incomplete results
+                clearPolling();
+                activeJobIdRef.current = null;
+                setLoading(false);
+                setProject(null);
+                setProjectSummary(null);
+                setFiles([]);
+                const errMsg = fetchErr.message || 'Analysis completed, but failed to load project results.';
+                setError(errMsg);
+                setRepoFetchError({
+                  code: 'UNKNOWN',
+                  message: errMsg,
+                  stage: 'generating_analysis',
+                });
+              }
+              return;
+            }
+          } else {
+            clearPolling();
+            activeJobIdRef.current = null;
+            setLoading(false);
+            setProject(null);
+            setProjectSummary(null);
+            setFiles([]);
+            const errMsg = 'Analysis completed, but no project ID was returned by the server.';
+            setError(errMsg);
+            setRepoFetchError({
+              code: 'UNKNOWN',
+              message: errMsg,
+              stage: 'generating_analysis',
+            });
+            return;
           }
-          return;
         }
 
         if (data.state === 'failed') {
+          clearPolling();
+          activeJobIdRef.current = null;
           setLoading(false);
           const rawCode = data.error_code || 'JOB_FAILED';
           const msg = data.error_message || 'Job execution failed.';
@@ -159,21 +255,29 @@ export const useJobPoller = (): UseJobPollerReturn => {
         const nextDelay = Math.min(delayMs * 1.25, 3000);
         pollTimerRef.current = setTimeout(() => pollJobStatus(jobId, nextDelay), nextDelay);
       } catch (err: any) {
+        if (activeJobIdRef.current !== jobId) return;
+        clearPolling();
+        activeJobIdRef.current = null;
         setLoading(false);
         const mappedCode = toRepoFetchErrorCode('CLONE_FAILED');
-        setError(err.message || 'Error polling job status.');
+        const errMsg = err.message || 'Error polling job status.';
+        setError(errMsg);
         setRepoFetchError({
           code: mappedCode,
-          message: err.message || 'Error polling job status.',
+          message: errMsg,
           stage: 'fetching_repo',
         });
       }
     },
-    [fetchProjectData]
+    [clearPolling, fetchProjectData]
   );
 
   const submitZip = async (file: File) => {
+    if (loading && activeJobIdRef.current) {
+      return; // Prevent duplicate concurrent submission
+    }
     clearPolling();
+    pollAttemptsRef.current = 0;
     setLoading(true);
     setError(null);
     setErrorCode(null);
@@ -195,7 +299,7 @@ export const useJobPoller = (): UseJobPollerReturn => {
 
       if (!res.ok) {
         const msg = data.detail?.message || data.detail || 'Upload failed.';
-        const code = data.detail?.code || 'UPLOAD_FAILED';
+        const code = data.detail?.code || (res.status === 401 ? 'AUTHENTICATION_REQUIRED' : 'UPLOAD_FAILED');
         setErrorCode(code);
         setError(msg);
         setRepoFetchError({
@@ -222,7 +326,11 @@ export const useJobPoller = (): UseJobPollerReturn => {
   };
 
   const submitGithub = async (url: string) => {
+    if (loading && activeJobIdRef.current) {
+      return; // Prevent duplicate concurrent submission
+    }
     clearPolling();
+    pollAttemptsRef.current = 0;
     setLoading(true);
     setError(null);
     setErrorCode(null);
@@ -245,7 +353,7 @@ export const useJobPoller = (): UseJobPollerReturn => {
 
       if (!res.ok) {
         const msg = data.detail?.message || data.detail || 'GitHub submission failed.';
-        const rawCode = data.detail?.code || 'INVALID_URL';
+        const rawCode = data.detail?.code || (res.status === 401 ? 'AUTHENTICATION_REQUIRED' : 'INVALID_URL');
         const mappedCode = toRepoFetchErrorCode(rawCode);
 
         setErrorCode(rawCode);
@@ -348,7 +456,7 @@ export const useJobPoller = (): UseJobPollerReturn => {
     setRepoFetchError(null);
   }, [clearPolling]);
 
-  const reset = () => {
+  const reset = useCallback(() => {
     clearPolling();
     activeJobIdRef.current = null;
     setJob(null);
@@ -359,7 +467,7 @@ export const useJobPoller = (): UseJobPollerReturn => {
     setError(null);
     setErrorCode(null);
     setRepoFetchError(null);
-  };
+  }, [clearPolling]);
 
   useEffect(() => {
     return () => {

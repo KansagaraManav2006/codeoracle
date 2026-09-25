@@ -17,7 +17,8 @@ from app.analysis.models import ANALYZER_VERSION, ProjectAnalysis, ProjectExplan
 from app.analysis.service import analysis_languages_are_current, process_analysis_job, run_analysis_for_project
 from app.config import settings
 from app.database import get_db
-from app.models.db import Job, JobState, Project, ProjectAnalysisRecord, ProjectFile, ProjectRefactorRecord
+from app.models.db import Job, JobState, Project, ProjectAnalysisRecord, ProjectFile, ProjectRefactorRecord, User
+from app.api.auth import can_access_project, get_current_user, get_current_user_optional
 from app.migration.models import ChangeImpact, MigrationPlanResponse
 from app.migration.service import build_migration_plan, get_module_change_impact, migration_plan_markdown
 from app.pulse.models import SystemPulseResponse
@@ -57,9 +58,25 @@ def _download_name(value: str) -> str:
     ).strip("-") or "project"
 
 
+def _get_authorized_project(project_id: str, db: Session, user: Optional[User]) -> Project:
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project or not can_access_project(project, user):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project '{project_id}' not found.",
+        )
+    return project
+
+
 @router.get("/projects/{project_id}/system-pulse", response_model=SystemPulseResponse)
-def get_system_pulse(project_id: str, response: Response, db: Session = Depends(get_db)) -> SystemPulseResponse:
+def get_system_pulse(
+    project_id: str,
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+) -> SystemPulseResponse:
     """Retrieve comprehensive System Pulse (Repository Health Observatory) for the project."""
+    _get_authorized_project(project_id, db, current_user)
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
@@ -75,8 +92,14 @@ def get_system_pulse(project_id: str, response: Response, db: Session = Depends(
 
 
 @router.get("/projects/{project_id}/migration-plan", response_model=MigrationPlanResponse)
-def get_migration_plan(project_id: str, response: Response, db: Session = Depends(get_db)) -> MigrationPlanResponse:
+def get_migration_plan(
+    project_id: str,
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+) -> MigrationPlanResponse:
     """Build an explainable modernization-readiness and change-impact plan."""
+    _get_authorized_project(project_id, db, current_user)
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
@@ -92,11 +115,13 @@ def get_migration_plan(project_id: str, response: Response, db: Session = Depend
 
 
 @router.get("/projects/{project_id}/migration-plan/download", response_class=PlainTextResponse)
-def download_migration_plan(project_id: str, db: Session = Depends(get_db)) -> PlainTextResponse:
+def download_migration_plan(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+) -> PlainTextResponse:
     """Download the migration plan as a portable Markdown report."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    project = _get_authorized_project(project_id, db, current_user)
     try:
         plan = build_migration_plan(db, project_id)
     except RuntimeError as exc:
@@ -110,11 +135,13 @@ def download_migration_plan(project_id: str, db: Session = Depends(get_db)) -> P
 
 
 @router.get("/projects/{project_id}/migration-plan/download-json", response_class=Response)
-def download_migration_plan_json(project_id: str, db: Session = Depends(get_db)) -> Response:
+def download_migration_plan_json(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+) -> Response:
     """Download the migration plan as structured JSON."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    project = _get_authorized_project(project_id, db, current_user)
     try:
         plan = build_migration_plan(db, project_id)
     except RuntimeError as exc:
@@ -132,11 +159,10 @@ def get_project_change_impact(
     project_id: str,
     target: str = Query(..., description="Relative path or module ID of target file"),
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ) -> ChangeImpact:
     """Retrieve detailed 'What breaks if I change this?' change impact for a specific file or module."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    _get_authorized_project(project_id, db, current_user)
     try:
         return get_module_change_impact(db, project_id, target)
     except ValueError as exc:
@@ -153,14 +179,13 @@ def get_project_hotspots(
     project_id: str,
     response: Response,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ) -> HotspotsResponse:
     """Computes explainable, deterministic static hotspots ranking for refactoring prioritization."""
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    _get_authorized_project(project_id, db, current_user)
     try:
         return compute_project_hotspots(db, project_id)
     except ValueError as exc:
@@ -192,6 +217,7 @@ def submit_zip_upload(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> JobResponse:
     """Accepts legacy codebase ZIP archive upload and initializes ingestion job."""
     if not file.filename:
@@ -230,6 +256,7 @@ def submit_zip_upload(
 
     job = Job(
         id=job_id,
+        user_id=current_user.id if current_user else None,
         state=JobState.QUEUED,
         stage="Queued",
         progress_percentage=0,
@@ -287,6 +314,7 @@ def submit_github_repo(
     payload: GitHubIngestRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> JobResponse:
     """Accepts public GitHub repository URL and initializes cloning and ingestion job."""
     cleaned_input = normalize_github_url(payload.repo_url)
@@ -300,6 +328,7 @@ def submit_github_repo(
 
     job = Job(
         id=job_id,
+        user_id=current_user.id if current_user else None,
         state=JobState.QUEUED,
         stage="Queued",
         progress_percentage=0,
@@ -332,7 +361,11 @@ def submit_github_repo(
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)
-def get_job_status(job_id: str, db: Session = Depends(get_db)) -> JobResponse:
+def get_job_status(
+    job_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+) -> JobResponse:
     """Retrieves status and progress details for an ingestion or analysis job."""
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
@@ -340,6 +373,19 @@ def get_job_status(job_id: str, db: Session = Depends(get_db)) -> JobResponse:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Job '{job_id}' not found.",
         )
+    if job.user_id is not None:
+        if not current_user or current_user.id != job.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Job '{job_id}' not found.",
+            )
+    elif job.project_id:
+        proj = db.query(Project).filter(Project.id == job.project_id).first()
+        if proj and not can_access_project(proj, current_user):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Job '{job_id}' not found.",
+            )
 
     http_status = _map_http_status_for_error_code(job.error_code)
     technical_message = job.message if job.state == JobState.FAILED else None
@@ -367,10 +413,19 @@ def get_job_status(job_id: str, db: Session = Depends(get_db)) -> JobResponse:
 def get_recent_projects(
     limit: int = Query(12, ge=1, le=50, description="Max number of recent projects to retrieve"),
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ) -> RecentProjectsListResponse:
-    """Lists recent stored projects from the database ordered by creation date."""
+    """Lists recent stored projects: user-owned only for signed-in users, demo benchmarks only for guests."""
+    query = db.query(Project)
+    if current_user:
+        # Strictly return projects uploaded/imported by the authenticated user
+        query = query.filter(Project.user_id == current_user.id)
+    else:
+        # Strictly return public demo benchmarks for guests
+        query = query.filter(Project.is_public_demo == 1)
+
     projects = (
-        db.query(Project)
+        query
         .order_by(Project.created_at.desc())
         .limit(limit)
         .all()
@@ -392,15 +447,47 @@ def get_recent_projects(
     return RecentProjectsListResponse(total=len(items), projects=items)
 
 
+@router.get("/demo/projects", response_model=RecentProjectsListResponse)
+def get_demo_projects(
+    db: Session = Depends(get_db),
+) -> RecentProjectsListResponse:
+    """Lists available public demo projects without duplicate accumulating entries."""
+    demos = (
+        db.query(Project)
+        .filter(Project.is_public_demo == 1)
+        .order_by(Project.created_at.asc())
+        .all()
+    )
+    seen = set()
+    deduped = []
+    for d in demos:
+        key = d.source_url or d.display_name
+        if key not in seen:
+            seen.add(key)
+            deduped.append(
+                ProjectMetadataResponse(
+                    project_id=d.id,
+                    display_name=d.display_name,
+                    source_type=d.source_type,
+                    source_url=d.source_url,
+                    detected_languages=d.detected_languages or [],
+                    total_files=d.total_files,
+                    total_lines=d.total_lines,
+                    content_hash=d.content_hash,
+                    created_at=d.created_at,
+                )
+            )
+    return RecentProjectsListResponse(total=len(deduped), projects=deduped)
+
+
 @router.get("/projects/{project_id}", response_model=ProjectMetadataResponse)
-def get_project_metadata(project_id: str, db: Session = Depends(get_db)) -> ProjectMetadataResponse:
+def get_project_metadata(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+) -> ProjectMetadataResponse:
     """Retrieves metadata summary for an ingested project."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project '{project_id}' not found.",
-        )
+    project = _get_authorized_project(project_id, db, current_user)
 
     return ProjectMetadataResponse(
         project_id=project.id,
@@ -416,14 +503,13 @@ def get_project_metadata(project_id: str, db: Session = Depends(get_db)) -> Proj
 
 
 @router.get("/projects/{project_id}/summary", response_model=ProjectSummaryResponse)
-def get_project_summary(project_id: str, db: Session = Depends(get_db)) -> ProjectSummaryResponse:
+def get_project_summary(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+) -> ProjectSummaryResponse:
     """Retrieves canonical single-source-of-truth summary metrics for a project."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project '{project_id}' not found.",
-        )
+    project = _get_authorized_project(project_id, db, current_user)
 
     files = db.query(ProjectFile).filter(ProjectFile.project_id == project_id).all()
 
@@ -514,14 +600,13 @@ def get_project_summary(project_id: str, db: Session = Depends(get_db)) -> Proje
 
 
 @router.get("/projects/{project_id}/files", response_model=ProjectFilesListResponse)
-def get_project_files(project_id: str, db: Session = Depends(get_db)) -> ProjectFilesListResponse:
+def get_project_files(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+) -> ProjectFilesListResponse:
     """Retrieves list of all discovered source files in a project, enriched with AST parse status."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project '{project_id}' not found.",
-        )
+    project = _get_authorized_project(project_id, db, current_user)
 
     files = db.query(ProjectFile).filter(ProjectFile.project_id == project_id).all()
     analysis_record = db.query(ProjectAnalysisRecord).filter(ProjectAnalysisRecord.project_id == project_id).first()
@@ -597,11 +682,10 @@ def trigger_project_analysis(
     background_tasks: BackgroundTasks,
     request: Optional[AnalyzeRequest] = None,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ) -> JobResponse:
     """Triggers static analysis for a project as an asynchronous background job."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    _get_authorized_project(project_id, db, current_user)
 
     force_flag = request.force if request else False
 
@@ -634,6 +718,7 @@ def trigger_project_analysis(
     job_id = f"job_analysis_{uuid.uuid4().hex[:12]}"
     job = Job(
         id=job_id,
+        user_id=current_user.id if current_user else None,
         state=JobState.QUEUED,
         stage="Queued for Static Analysis",
         progress_percentage=0,
@@ -666,11 +751,13 @@ def trigger_project_analysis(
 
 
 @router.get("/projects/{project_id}/analysis", response_model=ProjectAnalysis)
-def get_project_analysis(project_id: str, db: Session = Depends(get_db)) -> ProjectAnalysis:
+def get_project_analysis(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+) -> ProjectAnalysis:
     """Retrieves deterministic static analysis results for a project if available."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    _get_authorized_project(project_id, db, current_user)
 
     rec = (
         db.query(ProjectAnalysisRecord)
@@ -712,11 +799,13 @@ def get_project_analysis(project_id: str, db: Session = Depends(get_db)) -> Proj
 
 
 @router.get("/projects/{project_id}/explanation", response_model=ProjectExplanation)
-def get_project_explanation(project_id: str, db: Session = Depends(get_db)) -> ProjectExplanation:
+def get_project_explanation(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+) -> ProjectExplanation:
     """Retrieves deterministic explanation synthesis for a project if available."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    _get_authorized_project(project_id, db, current_user)
 
     rec = (
         db.query(ProjectAnalysisRecord)
@@ -742,11 +831,13 @@ def get_project_explanation(project_id: str, db: Session = Depends(get_db)) -> P
 
 
 @router.get("/projects/{project_id}/architecture", response_model=ArchitectureOverview)
-def get_project_architecture(project_id: str, db: Session = Depends(get_db)) -> ArchitectureOverview:
+def get_project_architecture(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+) -> ArchitectureOverview:
     """Retrieves canonical architecture overview, confidence metrics, and structural diagnostics."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    _get_authorized_project(project_id, db, current_user)
 
     rec = (
         db.query(ProjectAnalysisRecord)
@@ -771,11 +862,13 @@ def get_project_architecture(project_id: str, db: Session = Depends(get_db)) -> 
 
 
 @router.get("/projects/{project_id}/analysis/download", response_class=PlainTextResponse)
-def download_project_analysis(project_id: str, db: Session = Depends(get_db)) -> PlainTextResponse:
+def download_project_analysis(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+) -> PlainTextResponse:
     """Download a portable Markdown codebase explanation."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    project = _get_authorized_project(project_id, db, current_user)
     record = db.query(ProjectAnalysisRecord).filter(ProjectAnalysisRecord.project_id == project_id).first()
     if not record:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Analysis is not available.")
@@ -821,11 +914,10 @@ def get_project_dependency_graph(
     edge_types: Optional[str] = Query(None),
     include_external: bool = Query(False),
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ) -> GraphResponse:
     """Retrieves module or symbol-level dependency graph representation for React Flow."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    _get_authorized_project(project_id, db, current_user)
 
     rec = (
         db.query(ProjectAnalysisRecord)
@@ -865,11 +957,13 @@ def get_project_dependency_graph(
 
 
 @router.get("/projects/{project_id}/graph/download", response_class=PlainTextResponse)
-def download_project_dependency_graph(project_id: str, db: Session = Depends(get_db)) -> PlainTextResponse:
+def download_project_dependency_graph(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+) -> PlainTextResponse:
     """Download the internal module graph as Mermaid Markdown."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    project = _get_authorized_project(project_id, db, current_user)
     record = db.query(ProjectAnalysisRecord).filter(ProjectAnalysisRecord.project_id == project_id).first()
     if not record:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Analysis is not available.")
@@ -914,11 +1008,10 @@ def generate_project_tests(
     payload: GenerateTestsRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ) -> JobResponse:
     """Triggers deterministic unit-test generation for a project with optional subprocess execution."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    project = _get_authorized_project(project_id, db, current_user)
 
     if payload.execute and not settings.TEST_EXECUTION_ENABLED and not bool(project.is_trusted):
         raise HTTPException(
@@ -953,6 +1046,7 @@ def generate_project_tests(
     job_id = f"job_tg_{uuid.uuid4().hex[:12]}"
     new_job = Job(
         id=job_id,
+        user_id=current_user.id if current_user else None,
         state=JobState.QUEUED,
         stage="Queued",
         progress_percentage=0,
@@ -990,11 +1084,10 @@ def generate_project_tests(
 def get_project_tests(
     project_id: str,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ) -> ProjectTestResult:
     """Retrieves generated unit test results for a project."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    _get_authorized_project(project_id, db, current_user)
 
     rec = (
         db.query(ProjectTestRecord)
@@ -1025,14 +1118,13 @@ def download_project_tests(
     test_id: Optional[str] = Query(default=None),
     target_path: Optional[str] = Query(default=None),
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """Downloads a ZIP archive containing generated unit test files, manifest.json, and README.
     
     Supports scopes: 'all', 'protected' (only contract tests), and 'selected'.
     """
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    project = _get_authorized_project(project_id, db, current_user)
 
     rec = (
         db.query(ProjectTestRecord)
@@ -1136,8 +1228,10 @@ def generate_project_refactor(
     project_id: str,
     payload: GenerateRefactorRequest,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ) -> ProjectRefactorResult:
     """Builds a non-destructive modernization proposal with diffs and risk warnings."""
+    _get_authorized_project(project_id, db, current_user)
     try:
         return run_refactor_for_project(db, project_id, force=payload.force)
     except ValueError as exc:
@@ -1148,10 +1242,12 @@ def generate_project_refactor(
 
 
 @router.get("/projects/{project_id}/refactor", response_model=ProjectRefactorResult)
-def get_project_refactor(project_id: str, db: Session = Depends(get_db)) -> ProjectRefactorResult:
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+def get_project_refactor(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+) -> ProjectRefactorResult:
+    _get_authorized_project(project_id, db, current_user)
     record = db.query(ProjectRefactorRecord).filter(ProjectRefactorRecord.project_id == project_id).first()
     if not record:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Refactor proposal unavailable. Generate it first.")
@@ -1163,11 +1259,10 @@ def verify_project_refactor(
     project_id: str,
     payload: VerifyRefactorRequest = VerifyRefactorRequest(),
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ) -> RefactorVerificationResult:
     """Executes verified modernization loop in ephemeral disposable workspace (trusted demo only)."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    _get_authorized_project(project_id, db, current_user)
     try:
         return run_refactor_verification(db, project_id, force=payload.force)
     except ValueError as exc:
@@ -1184,11 +1279,10 @@ def verify_project_refactor(
 def get_refactor_verification(
     project_id: str,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ) -> RefactorVerificationResult:
     """Retrieves refactor verification result or executes baseline verification."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    _get_authorized_project(project_id, db, current_user)
     record = db.query(ProjectRefactorRecord).filter(ProjectRefactorRecord.project_id == project_id).first()
     if record and "verification" in record.refactor_data:
         try:
@@ -1199,10 +1293,12 @@ def get_refactor_verification(
 
 
 @router.get("/projects/{project_id}/refactor/download")
-def download_project_refactor(project_id: str, db: Session = Depends(get_db)):
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+def download_project_refactor(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    project = _get_authorized_project(project_id, db, current_user)
     record = db.query(ProjectRefactorRecord).filter(ProjectRefactorRecord.project_id == project_id).first()
     if not record:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Refactor proposal unavailable. Generate it first.")
@@ -1248,9 +1344,23 @@ def load_demo_benchmark(
     raw_ws_dir = ws_dir / "raw"
     raw_ws_dir.mkdir(parents=True, exist_ok=True)
 
-    # Clean existing project if reloading
+    # Reuse existing demo project if already ingested and analyzed
     existing_proj = db.query(Project).filter(Project.id == project_id).first()
     if existing_proj:
+        analysis_exists = db.query(ProjectAnalysisRecord).filter(ProjectAnalysisRecord.project_id == project_id).first()
+        if analysis_exists:
+            return ProjectMetadataResponse(
+                project_id=existing_proj.id,
+                display_name=existing_proj.display_name,
+                source_type=existing_proj.source_type,
+                source_url=existing_proj.source_url,
+                detected_languages=existing_proj.detected_languages or [],
+                total_files=existing_proj.total_files,
+                total_lines=existing_proj.total_lines,
+                content_hash=existing_proj.content_hash,
+                created_at=existing_proj.created_at,
+            )
+        # Otherwise clean partial records before re-ingesting
         db.query(ProjectTestRecord).filter(ProjectTestRecord.project_id == project_id).delete()
         db.query(ProjectRefactorRecord).filter(ProjectRefactorRecord.project_id == project_id).delete()
         db.query(ProjectAnalysisRecord).filter(ProjectAnalysisRecord.project_id == project_id).delete()
@@ -1308,6 +1418,7 @@ def load_demo_benchmark(
         content_hash=content_hasher.hexdigest(),
         workspace_id=workspace_id,
         is_trusted=1,
+        is_public_demo=1,
         created_at=datetime.now(timezone.utc),
     )
     db.add(proj)

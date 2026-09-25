@@ -73,6 +73,7 @@ def setup_database():
     )
     db.add(Project(
         id=project_id,
+        is_public_demo=1,
         display_name="Migration Sample",
         source_type="zip",
         detected_languages=["python"],

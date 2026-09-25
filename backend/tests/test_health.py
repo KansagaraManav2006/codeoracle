@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 from app.database import Base, engine
+import app.models.db  # noqa: F401
 from app.main import app
 
 client = TestClient(app)

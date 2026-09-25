@@ -13,7 +13,6 @@ import {
   Layers,
   ChevronRight,
   Sparkles,
-  Check,
   AlertTriangle,
   FileCode2,
 } from 'lucide-react';
@@ -77,6 +76,7 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
   const [strengthFilter, setStrengthFilter] = useState<string>('all');
   const [confidenceFilter, setConfidenceFilter] = useState<string>('all');
   const [downloadModalOpen, setDownloadModalOpen] = useState(false);
+  const [showTaxonomyDetails, setShowTaxonomyDetails] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
@@ -360,225 +360,251 @@ export const GeneratedTestsTab: React.FC<GeneratedTestsTabProps> = ({
         ]}
       />
 
-      {/* 2. Verification Ladder Bar (Static vs Runtime Clearly Delineated) */}
+      {/* 2. State & Safety Clarity Banner */}
       <Card variant="secondary" padding="sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-line">
-          <div>
-            <span className="font-sans text-[10px] font-bold uppercase tracking-wider text-ink-3 block">
-              VERIFICATION PIPELINE LADDER
-            </span>
-            <div className="text-xs text-ink font-medium mt-0.5">
-              Static grammar validation is fully verified. Runtime execution stages are safety-locked for untrusted repository code.
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-md bg-teal-surface text-teal-strong flex items-center justify-center shrink-0 border border-teal/25">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono text-xs font-bold text-ink">
+                  {totalGenFiles} TEST SUITES GENERATED · AST VALIDATED
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-surface text-teal-strong border border-teal/20">
+                  {syntaxValidCount} / {totalGenFiles} SYNTAX OK
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-surface text-amber-strong border border-amber/30">
+                  {trustedDemo ? 'SANDBOX READY' : 'EXECUTION: LOCAL RUNNER'}
+                </span>
+              </div>
+              <p className="text-xs text-ink-3 mt-0.5">
+                Contract characterization tests synthesized from AST signatures to pin current behavior before refactoring. Code coverage is measured when run in your test runner (pytest / vitest).
+              </p>
             </div>
           </div>
+
           <div className="flex items-center gap-2 shrink-0">
-            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-teal-surface text-teal-strong border border-teal/20 flex items-center gap-1">
-              <Check className="w-3 h-3" />
-              STATIC VERIFIED
-            </span>
-            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-surface text-amber-strong border border-amber/30 flex items-center gap-1">
-              <Lock className="w-3 h-3" />
-              RUNTIME LOCKED
-            </span>
-            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-tile text-ink-3 border border-line">
-              BEHAVIOR UNVERIFIED
-            </span>
-          </div>
-        </div>
-
-        {/* 5-step ladder progression */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-3 pt-1">
-          <div className="bg-teal-surface/60 border border-teal/20 rounded p-2 text-center">
-            <div className="text-[10px] font-bold text-teal-strong uppercase flex items-center justify-center gap-1">
-              <CheckCircle2 className="w-3 h-3" /> 1. GENERATED
-            </div>
-            <div className="text-[11px] font-mono font-bold text-ink mt-0.5">{totalGenFiles} Suites</div>
-          </div>
-
-          <div className="bg-teal-surface/60 border border-teal/20 rounded p-2 text-center">
-            <div className="text-[10px] font-bold text-teal-strong uppercase flex items-center justify-center gap-1">
-              <CheckCircle2 className="w-3 h-3" /> 2. SYNTAX VALID
-            </div>
-            <div className="text-[11px] font-mono font-bold text-ink mt-0.5">{syntaxValidCount} / {totalGenFiles} Passed</div>
-          </div>
-
-          <div className="bg-teal-surface/60 border border-teal/20 rounded p-2 text-center">
-            <div className="text-[10px] font-bold text-teal-strong uppercase flex items-center justify-center gap-1">
-              <CheckCircle2 className="w-3 h-3" /> 3. IMPORT VALID
-            </div>
-            <div className="text-[11px] font-mono font-bold text-ink mt-0.5">AST AST Verified</div>
-          </div>
-
-          <div className="bg-amber-surface/40 border border-amber/30 rounded p-2 text-center">
-            <div className="text-[10px] font-bold text-amber-strong uppercase flex items-center justify-center gap-1">
-              <Lock className="w-3 h-3" /> 4. RUNTIME EXECUTED
-            </div>
-            <div className="text-[11px] font-mono font-semibold text-amber-text mt-0.5">
-              {trustedDemo ? 'Ready in Sandbox' : 'Safety Locked'}
-            </div>
-          </div>
-
-          <div className="bg-tile border border-line rounded p-2 text-center">
-            <div className="text-[10px] font-bold text-ink-3 uppercase flex items-center justify-center gap-1">
-              <Lock className="w-3 h-3" /> 5. BEHAVIOR VERIFIED
-            </div>
-            <div className="text-[11px] font-mono text-ink-3 mt-0.5">Run Locally via ZIP</div>
+            <Button
+              variant={showTaxonomyDetails ? 'indigo' : 'outline'}
+              size="sm"
+              onClick={() => setShowTaxonomyDetails((prev) => !prev)}
+              className="text-xs"
+            >
+              <span>{showTaxonomyDetails ? 'Hide Taxonomy & Levels' : 'Taxonomy & Levels (L1–L5)'}</span>
+              <ChevronRight
+                className={`w-3.5 h-3.5 ml-0.5 transition-transform duration-200 ${
+                  showTaxonomyDetails ? 'rotate-90' : ''
+                }`}
+              />
+            </Button>
           </div>
         </div>
       </Card>
 
-      {/* 3. Five KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <KpiCard
-          label="TEST CASES"
-          value={formatNumber(totalCases)}
-          subtext="Generated assertion assertions"
-        />
+      {/* 3. Four Core KPIs */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard
           label="GENERATED TEST FILES"
           value={formatNumber(totalGenFiles)}
-          subtext="Vitest &amp; pytest test suites"
+          subtext={`${formatNumber(totalCases)} generated assertions`}
         />
         <KpiCard
-          label="SYNTAX-VALID TEST FILES"
+          label="SYNTAX VALIDATION"
           value={`${syntaxValidCount} / ${totalGenFiles}`}
-          subtext="Passed static AST syntax check"
-        />
-        <KpiCard
-          label="RUNTIME VERIFIED"
-          value={trustedDemo ? 'Sandbox Ready' : 'Safety locked'}
-          subtext={trustedDemo ? 'Disposable sandbox runner' : 'Execution safety locked'}
+          variant={syntaxValidCount === totalGenFiles ? 'default' : 'risk'}
+          subtext="Static AST grammar parse"
         />
         <KpiCard
           label="SOURCE PROTECTION"
           value={`${protectedModulesCount} / ${totalSourceModules}`}
+          variant="selected"
           subtext={`${protectionPercentage}% source modules protected`}
+        />
+        <KpiCard
+          label="EXECUTION STATUS"
+          value={trustedDemo ? 'Sandbox Ready' : 'Local Runner'}
+          subtext={trustedDemo ? 'Disposable runner verified' : 'Download ZIP to execute'}
         />
       </div>
 
-      {/* 4. Segmented Source Protection & Quality Distribution Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
-        {/* Protection Progress Card */}
-        <div className="bg-surface border border-line rounded-lg p-4 shadow-1 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
+      {/* 4. Collapsible Taxonomy & Framework Archetypes Breakdown */}
+      {showTaxonomyDetails && (
+        <div className="space-y-3 animate-[fade-down_150ms_ease-out]">
+          {/* Verification Pipeline Ladder */}
+          <Card variant="secondary" padding="sm">
+            <div className="flex items-center justify-between pb-2 border-b border-line">
               <span className="font-sans text-[10px] font-bold uppercase tracking-wider text-ink-3">
-                SOURCE PROTECTION PROGRESS
+                VERIFICATION PIPELINE LADDER
               </span>
-              <span className="text-xs font-mono font-bold text-indigo">
-                {protectedModulesCount} / {totalSourceModules} · {protectionPercentage}%
-              </span>
+              <span className="text-[11px] font-mono text-ink-3">Static vs Runtime Distinction</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-2 pt-1">
+              <div className="bg-teal-surface/60 border border-teal/20 rounded p-2 text-center">
+                <div className="text-[10px] font-bold text-teal-strong uppercase flex items-center justify-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> 1. GENERATED
+                </div>
+                <div className="text-[11px] font-mono font-bold text-ink mt-0.5">{totalGenFiles} Suites</div>
+              </div>
+
+              <div className="bg-teal-surface/60 border border-teal/20 rounded p-2 text-center">
+                <div className="text-[10px] font-bold text-teal-strong uppercase flex items-center justify-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> 2. SYNTAX VALID
+                </div>
+                <div className="text-[11px] font-mono font-bold text-ink mt-0.5">{syntaxValidCount} / {totalGenFiles} Passed</div>
+              </div>
+
+              <div className="bg-teal-surface/60 border border-teal/20 rounded p-2 text-center">
+                <div className="text-[10px] font-bold text-teal-strong uppercase flex items-center justify-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> 3. IMPORT VALID
+                </div>
+                <div className="text-[11px] font-mono font-bold text-ink mt-0.5">AST Verified</div>
+              </div>
+
+              <div className="bg-amber-surface/40 border border-amber/30 rounded p-2 text-center">
+                <div className="text-[10px] font-bold text-amber-strong uppercase flex items-center justify-center gap-1">
+                  <Lock className="w-3 h-3" /> 4. RUNTIME EXECUTED
+                </div>
+                <div className="text-[11px] font-mono font-semibold text-amber-text mt-0.5">
+                  {trustedDemo ? 'Ready in Sandbox' : 'Safety Locked'}
+                </div>
+              </div>
+
+              <div className="bg-tile border border-line rounded p-2 text-center">
+                <div className="text-[10px] font-bold text-ink-3 uppercase flex items-center justify-center gap-1">
+                  <Lock className="w-3 h-3" /> 5. BEHAVIOR VERIFIED
+                </div>
+                <div className="text-[11px] font-mono text-ink-3 mt-0.5">Run Locally via ZIP</div>
+              </div>
+            </div>
+          </Card>
+
+          {/* 3 Supporting Distribution Cards */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            {/* Protection Progress Card */}
+            <div className="bg-surface border border-line rounded-lg p-4 shadow-1 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-sans text-[10px] font-bold uppercase tracking-wider text-ink-3">
+                    SOURCE PROTECTION PROGRESS
+                  </span>
+                  <span className="text-xs font-mono font-bold text-indigo">
+                    {protectedModulesCount} / {totalSourceModules} · {protectionPercentage}%
+                  </span>
+                </div>
+
+                {/* Segmented Progress Bar */}
+                <div className="w-full h-3.5 bg-track rounded-pill overflow-hidden flex p-0.5 gap-0.5 border border-line/60">
+                  <div
+                    className="bg-indigo rounded-pill transition-all duration-300"
+                    style={{ width: `${Math.max(4, protectionPercentage)}%` }}
+                    title={`Protected modules: ${protectedModulesCount}`}
+                  />
+                  <div
+                    className="bg-amber-strong/40 rounded-pill transition-all duration-300 flex-1"
+                    title={`Unprotected modules: ${unprotectedModulesList.length}`}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] mt-2 font-medium text-ink-2">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-indigo inline-block" />
+                    Protected: <strong>{protectedModulesCount}</strong>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-strong/40 inline-block" />
+                    Unprotected: <strong>{unprotectedModulesList.length}</strong>
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-ink-3 mt-3 pt-2.5 border-t border-line/60">
+                A source module is protected when it possesses a valid characterization test covering callable exports.
+              </p>
             </div>
 
-            {/* Segmented Progress Bar */}
-            <div className="w-full h-3.5 bg-track rounded-pill overflow-hidden flex p-0.5 gap-0.5 border border-line/60">
-              <div
-                className="bg-indigo rounded-pill transition-all duration-300"
-                style={{ width: `${Math.max(4, protectionPercentage)}%` }}
-                title={`Protected modules: ${protectedModulesCount}`}
-              />
-              <div
-                className="bg-amber-strong/40 rounded-pill transition-all duration-300 flex-1"
-                title={`Unprotected modules: ${unprotectedModulesList.length}`}
-              />
+            {/* Test Strength Distribution Card */}
+            <div className="bg-surface border border-line rounded-lg p-4 shadow-1">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-sans text-[10px] font-bold uppercase tracking-wider text-ink-3">
+                  TEST STRENGTH LEVELS
+                </span>
+                <span className="text-[10px] text-ink-3 font-mono">AST Taxonomy</span>
+              </div>
+
+              <div className="grid grid-cols-5 gap-1.5 text-center pt-1">
+                <div className="bg-tile rounded p-1.5 border border-line">
+                  <div className="text-[9px] font-bold text-ink-3">L1</div>
+                  <div className="text-[10px] font-semibold text-ink">SYNTAX</div>
+                  <div className="text-xs font-mono font-bold text-indigo mt-0.5">{strengthCounts.syntax || 0}</div>
+                </div>
+                <div className="bg-tile rounded p-1.5 border border-line">
+                  <div className="text-[9px] font-bold text-ink-3">L2</div>
+                  <div className="text-[10px] font-semibold text-ink">IMPORT</div>
+                  <div className="text-xs font-mono font-bold text-indigo mt-0.5">{strengthCounts.import || 0}</div>
+                </div>
+                <div className="bg-indigo-surface rounded p-1.5 border border-indigo/20">
+                  <div className="text-[9px] font-bold text-indigo">L3</div>
+                  <div className="text-[10px] font-bold text-indigo-text">CONTRACT</div>
+                  <div className="text-xs font-mono font-bold text-indigo mt-0.5">{strengthCounts.contract || totalGenFiles}</div>
+                </div>
+                <div className="bg-tile rounded p-1.5 border border-line">
+                  <div className="text-[9px] font-bold text-ink-3">L4</div>
+                  <div className="text-[10px] font-semibold text-ink">BEHAVIOR</div>
+                  <div className="text-xs font-mono font-bold text-indigo mt-0.5">{strengthCounts.behavior || 0}</div>
+                </div>
+                <div className="bg-tile rounded p-1.5 border border-line">
+                  <div className="text-[9px] font-bold text-ink-3">L5</div>
+                  <div className="text-[10px] font-semibold text-ink">INTEGR.</div>
+                  <div className="text-xs font-mono font-bold text-ink-3 mt-0.5">{strengthCounts.integration || 0}</div>
+                </div>
+              </div>
+
+              <p className="text-[10px] text-ink-3 mt-2.5 pt-2 border-t border-line/60">
+                L3 Contract tests guarantee callable signatures and boundary error resistance without invoking side effects.
+              </p>
             </div>
 
-            <div className="flex items-center justify-between text-[11px] mt-2 font-medium text-ink-2">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-indigo inline-block" />
-                Protected: <strong>{protectedModulesCount}</strong>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-strong/40 inline-block" />
-                Unprotected: <strong>{unprotectedModulesList.length}</strong>
-              </span>
+            {/* Framework Archetype Coverage Card */}
+            <div className="bg-surface border border-line rounded-lg p-4 shadow-1">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-sans text-[10px] font-bold uppercase tracking-wider text-ink-3">
+                  GENERATION BY ARCHETYPE
+                </span>
+                <span className="text-[10px] text-teal-strong font-semibold">Framework-Aware</span>
+              </div>
+
+              <div className="space-y-1.5 text-xs">
+                <div className="flex items-center justify-between p-1 px-2 rounded bg-tile">
+                  <span className="text-ink-2 font-medium">React / TSX Components</span>
+                  <span className="font-mono text-ink font-semibold">
+                    {result?.framework_coverage?.react ? `${result.framework_coverage.react.protected} / ${result.framework_coverage.react.total}` : 'Vitest + RTL'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-1 px-2 rounded bg-tile">
+                  <span className="text-ink-2 font-medium">FastAPI Routes &amp; Endpoints</span>
+                  <span className="font-mono text-ink font-semibold">
+                    {result?.framework_coverage?.fastapi ? `${result.framework_coverage.fastapi.protected} / ${result.framework_coverage.fastapi.total}` : 'API Contract'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-1 px-2 rounded bg-tile">
+                  <span className="text-ink-2 font-medium">Python Service Layer</span>
+                  <span className="font-mono text-ink font-semibold">
+                    {result?.framework_coverage?.service ? `${result.framework_coverage.service.protected} / ${result.framework_coverage.service.total}` : 'Mocked DB/Redis'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-1 px-2 rounded bg-tile">
+                  <span className="text-ink-2 font-medium">ML &amp; Data Pipeline Models</span>
+                  <span className="font-mono text-ink font-semibold">
+                    {result?.framework_coverage?.ml ? `${result.framework_coverage.ml.protected} / ${result.framework_coverage.ml.total}` : 'Shape Contract'}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
-
-          <p className="text-[11px] text-ink-3 mt-3 pt-2.5 border-t border-line/60">
-            A source module is protected when it possesses a valid characterization test covering callable exports.
-          </p>
         </div>
-
-        {/* Test Strength Distribution Card */}
-        <div className="bg-surface border border-line rounded-lg p-4 shadow-1">
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-sans text-[10px] font-bold uppercase tracking-wider text-ink-3">
-              TEST STRENGTH LEVELS
-            </span>
-            <span className="text-[10px] text-ink-3 font-mono">AST Taxonomy</span>
-          </div>
-
-          <div className="grid grid-cols-5 gap-1.5 text-center pt-1">
-            <div className="bg-tile rounded p-1.5 border border-line">
-              <div className="text-[9px] font-bold text-ink-3">L1</div>
-              <div className="text-[10px] font-semibold text-ink">SYNTAX</div>
-              <div className="text-xs font-mono font-bold text-indigo mt-0.5">{strengthCounts.syntax || 0}</div>
-            </div>
-            <div className="bg-tile rounded p-1.5 border border-line">
-              <div className="text-[9px] font-bold text-ink-3">L2</div>
-              <div className="text-[10px] font-semibold text-ink">IMPORT</div>
-              <div className="text-xs font-mono font-bold text-indigo mt-0.5">{strengthCounts.import || 0}</div>
-            </div>
-            <div className="bg-indigo-surface rounded p-1.5 border border-indigo/20">
-              <div className="text-[9px] font-bold text-indigo">L3</div>
-              <div className="text-[10px] font-bold text-indigo-text">CONTRACT</div>
-              <div className="text-xs font-mono font-bold text-indigo mt-0.5">{strengthCounts.contract || totalGenFiles}</div>
-            </div>
-            <div className="bg-tile rounded p-1.5 border border-line">
-              <div className="text-[9px] font-bold text-ink-3">L4</div>
-              <div className="text-[10px] font-semibold text-ink">BEHAVIOR</div>
-              <div className="text-xs font-mono font-bold text-indigo mt-0.5">{strengthCounts.behavior || 0}</div>
-            </div>
-            <div className="bg-tile rounded p-1.5 border border-line">
-              <div className="text-[9px] font-bold text-ink-3">L5</div>
-              <div className="text-[10px] font-semibold text-ink">INTEGR.</div>
-              <div className="text-xs font-mono font-bold text-ink-3 mt-0.5">{strengthCounts.integration || 0}</div>
-            </div>
-          </div>
-
-          <p className="text-[10px] text-ink-3 mt-2.5 pt-2 border-t border-line/60">
-            L3 Contract tests guarantee callable signatures and boundary error resistance without invoking side effects.
-          </p>
-        </div>
-
-        {/* Framework Archetype Coverage Card */}
-        <div className="bg-surface border border-line rounded-lg p-4 shadow-1">
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-sans text-[10px] font-bold uppercase tracking-wider text-ink-3">
-              GENERATION BY ARCHETYPE
-            </span>
-            <span className="text-[10px] text-teal-strong font-semibold">Framework-Aware</span>
-          </div>
-
-          <div className="space-y-1.5 text-xs">
-            <div className="flex items-center justify-between p-1 px-2 rounded bg-tile">
-              <span className="text-ink-2 font-medium">React / TSX Components</span>
-              <span className="font-mono text-ink font-semibold">
-                {result?.framework_coverage?.react ? `${result.framework_coverage.react.protected} / ${result.framework_coverage.react.total}` : 'Vitest + RTL'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between p-1 px-2 rounded bg-tile">
-              <span className="text-ink-2 font-medium">FastAPI Routes &amp; Endpoints</span>
-              <span className="font-mono text-ink font-semibold">
-                {result?.framework_coverage?.fastapi ? `${result.framework_coverage.fastapi.protected} / ${result.framework_coverage.fastapi.total}` : 'API Contract'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between p-1 px-2 rounded bg-tile">
-              <span className="text-ink-2 font-medium">Python Service Layer</span>
-              <span className="font-mono text-ink font-semibold">
-                {result?.framework_coverage?.service ? `${result.framework_coverage.service.protected} / ${result.framework_coverage.service.total}` : 'Mocked DB/Redis'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between p-1 px-2 rounded bg-tile">
-              <span className="text-ink-2 font-medium">ML &amp; Data Pipeline Models</span>
-              <span className="font-mono text-ink font-semibold">
-                {result?.framework_coverage?.ml ? `${result.framework_coverage.ml.protected} / ${result.framework_coverage.ml.total}` : 'Shape Contract'}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
 
       {error && (
         <div className="p-4 bg-red-surface border border-red-line rounded-md text-red-text text-xs">

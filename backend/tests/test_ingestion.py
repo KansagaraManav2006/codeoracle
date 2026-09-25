@@ -47,9 +47,29 @@ def override_get_db():
 def setup_db():
     Base.metadata.create_all(bind=engine)
     app.dependency_overrides[get_db] = override_get_db
+
+    # Create authenticated test user for API calls
+    db = TestingSessionLocal()
+    try:
+        from app.models.db import User
+        from app.api.auth import create_user_session, hash_password
+        test_user = User(
+            id="usr_test_default",
+            email="test_ingest@example.com",
+            hashed_password=hash_password("Pass123!"),
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(test_user)
+        db.commit()
+        token = create_user_session(db, test_user.id)
+        client.cookies.set("codeoracle_session", token)
+    finally:
+        db.close()
+
     # Patch background worker SessionLocal to use test DB session factory
     with patch("app.ingestion.service.SessionLocal", TestingSessionLocal), patch("app.database.SessionLocal", TestingSessionLocal):
         yield
+    client.cookies.clear()
     app.dependency_overrides.clear()
     Base.metadata.drop_all(bind=engine)
     if os.path.exists("./test_ingestion.db"):
@@ -404,6 +424,7 @@ def test_28_project_metadata_endpoint():
     db = TestingSessionLocal()
     proj = Project(
         id="proj_123",
+        user_id="usr_test_default",
         display_name="TestProj",
         source_type="zip",
         source_url=None,
@@ -430,6 +451,7 @@ def test_29_file_inventory_endpoint():
     db = TestingSessionLocal()
     proj = Project(
         id="proj_456",
+        user_id="usr_test_default",
         display_name="TestProj2",
         source_type="github",
         detected_languages=["python"],
@@ -687,6 +709,11 @@ def test_39_full_legacy_retail_demo_is_bundled_and_reopenable(tmp_path, monkeypa
     assert payload["total_files"] == 22
     assert payload["detected_languages"] == ["javascript", "python"]
 
+    demos = client.get("/api/demo/projects")
+    assert demos.status_code == 200
+    assert any(project["project_id"] == payload["project_id"] for project in demos.json()["projects"])
+
+    client.cookies.clear()
     recent = client.get("/api/projects?limit=12")
     assert recent.status_code == 200
     assert any(project["project_id"] == payload["project_id"] for project in recent.json()["projects"])

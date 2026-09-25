@@ -24,6 +24,8 @@ import PageHeader from './common/PageHeader';
 import { formatBytes } from '../utils/formatters';
 
 import { normalizeGithubUrl, validateGithubUrl } from '../utils/github';
+import { useAuth } from '../context/AuthContext';
+import { navigateTo } from '../utils/navigation';
 
 const MAX_ZIP_BYTES = 200 * 1024 * 1024;
 
@@ -42,6 +44,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
   disabled = false,
   initialGithubUrl,
 }) => {
+  const { isAuthenticated } = useAuth();
   const [mode, setMode] = useState<IngestionMode>('github');
   const [githubUrl, setGithubUrl] = useState(initialGithubUrl || '');
   const [githubError, setGithubError] = useState<string | null>(null);
@@ -112,6 +115,10 @@ export const InputSection: React.FC<InputSectionProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (disabled) return;
+    if (!isAuthenticated) {
+      navigateTo('/signin?redirect=/workspace');
+      return;
+    }
     if (mode === 'github') {
       const normalized = normalizeGithubUrl(githubUrl);
       if (!validateUrl(normalized)) return;
@@ -129,7 +136,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
     <div className="w-full max-w-workspace text-left space-y-5">
       <PageHeader
         icon={Upload}
-        title="Codebase Ingestion"
+        title="Analyze a codebase"
         description="Upload a ZIP or connect a public GitHub repository. Analysis is read-only AST — Python (.py) and JavaScript (.js/.jsx)."
         badge={
           <Badge tone="indigo" size="sm">
@@ -194,6 +201,24 @@ export const InputSection: React.FC<InputSectionProps> = ({
 
         {/* Ingestion Body */}
         <div className="p-5 sm:p-6">
+          {!isAuthenticated && (
+            <div className="mb-5 p-3.5 rounded-2xl bg-[#EAE9FB]/70 border border-[#4C4FD6]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <Lock className="w-4 h-4 text-[#4C4FD6] shrink-0" />
+                <p className="text-xs text-[#181715]">
+                  <strong className="font-semibold">Sign in required for custom repos:</strong> GitHub and ZIP analysis require an authenticated session. Guests can explore all bundled demos below.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigateTo('/signin?redirect=/workspace')}
+                className="px-3.5 py-1.5 rounded-lg bg-[#4C4FD6] hover:bg-[#3E41B8] text-[#FFFDFC] text-xs font-semibold whitespace-nowrap shadow-xs transition-colors self-start sm:self-auto shrink-0 cursor-pointer"
+              >
+                Sign in to analyze
+              </button>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'github' ? (
               <div className="space-y-4">
@@ -295,22 +320,33 @@ export const InputSection: React.FC<InputSectionProps> = ({
                     <span>Non-destructive static AST clone. Never executes code.</span>
                   </div>
 
-                  <Button
-                    type="submit"
-                    variant="indigo"
-                    size="md"
-                    disabled={disabled || !githubUrl.trim()}
-                    icon={
-                      disabled ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <ArrowRight className="w-4 h-4" strokeWidth={1.75} />
-                      )
-                    }
-                    className="w-full sm:w-auto font-bold shadow-sm"
-                  >
-                    {disabled ? 'Ingesting…' : 'Analyze Repository'}
-                  </Button>
+                  {!isAuthenticated ? (
+                    <button
+                      type="button"
+                      onClick={() => navigateTo('/signin?redirect=/workspace')}
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#4C4FD6] hover:bg-[#3E41B8] text-[#FFFDFC] text-xs sm:text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Lock className="w-4 h-4" />
+                      <span>Sign in to analyze codebase</span>
+                    </button>
+                  ) : (
+                    <Button
+                      type="submit"
+                      variant="indigo"
+                      size="md"
+                      disabled={disabled || !githubUrl.trim()}
+                      icon={
+                        disabled ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <ArrowRight className="w-4 h-4" strokeWidth={1.75} />
+                        )
+                      }
+                      className="w-full sm:w-auto font-bold shadow-sm"
+                    >
+                      {disabled ? 'Ingesting…' : 'Analyze Repository'}
+                    </Button>
+                  )}
                 </div>
               </div>
             ) : (
@@ -470,22 +506,33 @@ export const InputSection: React.FC<InputSectionProps> = ({
                     <span>Secure ZIP extraction with zip-slip protections.</span>
                   </div>
 
-                  <Button
-                    type="submit"
-                    variant="indigo"
-                    size="md"
-                    disabled={disabled || !selectedFile}
-                    icon={
-                      disabled ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <ArrowRight className="w-4 h-4" strokeWidth={1.75} />
-                      )
-                    }
-                    className="w-full sm:w-auto font-bold shadow-sm"
-                  >
-                    {disabled ? 'Uploading…' : 'Analyze Archive'}
-                  </Button>
+                  {!isAuthenticated ? (
+                    <button
+                      type="button"
+                      onClick={() => navigateTo('/signin?redirect=/workspace')}
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#4C4FD6] hover:bg-[#3E41B8] text-[#FFFDFC] text-xs sm:text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Lock className="w-4 h-4" />
+                      <span>Sign in to analyze codebase</span>
+                    </button>
+                  ) : (
+                    <Button
+                      type="submit"
+                      variant="indigo"
+                      size="md"
+                      disabled={disabled || !selectedFile}
+                      icon={
+                        disabled ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <ArrowRight className="w-4 h-4" strokeWidth={1.75} />
+                        )
+                      }
+                      className="w-full sm:w-auto font-bold shadow-sm"
+                    >
+                      {disabled ? 'Uploading…' : 'Analyze Archive'}
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
@@ -505,63 +552,74 @@ export const InputSection: React.FC<InputSectionProps> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => onLoadDemo('python_legacy')}
-            className="flex flex-col items-start p-3.5 rounded-lg bg-surface hover:bg-tile border border-line hover:border-indigo/30 shadow-1 transition-all text-left group cursor-pointer disabled:opacity-50 card-interactive"
-          >
-            <div className="flex items-center justify-between w-full">
-              <span className="text-xs font-bold text-ink group-hover:text-indigo transition-colors">
-                Python Legacy
-              </span>
-              <Badge tone="indigo" size="sm">
-                Py 2/3
-              </Badge>
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+          {/* Primary Demo Choice */}
+          <div className="md:col-span-6 p-4 rounded-xl bg-surface border-2 border-indigo shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-ink flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-indigo" />
+                  Python Legacy (Primary Demo)
+                </span>
+                <Badge tone="indigo" size="sm">
+                  Recommended
+                </Badge>
+              </div>
+              <p className="text-xs text-ink-3 leading-relaxed mb-4">
+                Full AST modernization benchmark: characterization test synthesis, circular coupling detection, and Python 3.12 compatibility.
+              </p>
             </div>
-            <p className="text-[11px] text-ink-3 mt-1.5 leading-snug">
-              Modernizes old Python 2 constructs to Python 3.12 with characterization tests.
-            </p>
-          </button>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onLoadDemo('python_legacy')}
+              className="w-full py-2 px-3 rounded-lg bg-indigo hover:bg-indigo-hover text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-xs disabled:opacity-50"
+            >
+              <span>Load Python Demo</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
 
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => onLoadDemo('js_commonjs')}
-            className="flex flex-col items-start p-3.5 rounded-lg bg-surface hover:bg-tile border border-line hover:border-indigo/30 shadow-1 transition-all text-left group cursor-pointer disabled:opacity-50 card-interactive"
-          >
-            <div className="flex items-center justify-between w-full">
-              <span className="text-xs font-bold text-ink group-hover:text-indigo transition-colors">
-                JS CommonJS
-              </span>
-              <Badge tone="indigo" size="sm">
+          {/* Secondary Choices */}
+          <div className="md:col-span-6 flex flex-col gap-2.5">
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onLoadDemo('js_commonjs')}
+              className="flex items-center justify-between p-3 rounded-xl bg-surface hover:bg-tile border border-line hover:border-indigo/40 transition-all text-left group disabled:opacity-50 shadow-xs"
+            >
+              <div>
+                <span className="text-xs font-bold text-ink group-hover:text-indigo transition-colors block">
+                  JS CommonJS
+                </span>
+                <span className="text-[11px] text-ink-3">
+                  Node.js require() to ES Modules &amp; Vitest migration.
+                </span>
+              </div>
+              <Badge tone="neutral" size="sm">
                 Node.js
               </Badge>
-            </div>
-            <p className="text-[11px] text-ink-3 mt-1.5 leading-snug">
-              CommonJS require/export migration to modern ES Modules and Vitest.
-            </p>
-          </button>
+            </button>
 
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => onLoadDemo('legacy_retail')}
-            className="flex flex-col items-start p-3.5 rounded-lg bg-surface hover:bg-tile border border-line hover:border-indigo/30 shadow-1 transition-all text-left group cursor-pointer disabled:opacity-50 card-interactive"
-          >
-            <div className="flex items-center justify-between w-full">
-              <span className="text-xs font-bold text-ink group-hover:text-indigo transition-colors">
-                Full Retail Suite
-              </span>
-              <Badge tone="amber" size="sm">
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onLoadDemo('legacy_retail')}
+              className="flex items-center justify-between p-3 rounded-xl bg-surface hover:bg-tile border border-line hover:border-indigo/40 transition-all text-left group disabled:opacity-50 shadow-xs"
+            >
+              <div>
+                <span className="text-xs font-bold text-ink group-hover:text-indigo transition-colors block">
+                  Full Retail Suite
+                </span>
+                <span className="text-[11px] text-ink-3">
+                  Multi-tiered polyglot architecture with cross-language API contracts.
+                </span>
+              </div>
+              <Badge tone="neutral" size="sm">
                 Polyglot
               </Badge>
-            </div>
-            <p className="text-[11px] text-ink-3 mt-1.5 leading-snug">
-              Multi-tiered architecture with cross-language API contracts and test suite.
-            </p>
-          </button>
+            </button>
+          </div>
         </div>
       </div>
 

@@ -26,9 +26,6 @@ export const Header: React.FC<HeaderProps> = ({ onStatusChange }) => {
             <span className="font-display font-extrabold text-base sm:text-lg leading-tight tracking-[-0.01em] text-ink">
               CodeOracle
             </span>
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded-pill bg-track text-ink-2 border border-line font-sans text-[10px] sm:text-[11px] leading-none font-bold tracking-[0.05em] uppercase select-none">
-              PRO ENGINE
-            </span>
           </div>
         </div>
 

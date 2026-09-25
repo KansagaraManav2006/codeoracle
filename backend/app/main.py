@@ -8,8 +8,10 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router as api_router
+from app.api.auth_routes import auth_router
 from app.config import settings
 from app.database import Base, SessionLocal, engine, ensure_schema_compatibility, get_db_diagnostics
+import app.models.db  # noqa: F401
 from app.ingestion.service import recover_interrupted_jobs
 
 
@@ -89,7 +91,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register API Router first so /api/* routes take precedence
+# Register API and Auth Routers
+app.include_router(auth_router, prefix="/api")
 app.include_router(api_router, prefix="/api")
 
 # Determine static asset directory

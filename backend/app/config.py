@@ -1,5 +1,9 @@
+from pathlib import Path
 from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+ROOT_DIR = BACKEND_DIR.parent
 
 
 class Settings(BaseSettings):
@@ -45,12 +49,60 @@ class Settings(BaseSettings):
     def TEMP_DIR(self) -> str:
         return self.TEMP_STORAGE_DIR
 
+    # Session & Security Settings
+    SECRET_KEY: str = "codeoracle-dev-insecure-secret-key-change-in-production"
+    SESSION_COOKIE_NAME: str = "codeoracle_session"
+    SESSION_DURATION_DAYS: int = 30
+    SESSION_COOKIE_SECURE: Optional[bool] = None
+
+    @property
+    def is_cookie_secure(self) -> bool:
+        """
+        Determines whether session and OAuth state cookies must have the Secure flag.
+        If SESSION_COOKIE_SECURE is explicitly set, respect it.
+        Otherwise, default to True if ENVIRONMENT is 'production' or FRONTEND_URL uses https://,
+        and False for local development over http://.
+        """
+        if self.SESSION_COOKIE_SECURE is not None:
+            return bool(self.SESSION_COOKIE_SECURE)
+        env = (self.ENVIRONMENT or "").strip().lower()
+        frontend = (self.FRONTEND_URL or "").strip().lower()
+        return env == "production" or frontend.startswith("https://")
+
+    # Google OAuth (Server-side only)
+    GOOGLE_CLIENT_ID: Optional[str] = None
+    GOOGLE_CLIENT_SECRET: Optional[str] = None
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/auth/google/callback"
+    FRONTEND_URL: str = "http://localhost:5173"
+
+    @property
+    def is_google_auth_configured(self) -> bool:
+        """Verify whether real, non-placeholder Google OAuth credentials are provided."""
+        if not self.GOOGLE_CLIENT_ID or not self.GOOGLE_CLIENT_SECRET:
+            return False
+        cid = self.GOOGLE_CLIENT_ID.strip()
+        sec = self.GOOGLE_CLIENT_SECRET.strip()
+        if not cid or not sec:
+            return False
+        if cid.startswith("your_") or sec.startswith("your_") or "placeholder" in cid.lower() or "placeholder" in sec.lower():
+            return False
+        return True
+
     # LLM Settings (Optional for static analysis)
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_API_BASE: str = "https://api.openai.com/v1"
     LLM_MODEL: str = "gpt-4o-mini"
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # Multi-tier env loading: ROOT_DIR/.env is overridden by BACKEND_DIR/.env,
+    # and both are overridden by active process environment variables.
+    model_config = SettingsConfigDict(
+        env_file=(
+            str(ROOT_DIR / ".env"),
+            str(BACKEND_DIR / ".env"),
+        ),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
 
 settings = Settings()
