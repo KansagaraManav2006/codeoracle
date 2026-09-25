@@ -1,4 +1,5 @@
 import React from 'react';
+import { Github } from 'lucide-react';
 import { navigateTo } from '../../utils/navigation';
 
 export const LandingFooter: React.FC = () => {
@@ -30,22 +31,28 @@ export const LandingFooter: React.FC = () => {
         {/* Navigation columns */}
         <div className="flex flex-wrap items-center gap-x-8 gap-y-3 font-medium">
           <button
-            onClick={() => scrollTo('features')}
+            onClick={() => scrollTo('product-story')}
             className="hover:text-[#FFFDFC] transition-colors focus:outline-none"
           >
-            Features
+            Story
           </button>
           <button
-            onClick={() => scrollTo('how-it-works')}
+            onClick={() => scrollTo('risk-section')}
             className="hover:text-[#FFFDFC] transition-colors focus:outline-none"
           >
-            How it works
+            Risk Hotspots
           </button>
           <button
-            onClick={() => scrollTo('preview')}
+            onClick={() => scrollTo('protection-section')}
             className="hover:text-[#FFFDFC] transition-colors focus:outline-none"
           >
-            Preview
+            Safety Tests
+          </button>
+          <button
+            onClick={() => scrollTo('modernization-section')}
+            className="hover:text-[#FFFDFC] transition-colors focus:outline-none"
+          >
+            Modernization
           </button>
           <button
             onClick={() => navigateTo('/signin')}
@@ -61,10 +68,19 @@ export const LandingFooter: React.FC = () => {
           </button>
           <button
             onClick={() => navigateTo('/workspace')}
-            className="text-[#4C4FD6] hover:text-[#3E41B8] font-semibold transition-colors focus:outline-none"
+            className="text-[#4C4FD6] hover:text-[#7A7DF7] font-semibold transition-colors focus:outline-none"
           >
             Workspace
           </button>
+          <a
+            href="https://github.com/KansagaraManav2006/codeoracle"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-[#FFFDFC] transition-colors flex items-center gap-1.5 focus:outline-none"
+          >
+            <Github className="w-3.5 h-3.5" />
+            <span>GitHub</span>
+          </a>
         </div>
 
         <div className="text-xs text-[#5C554D] font-mono">
