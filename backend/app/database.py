@@ -139,9 +139,34 @@ def ensure_schema_compatibility() -> None:
             row[1]
             for row in connection.execute(text("PRAGMA table_info(projects)"))
         }
-        if columns and "is_trusted" not in columns:
+        if columns:
+            if "is_trusted" not in columns:
+                connection.execute(
+                    text("ALTER TABLE projects ADD COLUMN is_trusted INTEGER NOT NULL DEFAULT 0")
+                )
+            if "user_id" not in columns:
+                connection.execute(
+                    text("ALTER TABLE projects ADD COLUMN user_id VARCHAR(64) DEFAULT NULL")
+                )
+            if "is_public_demo" not in columns:
+                connection.execute(
+                    text("ALTER TABLE projects ADD COLUMN is_public_demo INTEGER NOT NULL DEFAULT 0")
+                )
+        job_cols = {
+            row[1]
+            for row in connection.execute(text("PRAGMA table_info(jobs)"))
+        }
+        if job_cols and "user_id" not in job_cols:
             connection.execute(
-                text("ALTER TABLE projects ADD COLUMN is_trusted INTEGER NOT NULL DEFAULT 0")
+                text("ALTER TABLE jobs ADD COLUMN user_id VARCHAR(64) DEFAULT NULL")
+            )
+        user_cols = {
+            row[1]
+            for row in connection.execute(text("PRAGMA table_info(users)"))
+        }
+        if user_cols and "google_id" not in user_cols:
+            connection.execute(
+                text("ALTER TABLE users ADD COLUMN google_id VARCHAR(128) DEFAULT NULL")
             )
 
 

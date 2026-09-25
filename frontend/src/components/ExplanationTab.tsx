@@ -157,6 +157,8 @@ export const ExplanationTab: React.FC<ExplanationTabProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   // Filters & State
+  const [activeSection, setActiveSection] = useState<'modules' | 'layers' | 'hotspots' | 'diagnostics' | 'playbook'>('modules');
+  const [showScoreDecomposition, setShowScoreDecomposition] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [languageFilter, setLanguageFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -1011,21 +1013,21 @@ ${
       {/* 2. RECOMMENDED STARTING POINT & SCORE FACTOR DECOMPOSITION                */}
       {/* ========================================================================= */}
       {recommendedTarget && (
-        <section className="bg-surface border-2 border-indigo/40 rounded-xl p-5 sm:p-6 shadow-1 relative overflow-hidden">
+        <section className="bg-surface border-2 border-indigo/40 rounded-xl p-4 sm:p-5 shadow-1 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-indigo/5 rounded-full blur-2xl pointer-events-none" />
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-line">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-line">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
+              <div className="w-9 h-9 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
                 <Compass className="w-5 h-5" strokeWidth={1.75} />
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-pill bg-indigo-surface text-indigo border border-indigo/20 uppercase tracking-wide">
-                    Question 4 · Recommended Starting Point
+                    Recommended Starting Point
                   </span>
                   <StatusTag status="verified" label="DETERMINISTIC RANKING" />
                 </div>
-                <h3 className="font-display font-bold text-base sm:text-lg text-ink mt-0.5">
+                <h3 className="font-display font-bold text-base text-ink mt-0.5">
                   What Should I Inspect First?
                 </h3>
               </div>
@@ -1043,7 +1045,7 @@ ${
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+          <div className="mt-3.5 grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
             <div className="lg:col-span-2 space-y-3">
               <p className="font-sans text-sm text-ink-2 leading-relaxed">
                 <strong className="text-ink font-semibold">Recommended Target:</strong>{' '}
@@ -1057,59 +1059,72 @@ ${
                 .{' '}{recommendedTarget.reason}
               </p>
 
-              {/* Score Decomposition Box */}
-              <div className="bg-panel border border-line rounded-lg p-4 space-y-2">
-                <div className="flex items-center justify-between pb-1.5 border-b border-line/60">
-                  <span className="font-mono text-[11px] font-bold text-ink uppercase tracking-wider">
-                    WHY THIS RANKED #1 (HOTSPOT SCORE DECOMPOSITION)
+              {/* Collapsible Score Factor Decomposition */}
+              <div className="bg-panel border border-line rounded-lg p-3 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setShowScoreDecomposition((prev) => !prev)}
+                  className="w-full flex items-center justify-between text-left group"
+                >
+                  <span className="font-mono text-[11px] font-bold text-ink uppercase tracking-wider group-hover:text-indigo transition-colors flex items-center gap-1.5">
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                        showScoreDecomposition ? 'rotate-180' : ''
+                      }`}
+                    />
+                    Score Breakdown (Why this ranked #1)
                   </span>
                   <span className="font-mono text-xs font-black text-red">
                     HOTSPOT SCORE: {recommendedTarget.hotspot_score} / 100
                   </span>
-                </div>
+                </button>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
-                  <div className="bg-surface rounded p-2 border border-line">
-                    <span className="text-[10px] text-ink-3 uppercase block">Complexity factor</span>
-                    <span className="font-bold text-ink text-sm">+{recommendedTarget.factors.complexity}</span>
-                  </div>
-                  <div className="bg-surface rounded p-2 border border-line">
-                    <span className="text-[10px] text-ink-3 uppercase block">Warnings factor</span>
-                    <span className="font-bold text-amber-strong text-sm">+{recommendedTarget.factors.warnings}</span>
-                  </div>
-                  <div className="bg-surface rounded p-2 border border-line">
-                    <span className="text-[10px] text-ink-3 uppercase block">Fan-In factor</span>
-                    <span className="font-bold text-indigo text-sm">+{recommendedTarget.factors.fan_in}</span>
-                  </div>
-                  <div className="bg-surface rounded p-2 border border-line">
-                    <span className="text-[10px] text-ink-3 uppercase block">Blast Radius</span>
-                    <span className="font-bold text-teal-strong text-sm">+{recommendedTarget.factors.blast_radius}</span>
-                  </div>
-                </div>
+                {showScoreDecomposition && (
+                  <div className="space-y-2 pt-2 border-t border-line/60 animate-[fade-down_150ms_ease-out]">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+                      <div className="bg-surface rounded p-2 border border-line">
+                        <span className="text-[10px] text-ink-3 uppercase block">Complexity factor</span>
+                        <span className="font-bold text-ink text-sm">+{recommendedTarget.factors.complexity}</span>
+                      </div>
+                      <div className="bg-surface rounded p-2 border border-line">
+                        <span className="text-[10px] text-ink-3 uppercase block">Warnings factor</span>
+                        <span className="font-bold text-amber-strong text-sm">+{recommendedTarget.factors.warnings}</span>
+                      </div>
+                      <div className="bg-surface rounded p-2 border border-line">
+                        <span className="text-[10px] text-ink-3 uppercase block">Fan-In factor</span>
+                        <span className="font-bold text-indigo text-sm">+{recommendedTarget.factors.fan_in}</span>
+                      </div>
+                      <div className="bg-surface rounded p-2 border border-line">
+                        <span className="text-[10px] text-ink-3 uppercase block">Blast Radius</span>
+                        <span className="font-bold text-teal-strong text-sm">+{recommendedTarget.factors.blast_radius}</span>
+                      </div>
+                    </div>
 
-                {/* Highest Complexity Distinction Callout */}
-                {recommendedTarget.highest_complexity_file && (
-                  <div className="mt-2 pt-2 border-t border-line/60 flex items-center justify-between gap-2 text-[11px]">
-                    <span className="text-ink-3">
-                      <strong>Highest complexity file:</strong>{' '}
-                      <button
-                        type="button"
-                        onClick={() => onSelectFile?.(recommendedTarget.highest_complexity_file)}
-                        className="font-mono text-indigo hover:underline font-semibold"
-                      >
-                        {recommendedTarget.highest_complexity_file}
-                      </button>
-                    </span>
-                    <span className="font-mono font-bold px-1.5 py-0.5 rounded bg-surface border border-line text-ink-2">
-                      CC {recommendedTarget.highest_complexity_score}
-                    </span>
+                    {/* Highest Complexity Distinction Callout */}
+                    {recommendedTarget.highest_complexity_file && (
+                      <div className="pt-2 border-t border-line/60 flex items-center justify-between gap-2 text-[11px]">
+                        <span className="text-ink-3">
+                          <strong>Highest complexity file:</strong>{' '}
+                          <button
+                            type="button"
+                            onClick={() => onSelectFile?.(recommendedTarget.highest_complexity_file)}
+                            className="font-mono text-indigo hover:underline font-semibold"
+                          >
+                            {recommendedTarget.highest_complexity_file}
+                          </button>
+                        </span>
+                        <span className="font-mono font-bold px-1.5 py-0.5 rounded bg-surface border border-line text-ink-2">
+                          CC {recommendedTarget.highest_complexity_score}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Direct 5-Action Command Grid */}
-            <div className="flex flex-col gap-2">
+            {/* Direct Action Command Grid */}
+            <div className="flex flex-col gap-1.5">
               <Button
                 variant="indigo"
                 size="sm"
@@ -1161,10 +1176,97 @@ ${
       )}
 
       {/* ========================================================================= */}
+      {/* SUB-NAVIGATION BAR: PROGRESSIVE DISCLOSURE VIEWS                          */}
+      {/* ========================================================================= */}
+      <nav aria-label="Explanation views" className="flex items-center gap-2 border-b border-line pb-2.5 overflow-x-auto custom-scrollbar pt-2">
+        <button
+          type="button"
+          onClick={() => setActiveSection('modules')}
+          className={`px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+            activeSection === 'modules'
+              ? 'bg-indigo text-white shadow-xs'
+              : 'bg-surface hover:bg-tile text-ink-2 border border-line'
+          }`}
+        >
+          <BookOpen className="w-3.5 h-3.5" />
+          <span>Modules &amp; Files</span>
+          <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeSection === 'modules' ? 'bg-white/20 text-white' : 'bg-tile text-ink-3'}`}>
+            {analysis.modules.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSection('layers')}
+          className={`px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+            activeSection === 'layers'
+              ? 'bg-indigo text-white shadow-xs'
+              : 'bg-surface hover:bg-tile text-ink-2 border border-line'
+          }`}
+        >
+          <FolderGit2 className="w-3.5 h-3.5" />
+          <span>Structural Layers</span>
+          <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeSection === 'layers' ? 'bg-white/20 text-white' : 'bg-tile text-ink-3'}`}>
+            {architectureLayers.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSection('hotspots')}
+          className={`px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+            activeSection === 'hotspots'
+              ? 'bg-indigo text-white shadow-xs'
+              : 'bg-surface hover:bg-tile text-ink-2 border border-line'
+          }`}
+        >
+          <Flame className="w-3.5 h-3.5" />
+          <span>Risk Hotspots &amp; Funnel</span>
+          <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeSection === 'hotspots' ? 'bg-white/20 text-white' : 'bg-tile text-ink-3'}`}>
+            {topRiskModules.length}
+          </span>
+        </button>
+
+        {canonicalGraph.unresolved_imports > 0 && (
+          <button
+            type="button"
+            onClick={() => setActiveSection('diagnostics')}
+            className={`px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+              activeSection === 'diagnostics'
+                ? 'bg-indigo text-white shadow-xs'
+                : 'bg-amber-surface/70 hover:bg-amber-surface text-amber-strong border border-amber/30'
+            }`}
+          >
+            <GitBranch className="w-3.5 h-3.5" />
+            <span>Import Diagnostics</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeSection === 'diagnostics' ? 'bg-white/20 text-white' : 'bg-surface text-amber-strong border border-amber/20'}`}>
+              {canonicalGraph.unresolved_imports}
+            </span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setActiveSection('playbook')}
+          className={`px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+            activeSection === 'playbook'
+              ? 'bg-indigo text-white shadow-xs'
+              : 'bg-surface hover:bg-tile text-ink-2 border border-line'
+          }`}
+        >
+          <Activity className="w-3.5 h-3.5" />
+          <span>Modernization Playbook</span>
+          <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeSection === 'playbook' ? 'bg-white/20 text-white' : 'bg-tile text-ink-3'}`}>
+            5 Steps
+          </span>
+        </button>
+      </nav>
+
+      {/* ========================================================================= */}
       {/* 3. MAJOR LAYERS BREAKDOWN (File Share % vs LOC Share %)                   */}
       {/* ========================================================================= */}
-      {architectureLayers.length > 0 && (
-        <Card variant="primary" padding="lg" className="space-y-4">
+      {activeSection === 'layers' && architectureLayers.length > 0 && (
+        <Card variant="primary" padding="lg" className="space-y-4 animate-[fade-up_200ms_ease-out_both]">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-line">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
@@ -1180,14 +1282,24 @@ ${
               </div>
             </div>
             {selectedLayer && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedLayer(null)}
-                className="text-xs"
-              >
-                Clear Layer Filter ({selectedLayer})
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveSection('modules')}
+                  className="text-xs"
+                >
+                  View Filtered Modules ({selectedLayer}) →
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedLayer(null)}
+                  className="text-xs"
+                >
+                  Clear Filter
+                </Button>
+              </div>
             )}
           </div>
 
@@ -1197,7 +1309,10 @@ ${
               return (
                 <div
                   key={layer.path}
-                  onClick={() => setSelectedLayer(isSelected ? null : layer.path)}
+                  onClick={() => {
+                    const next = isSelected ? null : layer.path;
+                    setSelectedLayer(next);
+                  }}
                   className={`p-4 rounded-lg border cursor-pointer transition-all ${
                     isSelected
                       ? 'border-indigo bg-indigo-surface ring-2 ring-indigo ring-offset-1'
@@ -1211,7 +1326,7 @@ ${
                       setSelectedLayer(isSelected ? null : layer.path);
                     }
                   }}
-                  title={`Click to filter modules to ${layer.path}`}
+                  title={`Click to select ${layer.path}`}
                 >
                   <div className="flex items-center justify-between gap-1 mb-1.5">
                     <span className="font-mono text-xs font-bold text-ink truncate" title={layer.path}>
@@ -1256,14 +1371,29 @@ ${
               );
             })}
           </div>
+
+          {selectedLayer && (
+            <div className="pt-3 border-t border-line flex items-center justify-between">
+              <span className="text-xs text-ink-2">
+                Active layer filter: <strong className="font-mono text-indigo">{selectedLayer}</strong>
+              </span>
+              <Button
+                variant="indigo"
+                size="sm"
+                onClick={() => setActiveSection('modules')}
+              >
+                Inspect Matching Modules in Explorer →
+              </Button>
+            </div>
+          )}
         </Card>
       )}
 
       {/* ========================================================================= */}
       {/* 4. UNRESOLVED DEPENDENCY DIAGNOSTICS                                      */}
       {/* ========================================================================= */}
-      {architecture?.unresolved_diagnostics && (
-        <Card variant="primary" padding="lg" className="space-y-4">
+      {activeSection === 'diagnostics' && architecture?.unresolved_diagnostics && (
+        <Card variant="primary" padding="lg" className="space-y-4 animate-[fade-up_200ms_ease-out_both]">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-line">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
@@ -1332,270 +1462,276 @@ ${
       )}
 
       {/* ========================================================================= */}
-      {/* 5. RISK HOTSPOTS & MODERNIZATION FUNNEL (Clear Funnel Stages)              */}
+      {/* 5. RISK HOTSPOTS & MODERNIZATION FUNNEL                                   */}
       {/* ========================================================================= */}
-      <section className="space-y-4">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* Top-Risk Modules Leaderboard */}
-          <Card variant="primary" padding="lg" className="lg:col-span-2 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-line">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
-                  <Flame className="w-5 h-5" strokeWidth={1.75} />
-                </div>
-                <div>
-                  <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-pill bg-indigo-surface text-indigo border border-indigo/20 uppercase tracking-wide inline-block mb-0.5">
-                    Question 3 · Risk Hotspots
-                  </span>
-                  <h3 className="font-display font-bold text-base sm:text-lg text-ink">
-                    Top Modernization Targets
-                  </h3>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleOpenHotspots()}
-                icon={<Flame className="w-3.5 h-3.5" />}
-              >
-                View Hotspots Tab →
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-              {topRiskModules.map(({ mod, primaryRisk, inCycle }, index) => (
-                <div
-                  key={mod.module_id}
-                  className="bg-tile border border-line rounded-lg p-4 space-y-3 flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-1.5">
-                      <button
-                        type="button"
-                        onClick={() => onSelectFile?.(mod.relative_path)}
-                        className="font-mono text-xs font-bold text-indigo hover:text-indigo-press hover:underline truncate text-left cursor-pointer"
-                        title={`Click to focus ${mod.relative_path}`}
-                      >
-                        #{index + 1} {truncateMiddle(mod.relative_path, 22)}
-                      </button>
-                      <span
-                        className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border uppercase ${
-                          inCycle
-                            ? 'bg-red-surface text-red-text border-red-line'
-                            : mod.complexity.rating === 'critical'
-                            ? 'bg-red-surface text-red-text border-red-line'
-                            : 'bg-amber-surface text-amber-strong border-amber/30'
-                        }`}
-                      >
-                        {inCycle ? 'CYCLE' : `COMPLEXITY: ${mod.complexity.rating.toUpperCase()}`}
-                      </span>
-                    </div>
-                    <div className="text-xs text-ink-3">
-                      <span className="font-bold text-ink-2">{primaryRisk}</span> · {formatNumber(mod.line_count)} lines
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-line">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleAnalyzeImpact(mod.relative_path)}
-                      icon={<Target className="w-3 h-3" />}
-                      className="text-xs !py-1"
-                    >
-                      Impact
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleInspectInGraph(mod.relative_path)}
-                      icon={<Network className="w-3 h-3" />}
-                      className="text-xs !py-1"
-                    >
-                      Graph
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleReviewModernization(mod.relative_path)}
-                      icon={<Wand2 className="w-3 h-3" />}
-                      className="text-xs !py-1"
-                    >
-                      Modernize
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          {/* Modernization Funnel Stages */}
-          <Card variant="secondary" padding="lg" className="flex flex-col justify-between space-y-4">
-            <div>
+      {activeSection === 'hotspots' && (
+        <section className="space-y-4 animate-[fade-up_200ms_ease-out_both]">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* Top-Risk Modules Leaderboard */}
+            <Card variant="primary" padding="lg" className="lg:col-span-2 space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-line">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-indigo" />
-                  <h4 className="font-display font-bold text-sm text-ink">
-                    Modernization Funnel &amp; Evidence
-                  </h4>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
+                    <Flame className="w-5 h-5" strokeWidth={1.75} />
+                  </div>
+                  <div>
+                    <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-pill bg-indigo-surface text-indigo border border-indigo/20 uppercase tracking-wide inline-block mb-0.5">
+                      Question 3 · Risk Hotspots
+                    </span>
+                    <h3 className="font-display font-bold text-base sm:text-lg text-ink">
+                      Top Modernization Targets
+                    </h3>
+                  </div>
                 </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-pill bg-indigo-surface text-indigo font-bold border border-indigo/20">
-                  STATIC AST
-                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleOpenHotspots()}
+                  icon={<Flame className="w-3.5 h-3.5" />}
+                >
+                  View Hotspots Tab →
+                </Button>
               </div>
 
-              {/* Clearly Labeled Funnel Stages */}
-              <div className="mt-3 space-y-2 text-xs">
-                <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
-                  <span className="font-mono font-bold text-ink-2 text-[11px]">STATIC FINDINGS</span>
-                  <span className="font-mono font-bold text-ink">{findingFunnel.total_findings}</span>
-                </div>
-                <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
-                  <span className="font-mono font-bold text-indigo text-[11px]">MODERNIZATION CANDIDATES</span>
-                  <span className="font-mono font-bold text-indigo">{findingFunnel.modernization_candidates}</span>
-                </div>
-                <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
-                  <span className="font-mono font-bold text-teal-strong text-[11px]">AUTOFIX ELIGIBLE</span>
-                  <span className="font-mono font-bold text-teal-strong">{findingFunnel.autofixable_findings}</span>
-                </div>
-                <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
-                  <span className="font-mono font-bold text-amber-strong text-[11px]">GENERATED DIFFS</span>
-                  <span className="font-mono font-bold text-amber-strong">{findingFunnel.generated_diffs}</span>
-                </div>
-                <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
-                  <span className="font-mono font-bold text-teal-strong text-[11px]">RUNTIME VERIFIED</span>
-                  <span className="font-mono font-bold text-teal-strong">{findingFunnel.verified_changes}</span>
-                </div>
-              </div>
-            </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                {topRiskModules.map(({ mod, primaryRisk, inCycle }, index) => (
+                  <div
+                    key={mod.module_id}
+                    className="bg-tile border border-line rounded-lg p-4 space-y-3 flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <button
+                          type="button"
+                          onClick={() => onSelectFile?.(mod.relative_path)}
+                          className="font-mono text-xs font-bold text-indigo hover:text-indigo-press hover:underline truncate text-left cursor-pointer"
+                          title={`Click to focus ${mod.relative_path}`}
+                        >
+                          #{index + 1} {truncateMiddle(mod.relative_path, 22)}
+                        </button>
+                        <span
+                          className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border uppercase ${
+                            inCycle
+                              ? 'bg-red-surface text-red-text border-red-line'
+                              : mod.complexity.rating === 'critical'
+                              ? 'bg-red-surface text-red-text border-red-line'
+                              : 'bg-amber-surface text-amber-strong border-amber/30'
+                          }`}
+                        >
+                          {inCycle ? 'CYCLE' : `COMPLEXITY: ${mod.complexity.rating.toUpperCase()}`}
+                        </span>
+                      </div>
+                      <div className="text-xs text-ink-3">
+                        <span className="font-bold text-ink-2">{primaryRisk}</span> · {formatNumber(mod.line_count)} lines
+                      </div>
+                    </div>
 
-            <div className="bg-panel border border-line rounded-lg p-3 text-[11px] text-ink-3 space-y-1 mt-3">
-              <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-teal-strong shrink-0" />
-                <span className="text-ink font-semibold">Confidence: Deterministic AST &amp; Callgraph</span>
+                    <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-line">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAnalyzeImpact(mod.relative_path)}
+                        icon={<Target className="w-3 h-3" />}
+                        className="text-xs !py-1"
+                      >
+                        Impact
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleInspectInGraph(mod.relative_path)}
+                        icon={<Network className="w-3 h-3" />}
+                        className="text-xs !py-1"
+                      >
+                        Graph
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleReviewModernization(mod.relative_path)}
+                        icon={<Wand2 className="w-3 h-3" />}
+                        className="text-xs !py-1"
+                      >
+                        Modernize
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <p className="text-[11px] leading-tight text-ink-3 pl-5">
-                {findingFunnel.verification_label || 'Static analysis only: proposals require characterization tests.'}
-              </p>
-            </div>
-          </Card>
-        </div>
-      </section>
+            </Card>
+
+            {/* Modernization Funnel Stages */}
+            <Card variant="secondary" padding="lg" className="flex flex-col justify-between space-y-4">
+              <div>
+                <div className="flex items-center justify-between pb-3 border-b border-line">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-indigo" />
+                    <h4 className="font-display font-bold text-sm text-ink">
+                      Modernization Funnel &amp; Evidence
+                    </h4>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-pill bg-indigo-surface text-indigo font-bold border border-indigo/20">
+                    STATIC AST
+                  </span>
+                </div>
+
+                {/* Clearly Labeled Funnel Stages */}
+                <div className="mt-3 space-y-2 text-xs">
+                  <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
+                    <span className="font-mono font-bold text-ink-2 text-[11px]">STATIC FINDINGS</span>
+                    <span className="font-mono font-bold text-ink">{findingFunnel.total_findings}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
+                    <span className="font-mono font-bold text-indigo text-[11px]">MODERNIZATION CANDIDATES</span>
+                    <span className="font-mono font-bold text-indigo">{findingFunnel.modernization_candidates}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
+                    <span className="font-mono font-bold text-teal-strong text-[11px]">AUTOFIX ELIGIBLE</span>
+                    <span className="font-mono font-bold text-teal-strong">{findingFunnel.autofixable_findings}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
+                    <span className="font-mono font-bold text-amber-strong text-[11px]">GENERATED DIFFS</span>
+                    <span className="font-mono font-bold text-amber-strong">{findingFunnel.generated_diffs}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 rounded bg-tile border border-line">
+                    <span className="font-mono font-bold text-teal-strong text-[11px]">RUNTIME VERIFIED</span>
+                    <span className="font-mono font-bold text-teal-strong">{findingFunnel.verified_changes}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-panel border border-line rounded-lg p-3 text-[11px] text-ink-3 space-y-1 mt-3">
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-teal-strong shrink-0" />
+                  <span className="text-ink font-semibold">Confidence: Deterministic AST &amp; Callgraph</span>
+                </div>
+                <p className="text-[11px] leading-tight text-ink-3 pl-5">
+                  {findingFunnel.verification_label || 'Static analysis only: proposals require characterization tests.'}
+                </p>
+              </div>
+            </Card>
+          </div>
+        </section>
+      )}
 
       {/* ========================================================================= */}
       {/* 6. GUIDED WORKFLOW ROADMAP                                                */}
       {/* ========================================================================= */}
-      <Card variant="primary" padding="lg" className="space-y-4">
-        <div className="flex items-center gap-3 pb-3 border-b border-line">
-          <div className="w-10 h-10 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
-            <Activity className="w-5 h-5" strokeWidth={1.75} />
-          </div>
-          <div>
-            <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-pill bg-indigo-surface text-indigo border border-indigo/20 uppercase tracking-wide inline-block mb-0.5">
-              Question 5 · Execution Roadmap
-            </span>
-            <h3 className="font-display font-bold text-base sm:text-lg text-ink">
-              What Should I Do Next? Guided Modernization Playbook
-            </h3>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-          <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2 hover:border-line-strong transition-colors">
-            <div>
-              <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 1 · PIN</span>
-              <h4 className="font-bold text-xs text-ink">Generate Tests</h4>
-              <p className="text-[11px] text-ink-3 leading-snug mt-1">
-                Pin behavior with deterministic characterization tests before modernizing code.
-              </p>
+      {activeSection === 'playbook' && (
+        <Card variant="primary" padding="lg" className="space-y-4 animate-[fade-up_200ms_ease-out_both]">
+          <div className="flex items-center gap-3 pb-3 border-b border-line">
+            <div className="w-10 h-10 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
+              <Activity className="w-5 h-5" strokeWidth={1.75} />
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleGenerateTests()}
-              className="w-full text-xs !py-1 font-semibold"
-            >
-              Generate Tests →
-            </Button>
+            <div>
+              <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-pill bg-indigo-surface text-indigo border border-indigo/20 uppercase tracking-wide inline-block mb-0.5">
+                Question 5 · Execution Roadmap
+              </span>
+              <h3 className="font-display font-bold text-base sm:text-lg text-ink">
+                What Should I Do Next? Guided Modernization Playbook
+              </h3>
+            </div>
           </div>
 
-          <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2 hover:border-line-strong transition-colors">
-            <div>
-              <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 2 · MAP</span>
-              <h4 className="font-bold text-xs text-ink">Inspect Coupling</h4>
-              <p className="text-[11px] text-ink-3 leading-snug mt-1">
-                Review internal &amp; external imports, entry points, and isolate dependency cycles.
-              </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2 hover:border-line-strong transition-colors">
+              <div>
+                <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 1 · PIN</span>
+                <h4 className="font-bold text-xs text-ink">Generate Tests</h4>
+                <p className="text-[11px] text-ink-3 leading-snug mt-1">
+                  Pin behavior with deterministic characterization tests before modernizing code.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleGenerateTests()}
+                className="w-full text-xs !py-1 font-semibold"
+              >
+                Generate Tests →
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleInspectInGraph()}
-              className="w-full text-xs !py-1 font-semibold"
-            >
-              Dependency Map →
-            </Button>
-          </div>
 
-          <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2 hover:border-line-strong transition-colors">
-            <div>
-              <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 3 · SIMULATE</span>
-              <h4 className="font-bold text-xs text-ink">Analyze Impact</h4>
-              <p className="text-[11px] text-ink-3 leading-snug mt-1">
-                Simulate what breaks if you edit high-risk modules and check downstream ripple.
-              </p>
+            <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2 hover:border-line-strong transition-colors">
+              <div>
+                <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 2 · MAP</span>
+                <h4 className="font-bold text-xs text-ink">Inspect Coupling</h4>
+                <p className="text-[11px] text-ink-3 leading-snug mt-1">
+                  Review internal &amp; external imports, entry points, and isolate dependency cycles.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleInspectInGraph()}
+                className="w-full text-xs !py-1 font-semibold"
+              >
+                Dependency Map →
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleAnalyzeImpact()}
-              className="w-full text-xs !py-1 font-semibold"
-            >
-              Analyze Impact →
-            </Button>
-          </div>
 
-          <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2 hover:border-line-strong transition-colors">
-            <div>
-              <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 4 · PREVIEW</span>
-              <h4 className="font-bold text-xs text-ink">Modernize Code</h4>
-              <p className="text-[11px] text-ink-3 leading-snug mt-1">
-                Preview syntax-validated Python 2 and modern JS diffs in disposable sandbox.
-              </p>
+            <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2 hover:border-line-strong transition-colors">
+              <div>
+                <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 3 · SIMULATE</span>
+                <h4 className="font-bold text-xs text-ink">Analyze Impact</h4>
+                <p className="text-[11px] text-ink-3 leading-snug mt-1">
+                  Simulate what breaks if you edit high-risk modules and check downstream ripple.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleAnalyzeImpact()}
+                className="w-full text-xs !py-1 font-semibold"
+              >
+                Analyze Impact →
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleReviewModernization()}
-              className="w-full text-xs !py-1 font-semibold"
-            >
-              Review Diff →
-            </Button>
-          </div>
 
-          <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2 hover:border-line-strong transition-colors">
-            <div>
-              <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 5 · MIGRATE</span>
-              <h4 className="font-bold text-xs text-ink">Plan Waves</h4>
-              <p className="text-[11px] text-ink-3 leading-snug mt-1">
-                Execute phased migration waves and track readiness checklist completion.
-              </p>
+            <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2 hover:border-line-strong transition-colors">
+              <div>
+                <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 4 · PREVIEW</span>
+                <h4 className="font-bold text-xs text-ink">Modernize Code</h4>
+                <p className="text-[11px] text-ink-3 leading-snug mt-1">
+                  Preview syntax-validated Python 2 and modern JS diffs in disposable sandbox.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleReviewModernization()}
+                className="w-full text-xs !py-1 font-semibold"
+              >
+                Review Diff →
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onNavigateTab?.('migration')}
-              className="w-full text-xs !py-1 font-semibold"
-            >
-              Impact &amp; Plan →
-            </Button>
+
+            <div className="bg-surface border border-line rounded-lg p-3.5 flex flex-col justify-between space-y-2 hover:border-line-strong transition-colors">
+              <div>
+                <span className="text-[10px] font-mono font-bold text-indigo block mb-1">STEP 5 · MIGRATE</span>
+                <h4 className="font-bold text-xs text-ink">Plan Waves</h4>
+                <p className="text-[11px] text-ink-3 leading-snug mt-1">
+                  Execute phased migration waves and track readiness checklist completion.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onNavigateTab?.('migration')}
+                className="w-full text-xs !py-1 font-semibold"
+              >
+                Impact &amp; Plan →
+              </Button>
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      )}
 
       {/* ========================================================================= */}
-      {/* 7. MODULE EXPLORER & ADVANCED SEARCH FILTERS                              */}
+      {/* 7. MODULE EXPLORER & ADVANCED SEARCH FILTERS (Default View)               */}
       {/* ========================================================================= */}
+      {activeSection === 'modules' && (
+      <div className="space-y-3 animate-[fade-up_200ms_ease-out_both]">
       <Card variant="primary" padding="md" className="space-y-3">
         {/* Search Bar + Quick Syntax Hints */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
@@ -1981,6 +2117,8 @@ ${
           </div>
         )}
       </div>
+      </div>
+      )}
     </div>
   );
 };

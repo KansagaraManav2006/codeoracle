@@ -7,16 +7,20 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "lint": "tsc --noEmit",
+    "test": "node --test tests/neural-map.test.mjs tests/job-poller.test.mjs",
     "test:neural-map": "node --test tests/neural-map.test.mjs",
+    "test:job-poller": "node --test tests/job-poller.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@types/three": "^0.186.0",
     "@xyflow/react": "^12.0.0",
     "d3-force": "^3.0.0",
     "d3-quadtree": "^3.0.1",
     "lucide-react": "^0.344.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@types/d3-force": "^3.0.10",

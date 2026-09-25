@@ -339,16 +339,29 @@ export const AnalysisStepper: React.FC<AnalysisStepperProps> = ({
       </div>
 
       {/* Footer / Cancel action */}
-      <div className="mt-8 pt-4 border-t border-line flex items-center justify-between">
-        <span className="text-xs text-ink-3 font-mono">
-          {progressPercentage !== undefined && progressPercentage > 0
-            ? `${progressPercentage}% complete`
-            : 'Static analysis in progress…'}
-        </span>
+      <div className="mt-8 pt-4 border-t border-line flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="text-left">
+          <span className="text-xs text-ink-3 font-mono block">
+            {progressPercentage !== undefined && progressPercentage > 0
+              ? `${progressPercentage}% complete`
+              : 'Static analysis in progress…'}
+          </span>
+          {!isFailed && onCancel && (
+            <span className="text-[10px] text-ink-4 font-mono">
+              Stopping wait will not terminate running backend workers.
+            </span>
+          )}
+        </div>
 
         {onCancel && (
-          <Button variant="ghost" size="sm" onClick={onCancel}>
-            Cancel
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onCancel}
+            title={isFailed ? 'Dismiss error modal' : 'Stop waiting for analysis to finish'}
+            className="text-xs font-semibold"
+          >
+            {isFailed ? 'Close Dialog' : 'Stop Waiting'}
           </Button>
         )}
       </div>

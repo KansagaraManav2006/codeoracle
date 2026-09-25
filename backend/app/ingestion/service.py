@@ -76,6 +76,7 @@ def process_zip_job(job_id: str, workspace_id: str, temp_zip_path: Path, display
         project_id = f"proj_{uuid.uuid4().hex[:12]}"
         project = Project(
             id=project_id,
+            user_id=job.user_id,
             display_name=display_name,
             source_type="zip",
             source_url=None,
@@ -194,6 +195,7 @@ def process_github_job(job_id: str, workspace_id: str, clean_url: str) -> None:
         project_id = f"proj_{uuid.uuid4().hex[:12]}"
         project = Project(
             id=project_id,
+            user_id=job.user_id,
             display_name=repo_name,
             source_type="github",
             source_url=clean_url,

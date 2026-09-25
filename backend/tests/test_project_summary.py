@@ -30,7 +30,6 @@ def override_get_db():
         db.close()
 
 
-app.dependency_overrides[get_db] = override_get_db
 client = TestClient(app)
 
 
@@ -72,6 +71,7 @@ def test_project_summary_endpoint():
         total_lines=1500,
         content_hash="hash_123",
         workspace_id="ws_123",
+        is_public_demo=1,
         created_at=datetime.now(timezone.utc),
     )
     db.add(project)

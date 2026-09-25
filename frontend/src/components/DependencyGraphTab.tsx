@@ -250,6 +250,7 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
   const [highlightCycles, setHighlightCycles] = useState(true);
 
   // Selection & Inspector State
+  const [showMetricsToolbar, setShowMetricsToolbar] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [legendOpen, setLegendOpen] = useState(true);
@@ -1041,183 +1042,48 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
         ]}
       />
 
-      <Card variant="primary" padding="lg">
-        {/* 6 Canonical Stat tiles */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <StatTile
-            label="MODULES"
-            value={formatNumber(totalInternalModules)}
-            color="ink"
-          />
-          <StatTile
-            label="RESOLVED EDGES"
-            value={formatNumber(canonicalResolvedEdges)}
-            color="ink"
-          />
-          <StatTile
-            label="UNRESOLVED IMPORTS"
-            value={formatNumber(unresolvedCount)}
-            color={unresolvedCount > 0 ? 'amber' : 'ink'}
-            onClick={unresolvedCount > 0 ? () => setShowNeedsReviewModal(true) : undefined}
-            title={unresolvedCount > 0 ? 'Click to inspect unresolved import diagnostics' : undefined}
-          />
-          <StatTile
-            label="DETECTED CYCLES"
-            value={formatNumber(cycleCount)}
-            color={cycleCount > 0 ? 'red' : 'ink'}
-          />
-          <StatTile
-            label="CONFIRMED ENTRY POINTS"
-            value={formatNumber(confirmedEntryPoints)}
-            color="teal"
-          />
-          <StatTile
-            label="TRUE STANDALONE"
-            value={formatNumber(trueStandaloneCount)}
-            color="ink"
-          />
-        </div>
-
-        {/* Confidence Context Banner */}
-        <div className="mt-3.5 pt-3 border-t border-line/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-ink-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold text-ink-2">Cycle Semantics:</span>
-            {cycleCount === 0 ? (
-              <span className="inline-flex items-center gap-1 text-teal-strong font-medium">
-                <CheckCircle2 className="w-3.5 h-3.5 text-teal" />
-                {unresolvedCount === 0 ? 'Clean hierarchical DAG' : '0 cycles detected in resolved graph'}
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-red font-bold">
-                <AlertTriangle className="w-3.5 h-3.5 text-red" />
-                {cycleCount} dependency cycle(s) detected
-              </span>
-            )}
-            {graph.summary.cycle_confidence_warning && (
-              <span className="text-amber-text font-medium ml-1">
-                {graph.summary.cycle_confidence_warning}
-              </span>
-            )}
-          </div>
-
-          <div className="font-mono text-[10px] text-ink-4">
-            Canvas renders top {cappedNodes.length} of {filteredNodes.length} modules · Metrics use all {totalInternalModules} modules
-          </div>
-        </div>
-      </Card>
-
-      {/* 2. Subgraph Views & Layout Toolbar */}
-      <Card variant="secondary" padding="sm" className="space-y-3">
-        {/* Row 1: Search & Subgraph Filters */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
-          <SearchField
-            id="graph-search"
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Search path, role:service, entry:bootstrap, unresolved:true…"
-            resultCount={{ current: filteredNodes.length, total: graph.nodes.length, unit: 'nodes' }}
-            className="w-full xl:w-80"
-          />
-
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs font-bold text-ink-2 flex items-center gap-1 mr-1">
-              <Filter className="w-3.5 h-3.5 text-indigo" />
-              Filter:
-            </span>
-            <FilterChip
-              label="ALL"
-              active={filterMode === 'all'}
-              onClick={() => setFilterMode('all')}
+      {/* 1. Primary Canvas Action Bar (Search + Key Filters + Layout + Metrics Toggle) */}
+      <Card variant="secondary" padding="sm" className="space-y-2.5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+          {/* Search + Quick Essential Filters */}
+          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+            <SearchField
+              id="graph-search"
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search path, role:service, unresolved:true…"
+              resultCount={{ current: filteredNodes.length, total: graph.nodes.length, unit: 'nodes' }}
+              className="w-full sm:w-64 md:w-72"
             />
-            <FilterChip
-              label="ENTRY POINTS"
-              active={filterMode === 'entry_points'}
-              onClick={() => setFilterMode('entry_points')}
-            />
-            <FilterChip
-              label="HIGH COMPLEXITY"
-              active={filterMode === 'high_complexity'}
-              onClick={() => setFilterMode('high_complexity')}
-            />
-            {cycleCount > 0 && (
+
+            <div className="flex items-center gap-1.5 flex-wrap">
               <FilterChip
-                label={`CYCLES (${cycleCount})`}
-                active={filterMode === 'cycles'}
-                onClick={() => setFilterMode('cycles')}
+                label="ALL"
+                active={filterMode === 'all'}
+                onClick={() => setFilterMode('all')}
               />
-            )}
-            {unresolvedCount > 0 && (
               <FilterChip
-                label={`UNRESOLVED (${unresolvedCount})`}
-                active={filterMode === 'unresolved'}
-                onClick={() => setFilterMode('unresolved')}
+                label="ENTRY POINTS"
+                active={filterMode === 'entry_points'}
+                onClick={() => setFilterMode('entry_points')}
               />
-            )}
-            <FilterChip
-              label={selectedNodeId ? `UPSTREAM (${upstreamNodeIds.size - 1})` : 'UPSTREAM'}
-              active={filterMode === 'upstream'}
-              onClick={() => {
-                if (!selectedNodeId) {
-                  showToast('Select a node first to isolate its upstream callers.', 'info');
-                } else {
-                  setFilterMode(filterMode === 'upstream' ? 'all' : 'upstream');
-                }
-              }}
-            />
-            <FilterChip
-              label={selectedNodeId ? `DOWNSTREAM (${downstreamNodeIds.size - 1})` : 'DOWNSTREAM'}
-              active={filterMode === 'downstream'}
-              onClick={() => {
-                if (!selectedNodeId) {
-                  showToast('Select a node first to isolate its downstream dependencies.', 'info');
-                } else {
-                  setFilterMode(filterMode === 'downstream' ? 'all' : 'downstream');
-                }
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Row 2: Edge Controls + Layout Controls */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-2.5 border-t border-line">
-          {/* Edge Controls Group */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-bold text-ink-2 flex items-center gap-1 mr-1">
-              <Workflow className="w-3.5 h-3.5 text-indigo" />
-              Edge Type:
-            </span>
-            <SegmentedControl<EdgeFilterType>
-              options={[
-                { id: 'all', label: 'ALL EDGES' },
-                { id: 'runtime', label: 'RUNTIME' },
-                { id: 'require', label: 'REQUIRE' },
-                { id: 'type', label: 'TYPE-ONLY' },
-              ]}
-              value={edgeFilter}
-              onChange={setEdgeFilter}
-            />
-
-            <ToggleChip
-              label={includeExternal ? 'EXT: ON' : 'EXT: OFF'}
-              active={includeExternal}
-              tone="slate"
-              onToggle={() => setIncludeExternal((v) => !v)}
-            />
-
-            <ToggleChip
-              label={highlightCycles ? 'CYCLES: ON' : 'CYCLES: OFF'}
-              active={highlightCycles}
-              tone={cycleCount > 0 ? 'red' : 'indigo'}
-              onToggle={() => setHighlightCycles((v) => !v)}
-            />
+              <FilterChip
+                label="HIGH COMPLEXITY"
+                active={filterMode === 'high_complexity'}
+                onClick={() => setFilterMode('high_complexity')}
+              />
+              {cycleCount > 0 && (
+                <FilterChip
+                  label={`CYCLES (${cycleCount})`}
+                  active={filterMode === 'cycles'}
+                  onClick={() => setFilterMode('cycles')}
+                />
+              )}
+            </div>
           </div>
 
-          {/* View Mode & Layout Group */}
-          <div className="flex flex-wrap items-center gap-2 lg:pl-4 lg:border-l lg:border-line">
-            <span className="text-xs font-bold text-ink-2 flex items-center gap-1 mr-1">
-              <Layers className="w-3.5 h-3.5 text-indigo" />
-              Layout:
-            </span>
+          {/* Layout Controls + Metrics Toggle */}
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
             <div className="inline-flex rounded-md border border-line bg-panel p-0.5">
               <button
                 type="button"
@@ -1274,9 +1140,158 @@ export const DependencyGraphTab: React.FC<DependencyGraphTabProps> = ({
             >
               {viewMode === 'list' ? 'Graph View' : 'List View'}
             </Button>
+
+            <Button
+              variant={showMetricsToolbar ? 'indigo' : 'outline'}
+              size="sm"
+              onClick={() => setShowMetricsToolbar((prev) => !prev)}
+              icon={<Filter className="w-3.5 h-3.5" />}
+              className="text-xs"
+            >
+              <span>{showMetricsToolbar ? 'Hide Metrics & Filters' : 'Metrics & Filters'}</span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 ml-0.5 transition-transform duration-200 ${
+                  showMetricsToolbar ? 'rotate-180' : ''
+                }`}
+              />
+            </Button>
           </div>
         </div>
       </Card>
+
+      {/* 2. Collapsible Metrics & Advanced Edge Controls Panel */}
+      {showMetricsToolbar && (
+        <Card variant="primary" padding="md" className="space-y-3 animate-[fade-down_150ms_ease-out]">
+          {/* 6 Canonical Stat tiles */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+            <StatTile
+              label="MODULES"
+              value={formatNumber(totalInternalModules)}
+              color="ink"
+            />
+            <StatTile
+              label="RESOLVED EDGES"
+              value={formatNumber(canonicalResolvedEdges)}
+              color="ink"
+            />
+            <StatTile
+              label="UNRESOLVED IMPORTS"
+              value={formatNumber(unresolvedCount)}
+              color={unresolvedCount > 0 ? 'amber' : 'ink'}
+              onClick={unresolvedCount > 0 ? () => setShowNeedsReviewModal(true) : undefined}
+              title={unresolvedCount > 0 ? 'Click to inspect unresolved import diagnostics' : undefined}
+            />
+            <StatTile
+              label="DETECTED CYCLES"
+              value={formatNumber(cycleCount)}
+              color={cycleCount > 0 ? 'red' : 'ink'}
+            />
+            <StatTile
+              label="CONFIRMED ENTRY POINTS"
+              value={formatNumber(confirmedEntryPoints)}
+              color="teal"
+            />
+            <StatTile
+              label="TRUE STANDALONE"
+              value={formatNumber(trueStandaloneCount)}
+              color="ink"
+            />
+          </div>
+
+          {/* Edge Controls & Directional Isolation */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-2.5 border-t border-line/60">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-ink-2 flex items-center gap-1 mr-1">
+                <Workflow className="w-3.5 h-3.5 text-indigo" />
+                Edge Type:
+              </span>
+              <SegmentedControl<EdgeFilterType>
+                options={[
+                  { id: 'all', label: 'ALL EDGES' },
+                  { id: 'runtime', label: 'RUNTIME' },
+                  { id: 'require', label: 'REQUIRE' },
+                  { id: 'type', label: 'TYPE-ONLY' },
+                ]}
+                value={edgeFilter}
+                onChange={setEdgeFilter}
+              />
+
+              <ToggleChip
+                label={includeExternal ? 'EXT: ON' : 'EXT: OFF'}
+                active={includeExternal}
+                tone="slate"
+                onToggle={() => setIncludeExternal((v) => !v)}
+              />
+
+              <ToggleChip
+                label={highlightCycles ? 'CYCLES: ON' : 'CYCLES: OFF'}
+                active={highlightCycles}
+                tone={cycleCount > 0 ? 'red' : 'indigo'}
+                onToggle={() => setHighlightCycles((v) => !v)}
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {unresolvedCount > 0 && (
+                <FilterChip
+                  label={`UNRESOLVED (${unresolvedCount})`}
+                  active={filterMode === 'unresolved'}
+                  onClick={() => setFilterMode('unresolved')}
+                />
+              )}
+              <FilterChip
+                label={selectedNodeId ? `UPSTREAM (${upstreamNodeIds.size - 1})` : 'UPSTREAM'}
+                active={filterMode === 'upstream'}
+                onClick={() => {
+                  if (!selectedNodeId) {
+                    showToast('Select a node first to isolate its upstream callers.', 'info');
+                  } else {
+                    setFilterMode(filterMode === 'upstream' ? 'all' : 'upstream');
+                  }
+                }}
+              />
+              <FilterChip
+                label={selectedNodeId ? `DOWNSTREAM (${downstreamNodeIds.size - 1})` : 'DOWNSTREAM'}
+                active={filterMode === 'downstream'}
+                onClick={() => {
+                  if (!selectedNodeId) {
+                    showToast('Select a node first to isolate its downstream dependencies.', 'info');
+                  } else {
+                    setFilterMode(filterMode === 'downstream' ? 'all' : 'downstream');
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Context Notice */}
+          <div className="pt-2 border-t border-line/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-ink-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-ink-2">Cycle Semantics:</span>
+              {cycleCount === 0 ? (
+                <span className="inline-flex items-center gap-1 text-teal-strong font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-teal" />
+                  {unresolvedCount === 0 ? 'Clean hierarchical DAG' : '0 cycles detected in resolved graph'}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-red font-bold">
+                  <AlertTriangle className="w-3.5 h-3.5 text-red" />
+                  {cycleCount} dependency cycle(s) detected
+                </span>
+              )}
+              {graph.summary.cycle_confidence_warning && (
+                <span className="text-amber-text font-medium ml-1">
+                  {graph.summary.cycle_confidence_warning}
+                </span>
+              )}
+            </div>
+
+            <div className="font-mono text-[10px] text-ink-4">
+              Canvas renders top {cappedNodes.length} of {filteredNodes.length} modules · Metrics use all {totalInternalModules} modules
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* 3. Main Workspace: Graph Canvas vs List View */}
       {viewMode === 'graph' ? (

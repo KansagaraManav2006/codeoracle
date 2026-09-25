@@ -414,25 +414,29 @@ def build_architecture_overview(
                 target_item = hotspots_res.hotspots[0]
 
             # Find file with highest cyclomatic complexity
-            highest_comp_item = max(hotspots_res.hotspots, key=lambda h: h.complexity)
+            highest_comp_item = max(
+                hotspots_res.hotspots,
+                key=lambda h: getattr(h.complexity, "value", 0) if hasattr(h.complexity, "value") else (h.complexity if isinstance(h.complexity, int) else 0)
+            )
 
             if target_item:
                 factors = target_item.score_factors
                 breakdown = ScoreFactorBreakdown(
-                    complexity=factors.complexity_score,
-                    warnings=factors.warnings_score,
-                    fan_in=factors.fan_in_score,
-                    blast_radius=factors.blast_radius_score,
-                    loc=factors.loc_score,
+                    complexity=getattr(factors, "complexity", getattr(factors, "complexity_score", 0)),
+                    warnings=getattr(factors, "warnings", getattr(factors, "warnings_score", 0)),
+                    fan_in=getattr(factors, "fan_in", getattr(factors, "fan_in_score", 0)),
+                    blast_radius=getattr(factors, "blast_radius", getattr(factors, "blast_radius_score", 0)),
+                    loc=getattr(factors, "loc", getattr(factors, "loc_score", 0)),
                     hotspot_score=target_item.hotspot_score,
                 )
+                comp_val = getattr(highest_comp_item.complexity, "value", highest_comp_item.complexity if isinstance(highest_comp_item.complexity, int) else 0)
                 recommended_target = RecommendedTargetInfo(
                     path=target_item.file,
                     hotspot_score=target_item.hotspot_score,
                     factors=breakdown,
                     reason=hotspots_res.recommended_start_reason or target_item.reason,
                     highest_complexity_file=highest_comp_item.file,
-                    highest_complexity_score=highest_comp_item.complexity,
+                    highest_complexity_score=comp_val,
                 )
     except Exception:
         logger.exception("Failed to compute hotspot factor decomposition for %s", project_id)

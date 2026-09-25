@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, RotateCcw, Target, X } from 'lucide-react';
+import { Menu, PanelLeftClose, PanelLeftOpen, RotateCcw, Target, X } from 'lucide-react';
 import { ProjectMetadataResponse } from '../types';
 import { truncateMiddle } from '../utils/formatters';
 import Button from './common/Button';
@@ -12,6 +12,8 @@ interface ProjectContextBarProps {
   onReset: () => void;
   onOpenImpactModal?: (filePath: string) => void;
   onOpenSidebar: () => void;
+  onToggleSidebar?: () => void;
+  sidebarCollapsed?: boolean;
   onViewLanding?: () => void;
 }
 
@@ -22,6 +24,8 @@ export const ProjectContextBar: React.FC<ProjectContextBarProps> = ({
   onReset,
   onOpenImpactModal,
   onOpenSidebar,
+  onToggleSidebar,
+  sidebarCollapsed = false,
   onViewLanding,
 }) => {
   return (
@@ -33,9 +37,31 @@ export const ProjectContextBar: React.FC<ProjectContextBarProps> = ({
             onClick={onOpenSidebar}
             className="lg:hidden h-8 w-8 inline-flex items-center justify-center rounded-md text-ink-2 hover:bg-tile"
             aria-label="Open navigation"
+            title="Open navigation"
           >
             <Menu className="w-4 h-4" />
           </button>
+          {onToggleSidebar && (
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              className="hidden lg:inline-flex h-8 px-2.5 items-center gap-1.5 rounded-md text-ink-2 hover:text-ink hover:bg-tile border border-line text-xs font-medium transition-colors shadow-xs"
+              aria-label={sidebarCollapsed ? 'Open sidebar (show feature names)' : 'Collapse sidebar'}
+              title={sidebarCollapsed ? 'Open sidebar (show feature names)' : 'Collapse sidebar'}
+            >
+              {sidebarCollapsed ? (
+                <>
+                  <PanelLeftOpen className="w-3.5 h-3.5 text-indigo" />
+                  <span className="text-[11px] font-semibold text-ink">Features</span>
+                </>
+              ) : (
+                <>
+                  <PanelLeftClose className="w-3.5 h-3.5 text-ink-3" />
+                  <span className="text-[11px] font-medium text-ink-3">Hide</span>
+                </>
+              )}
+            </button>
+          )}
           {project ? (
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-ink-4 leading-none mb-0.5">
@@ -47,7 +73,7 @@ export const ProjectContextBar: React.FC<ProjectContextBarProps> = ({
             </div>
           ) : (
             <div className="min-w-0">
-              <p className="font-display font-bold text-sm text-ink">Codebase Ingestion</p>
+              <p className="font-display font-bold text-sm text-ink">Analyze a codebase</p>
               <p className="text-[10px] text-ink-3 hidden sm:block">
                 ZIP or public GitHub · Python / JS · 100k lines · 200MB
               </p>
