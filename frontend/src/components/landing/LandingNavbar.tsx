@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Sparkles, Menu, X, User, LogOut } from 'lucide-react';
+import { ArrowRight, Sparkles, Menu, X, User, LogOut, Github } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { navigateTo } from '../../utils/navigation';
 
@@ -37,10 +37,10 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({
   return (
     <header className="fixed top-0 left-0 right-0 z-50 flex justify-center px-4 sm:px-6 pt-3 pointer-events-none">
       <nav
-        className={`pointer-events-auto flex items-center justify-between gap-4 px-4 sm:px-6 py-2.5 rounded-2xl transition-all duration-300 ${
+        className={`pointer-events-auto flex items-center justify-between gap-4 px-4 sm:px-6 py-2.5 rounded-full transition-all duration-300 ${
           scrolled
             ? 'bg-[#FFFDFC]/95 backdrop-blur-md shadow-md border border-[#C8BEB0]'
-            : 'bg-[#FFFDFC]/80 backdrop-blur-sm shadow-xs border border-[#C8BEB0]/60'
+            : 'bg-[#FFFDFC]/85 backdrop-blur-sm shadow-xs border border-[#C8BEB0]/60'
         } max-w-[1140px] w-full`}
         aria-label="Main Navigation"
       >
@@ -64,26 +64,41 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({
           </div>
         </button>
 
-        {/* Desktop Navigation Links */}
-        <div className="hidden md:flex items-center gap-6 text-xs font-semibold text-[#3B3733]">
+        {/* Desktop Navigation Links — Trupesh Section Anchors */}
+        <div className="hidden lg:flex items-center gap-6 text-xs font-semibold text-[#3B3733]">
           <button
-            onClick={() => scrollToSection('features')}
+            onClick={() => scrollToSection('product-story')}
             className="hover:text-[#4C4FD6] transition-colors focus:outline-none"
           >
-            Features
+            Story
           </button>
           <button
-            onClick={() => scrollToSection('how-it-works')}
+            onClick={() => scrollToSection('risk-section')}
             className="hover:text-[#4C4FD6] transition-colors focus:outline-none"
           >
-            How it works
+            Risk Hotspots
           </button>
           <button
-            onClick={() => scrollToSection('preview')}
+            onClick={() => scrollToSection('protection-section')}
             className="hover:text-[#4C4FD6] transition-colors focus:outline-none"
           >
-            Preview
+            Safety Tests
           </button>
+          <button
+            onClick={() => scrollToSection('modernization-section')}
+            className="hover:text-[#4C4FD6] transition-colors focus:outline-none"
+          >
+            Modernization
+          </button>
+          <a
+            href="https://github.com/KansagaraManav2006/codeoracle"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-[#181715] transition-colors flex items-center gap-1.5 focus:outline-none"
+          >
+            <Github className="w-3.5 h-3.5" />
+            <span>GitHub</span>
+          </a>
         </div>
 
         {/* CTA & Auth Actions */}
@@ -92,7 +107,7 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({
             <div className="flex items-center gap-2">
               <button
                 onClick={() => navigateTo('/workspace')}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-[#181715] bg-[#ECE5DA] hover:bg-[#E7DFD3] border border-[#C8BEB0]/60 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-[#181715] bg-[#ECE5DA] hover:bg-[#E7DFD3] border border-[#C8BEB0]/60 transition-colors"
               >
                 <User className="w-3.5 h-3.5 text-[#4C4FD6]" />
                 <span className="max-w-[120px] truncate">{user?.email}</span>
@@ -100,7 +115,7 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({
               <button
                 onClick={() => logout()}
                 title="Sign out"
-                className="p-1.5 rounded-xl text-[#5C554D] hover:text-[#D9383A] hover:bg-[#FDF0F0] border border-transparent hover:border-[#F5B8B9] transition-colors"
+                className="p-1.5 rounded-full text-[#5C554D] hover:text-[#D9383A] hover:bg-[#FDF0F0] border border-transparent hover:border-[#F5B8B9] transition-colors"
                 aria-label="Sign out"
               >
                 <LogOut className="w-4 h-4" />
@@ -110,13 +125,13 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({
             <div className="flex items-center gap-2">
               <button
                 onClick={() => navigateTo('/signin')}
-                className="px-3 py-1.5 rounded-xl text-xs font-semibold text-[#3B3733] hover:text-[#181715] transition-colors"
+                className="px-3 py-1.5 rounded-full text-xs font-semibold text-[#3B3733] hover:text-[#181715] transition-colors"
               >
                 Sign in
               </button>
               <button
                 onClick={() => navigateTo('/register')}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-[#4C4FD6] bg-[#EAE9FB] hover:bg-[#DFDCFA] border border-[#4C4FD6]/30 transition-all shadow-2xs"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold text-[#4C4FD6] bg-[#EAE9FB] hover:bg-[#DFDCFA] border border-[#4C4FD6]/30 transition-all shadow-2xs"
               >
                 Get started
               </button>
@@ -128,7 +143,7 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({
           <button
             onClick={onAnalyzeClick}
             disabled={isLoading}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-[#181715] bg-[#ECE5DA] hover:bg-[#E7DFD3] border border-[#C8BEB0]/60 transition-all disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium text-[#181715] bg-[#ECE5DA] hover:bg-[#E7DFD3] border border-[#C8BEB0]/60 transition-all disabled:opacity-50"
           >
             <span>Analyze</span>
           </button>
@@ -136,7 +151,7 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({
           <button
             onClick={onTryDemoClick}
             disabled={isLoading}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-[#181715] bg-[#FFFDFC] hover:bg-[#ECE5DA] border border-[#C8BEB0] transition-all disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium text-[#181715] bg-[#FFFDFC] hover:bg-[#ECE5DA] border border-[#C8BEB0] transition-all disabled:opacity-50"
           >
             <Sparkles className="w-3.5 h-3.5 text-[#B88228]" />
             <span>Demo</span>
@@ -145,7 +160,7 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({
           <button
             onClick={() => navigateTo('/workspace')}
             disabled={isLoading}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-[#FFFDFC] bg-[#4C4FD6] hover:bg-[#3E41B8] shadow-sm transition-all hover:shadow active:scale-[0.98] disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold text-[#FFFDFC] bg-[#4C4FD6] hover:bg-[#3E41B8] shadow-sm transition-all hover:shadow active:scale-[0.98] disabled:opacity-50"
           >
             <span>Workspace</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -171,23 +186,38 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({
         <div className="pointer-events-auto absolute top-16 left-4 right-4 bg-[#FFFDFC] rounded-2xl border border-[#C8BEB0] shadow-xl p-5 md:hidden space-y-4 animate-fade-in">
           <div className="space-y-2 border-b border-[#ECE5DA] pb-3 text-sm font-semibold text-[#181715]">
             <button
-              onClick={() => scrollToSection('features')}
+              onClick={() => scrollToSection('product-story')}
               className="block w-full text-left py-1.5 hover:text-[#4C4FD6]"
             >
-              Features
+              Story &amp; Architecture
             </button>
             <button
-              onClick={() => scrollToSection('how-it-works')}
+              onClick={() => scrollToSection('risk-section')}
               className="block w-full text-left py-1.5 hover:text-[#4C4FD6]"
             >
-              How it works
+              Risk Hotspots
             </button>
             <button
-              onClick={() => scrollToSection('preview')}
+              onClick={() => scrollToSection('protection-section')}
               className="block w-full text-left py-1.5 hover:text-[#4C4FD6]"
             >
-              Preview
+              Safety Tests
             </button>
+            <button
+              onClick={() => scrollToSection('modernization-section')}
+              className="block w-full text-left py-1.5 hover:text-[#4C4FD6]"
+            >
+              Modernization Pipeline
+            </button>
+            <a
+              href="https://github.com/KansagaraManav2006/codeoracle"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 py-1.5 hover:text-[#4C4FD6]"
+            >
+              <Github className="w-4 h-4" />
+              <span>GitHub Repository</span>
+            </a>
           </div>
 
           <div className="space-y-2 pt-1">
@@ -246,6 +276,16 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({
               className="w-full py-2 rounded-xl bg-[#ECE5DA] text-[#181715] text-xs font-medium text-center"
             >
               Try Demo Benchmark
+            </button>
+
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                onAnalyzeClick();
+              }}
+              className="w-full py-2 rounded-xl border border-[#C8BEB0] text-[#181715] text-xs font-medium text-center"
+            >
+              Analyze Custom Codebase
             </button>
           </div>
         </div>
