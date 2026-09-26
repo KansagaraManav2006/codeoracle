@@ -138,11 +138,11 @@ export const ProtectionSection: React.FC = () => {
           >
             <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#EAF4FF] text-[#007AFF] text-xs font-semibold uppercase tracking-wider font-geist-mono">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Behavioral Guardrails</span>
+              <span>Behavioral Guardrail Generation</span>
             </div>
 
             <h2 className="text-2xl sm:text-4xl lg:text-[40px] font-extrabold tracking-tight text-[#1D1D1F] leading-[1.08] font-geist">
-              Protect behavior before refactoring it.
+              Behavioral Test Generation: Protect behavior before refactoring it.
             </h2>
 
             <p className="text-xs sm:text-sm text-[#6E6E73] leading-relaxed font-sans">

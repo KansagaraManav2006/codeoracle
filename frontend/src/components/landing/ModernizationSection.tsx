@@ -190,10 +190,10 @@ export const ModernizationSection: React.FC = () => {
           >
             <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#EAF4FF] text-[#007AFF] text-[11px] font-semibold uppercase tracking-wider mb-1.5 font-geist-mono">
               <Sparkles className="w-3 h-3" />
-              <span>Pinned Modernization Sequence</span>
+              <span>Verified Modernization Pipeline</span>
             </div>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-[#1D1D1F] leading-tight mb-1 font-geist">
-              A suggestion is not the same as a safe change.
+              Safe Code Modernization: A suggestion is not the same as a safe change.
             </h2>
             <p className="text-xs sm:text-sm text-[#6E6E73] leading-relaxed max-w-[660px] mx-auto font-sans">
               CodeOracle enforces a rigorous 6-step transformation sequence — proving behavioral parity before any proposal touches your repository.

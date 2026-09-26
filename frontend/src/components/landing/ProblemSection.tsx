@@ -115,20 +115,20 @@ export const ProblemSection: React.FC = () => {
             transform: inView || reducedMotion ? 'none' : 'translate3d(0, 24px, 0)',
             transition: 'opacity 0.75s cubic-bezier(0.16, 1, 0.3, 1), transform 0.75s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
-          className="max-w-[780px] mb-5 sm:mb-7"
+          className="max-w-[820px] mb-5 sm:mb-7"
         >
           <p className="text-xs font-semibold text-[#007AFF] tracking-widest uppercase mb-2 font-geist-mono">
-            Why Codebase Intelligence Matters
+            The Legacy Modernization Problem
           </p>
           <h2 className="text-2xl sm:text-4xl lg:text-[44px] font-extrabold tracking-tight text-[#1D1D1F] leading-[1.08] mb-2 font-geist">
-            Old code rarely fails because one file is old.
+            Why Legacy Code Breaks: Four blindspots that cause production outages.
           </h2>
           <p className="text-xs sm:text-sm lg:text-base text-[#6E6E73] leading-relaxed font-normal font-sans">
-            The real difficulty is understanding what depends on what, where behavior is fragile, and what a seemingly small change can affect.
+            Old code rarely fails because one file is old. It fails because hidden dependencies, unverified blast radius, and unwritten contracts cause unexpected regressions.
           </p>
         </div>
 
-        {/* 4 Signal Cards — each independently scroll-gated */}
+        {/* 4 Signal Cards — each independently scroll-gated with Zoom-In effect */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4 relative">
           {problemSignals.map((sig, idx) => {
             const Icon = sig.icon;
@@ -139,14 +139,14 @@ export const ProblemSection: React.FC = () => {
                 ref={cardRefs[idx] as React.RefObject<HTMLDivElement>}
                 style={{
                   opacity: isVisible ? 1 : 0,
-                  transform: isVisible ? 'none' : sig.enterFrom,
-                  filter: isVisible ? 'blur(0px)' : 'blur(3px)',
+                  transform: isVisible ? 'scale(1) translate3d(0, 0, 0)' : 'scale(0.93) translate3d(0, 24px, 0)',
+                  filter: isVisible ? 'blur(0px)' : 'blur(2px)',
                   transition: reducedMotion
                     ? 'none'
-                    : 'opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1), filter 0.7s cubic-bezier(0.16, 1, 0.3, 1)',
+                    : 'opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), filter 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
                   willChange: 'opacity, transform, filter',
                 }}
-                className="bg-white rounded-2xl p-4 sm:p-5 border border-[#E5E5EA] shadow-apple flex flex-col justify-between group hover:-translate-y-1 hover:shadow-apple-md hover:border-[#D2D2D7] transition-all duration-200"
+                className="bg-white rounded-2xl p-4 sm:p-5 border border-[#E5E5EA] shadow-apple flex flex-col justify-between group hover:-translate-y-1 hover:shadow-apple-md hover:border-[#D2D2D7] transition-all duration-200 transform-gpu"
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">

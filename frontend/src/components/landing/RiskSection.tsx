@@ -129,11 +129,11 @@ export const RiskSection: React.FC = () => {
           >
             <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#FFF1F0] text-[#D7261C] text-[11px] font-semibold uppercase tracking-wider font-geist-mono">
               <Flame className="w-3 h-3" />
-              <span>Hotspot Explainability</span>
+              <span>Risk Hotspot Analysis</span>
             </div>
 
             <h2 className="text-2xl sm:text-4xl lg:text-[40px] font-extrabold tracking-tight text-[#1D1D1F] leading-[1.08] font-geist">
-              Complexity is not the same as risk.
+              Automated Risk Scoring: Complexity is not the same as risk.
             </h2>
 
             <p className="text-xs sm:text-sm text-[#6E6E73] leading-relaxed font-sans">

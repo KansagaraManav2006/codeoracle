@@ -105,10 +105,11 @@ export const MainProductStory: React.FC = () => {
 
   return (
     <section
-      id="product-story"
+      id="how-it-works"
       ref={containerRef}
       className={`relative bg-[#FFFFFF] ${prefersReduced ? 'py-16' : 'min-h-[280vh] md:min-h-[320vh]'}`}
     >
+      <div id="product-story" className="sr-only" />
       {/* Sticky presentation viewport */}
       <div className={`${
         prefersReduced
@@ -127,7 +128,7 @@ export const MainProductStory: React.FC = () => {
           >
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-xs font-semibold text-[#007AFF] tracking-wider uppercase font-geist-mono">
-                The 7-Stage Intelligence Story
+                The 7-Stage Intelligence Pipeline
               </span>
               <span className="text-xs text-[#86868B]">•</span>
               <span className="text-xs font-mono text-[#86868B]">
@@ -138,7 +139,7 @@ export const MainProductStory: React.FC = () => {
               How CodeOracle sequences safe modernization.
             </h2>
             <p className="text-xs sm:text-sm text-[#6E6E73] leading-relaxed max-w-[660px]">
-              From the initial ingestion pulse to an executable migration wave, every stage provides evidence-backed guardrails for engineers.
+              From raw repository AST parsing to an executable migration wave, every stage provides evidence-backed guardrails for engineers.
             </p>
 
             {/* Stage Progress Bar */}

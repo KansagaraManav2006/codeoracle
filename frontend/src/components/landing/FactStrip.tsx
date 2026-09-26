@@ -48,9 +48,9 @@ export const FactStrip: React.FC = () => {
       className="w-full min-h-[100svh] flex flex-col justify-center py-10 lg:py-14 pt-20 px-4 sm:px-6 bg-[#FFFFFF] border-y border-[#E5E5EA] overflow-hidden"
     >
       <div className="max-w-[1140px] mx-auto w-full">
-        {/* Header (10-15% top area) */}
+        {/* Header */}
         <div
-          className="text-center max-w-[760px] mx-auto mb-8 sm:mb-12 transition-all duration-700 ease-out"
+          className="text-center max-w-[760px] mx-auto mb-8 sm:mb-12 transition-all duration-500 ease-out"
           style={{
             opacity: prefersReduced || inView ? 1 : 0,
             transform: prefersReduced || inView ? 'none' : 'translate3d(0, 24px, 0)',
@@ -58,31 +58,31 @@ export const FactStrip: React.FC = () => {
         >
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4FF] text-[#007AFF] text-xs font-semibold uppercase tracking-wider mb-3 font-geist-mono">
             <Gauge className="w-3.5 h-3.5" />
-            <span>Architectural Scale &amp; Verifiability</span>
+            <span>Scale &amp; Verifiability Metrics</span>
           </div>
           <h2 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-[#1D1D1F] leading-tight mb-3 font-geist">
-            Engineered for enterprise scale.<br className="hidden sm:inline" />
-            Grounded in AST facts.
+            Platform Metrics: Engineered for enterprise scale, grounded in AST facts.
           </h2>
           <p className="text-xs sm:text-sm lg:text-base text-[#6E6E73] leading-relaxed font-sans max-w-[620px] mx-auto">
             Proven static analysis pipelines delivering deterministic, reproducible codebase intelligence without runtime surprises.
           </p>
         </div>
 
-        {/* 5 Stats Cards Grid (65-75% main content) */}
+        {/* 5 Stats Cards Grid (Cards with Zoom-In Scroll Reveal) */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5 sm:gap-4 lg:gap-5 mb-8">
           {facts.map((f, idx) => {
             const Icon = f.icon;
             return (
               <div
                 key={f.label}
-                className={`bg-[#F5F5F7] rounded-2xl p-4 sm:p-5 border border-[#E5E5EA] flex flex-col justify-between hover:-translate-y-1 hover:shadow-apple-md hover:border-[#007AFF]/30 transition-all duration-500 ease-out ${
+                className={`bg-[#F5F5F7] rounded-2xl p-4 sm:p-5 border border-[#E5E5EA] flex flex-col justify-between hover:-translate-y-1 hover:shadow-apple-md hover:border-[#007AFF]/30 transition-all duration-500 ease-out transform-gpu ${
                   idx === 4 ? 'col-span-2 md:col-span-1' : ''
                 }`}
                 style={{
                   opacity: prefersReduced || inView ? 1 : 0,
-                  transform: prefersReduced || inView ? 'none' : 'scale(0.92) translate3d(0, 20px, 0)',
-                  transitionDelay: prefersReduced ? '0ms' : `${idx * 70}ms`,
+                  transform: prefersReduced || inView ? 'scale(1) translate3d(0, 0, 0)' : 'scale(0.92) translate3d(0, 20px, 0)',
+                  transitionDelay: prefersReduced ? '0ms' : `${idx * 60}ms`,
+                  willChange: 'opacity, transform',
                 }}
               >
                 <div>

@@ -326,3 +326,57 @@ export function useInViewElement<T extends Element>(options: InViewOptions = {})
 
   return [ref, inView];
 }
+
+// ─── useScrollReveal (Zoom-in card & section reveal) ──────────────────────────
+
+export interface ScrollRevealHookOptions {
+  threshold?: number;
+  rootMargin?: string;
+  triggerOnce?: boolean;
+  delay?: number;
+  duration?: number;
+  variant?: 'card' | 'slide-up' | 'slide-left' | 'fade';
+}
+
+export function useScrollReveal<T extends HTMLElement = HTMLDivElement>(
+  options: ScrollRevealHookOptions = {}
+): {
+  ref: RefObject<T>;
+  inView: boolean;
+  style: React.CSSProperties;
+} {
+  const {
+    threshold = 0.12,
+    rootMargin = '0px 0px -40px 0px',
+    triggerOnce = true,
+    delay = 0,
+    duration = 500,
+    variant = 'card',
+  } = options;
+
+  const [ref, inView] = useInViewElement<T>({ threshold, rootMargin, triggerOnce });
+  const prefersReduced = useReducedMotion();
+
+  if (prefersReduced) {
+    return { ref, inView: true, style: {} };
+  }
+
+  let initialTransform = 'scale(0.93) translate3d(0, 20px, 0)';
+  if (variant === 'slide-up') {
+    initialTransform = 'translate3d(0, 28px, 0)';
+  } else if (variant === 'slide-left') {
+    initialTransform = 'translate3d(32px, 0, 0)';
+  } else if (variant === 'fade') {
+    initialTransform = 'none';
+  }
+
+  const style: React.CSSProperties = {
+    opacity: inView ? 1 : 0,
+    transform: inView ? 'scale(1) translate3d(0, 0, 0)' : initialTransform,
+    transition: `opacity ${duration}ms cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms, transform ${duration}ms cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms`,
+    willChange: 'opacity, transform',
+  };
+
+  return { ref, inView, style };
+}
+

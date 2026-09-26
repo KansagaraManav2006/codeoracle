@@ -15,27 +15,29 @@ export const CapabilityBento: React.FC = () => {
   const [sectionRef, inView] = useInView({ threshold: 0.1 });
   const prefersReduced = useReducedMotion();
 
-  // Each card has a unique motion identity for layered depth feel
+  // Each card has a unique motion identity with zoom-in entrance
   const cardStyle = (
     delay: number,
-    enterFrom: string = 'translate3d(0, 36px, 0) scale(0.94)',
+    enterFrom: string = 'scale(0.93) translate3d(0, 24px, 0)',
     extra: React.CSSProperties = {}
   ): React.CSSProperties =>
     prefersReduced
       ? {}
       : {
           opacity: inView ? 1 : 0,
-          transform: inView ? 'none' : enterFrom,
-          transition: `opacity 0.75s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms, transform 0.75s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms`,
+          transform: inView ? 'scale(1) translate3d(0, 0, 0)' : enterFrom,
+          transition: `opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms, transform 0.5s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms`,
           willChange: 'opacity, transform',
           ...extra,
         };
 
   return (
     <section
+      id="capabilities"
       ref={sectionRef}
       className="min-h-[100svh] w-full flex flex-col justify-center py-8 lg:py-12 pt-20 px-4 sm:px-6 bg-[#FFFFFF] overflow-hidden"
     >
+      <div id="capability-bento" className="sr-only" />
       <div className="max-w-[1180px] w-full mx-auto my-auto">
         {/* Section Header */}
         <div
@@ -43,15 +45,15 @@ export const CapabilityBento: React.FC = () => {
           style={{
             opacity: prefersReduced || inView ? 1 : 0,
             transform: prefersReduced || inView ? 'none' : 'translate3d(0, 22px, 0)',
-            transition: 'opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1)',
+            transition: 'opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1), transform 0.55s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
         >
           <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#EAF4FF] text-[#007AFF] text-[11px] font-semibold uppercase tracking-wider mb-2 font-geist-mono">
             <Layers className="w-3 h-3" />
-            <span>Capability Bento</span>
+            <span>Platform Capabilities</span>
           </div>
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-[#1D1D1F] leading-tight mb-1 font-geist">
-            One repository. Multiple layers of intelligence.
+            Core Platform Capabilities: Everything you need to safely modernize.
           </h2>
           <p className="text-xs sm:text-sm text-[#6E6E73] leading-relaxed max-w-[660px] mx-auto font-sans">
             Every analysis capability is grounded in concrete AST parsing and dependency graph evidence — providing multi-dimensional architectural visibility.

@@ -372,7 +372,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
       >
         {/* Eyebrow — reveals first */}
         <div
-          className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/90 backdrop-blur-md border border-[#E5E5EA] shadow-apple text-xs font-semibold text-[#1D1D1F] tracking-tight mb-8"
+          className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/90 backdrop-blur-md border border-[#E5E5EA] shadow-apple text-xs font-semibold text-[#1D1D1F] tracking-tight mb-6"
           style={{
             opacity: badgeVisible ? 1 : 0,
             transform: badgeVisible ? 'none' : 'translate3d(0, 18px, 0)',
@@ -380,12 +380,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           }}
         >
           <span className="w-2 h-2 rounded-full bg-[#007AFF] animate-ping" />
-          <span className="font-geist">Codebase Intelligence Engine</span>
+          <span className="font-geist">AI &amp; AST Codebase Intelligence Engine</span>
         </div>
 
         {/* Main Headline — reveals second */}
         <h1
-          className="text-4xl sm:text-6xl md:text-7xl lg:text-[76px] font-extrabold tracking-[-0.035em] text-[#1D1D1F] leading-[1.03] max-w-[940px] mb-6 font-geist"
+          className="text-4xl sm:text-6xl md:text-7xl lg:text-[74px] font-extrabold tracking-[-0.035em] text-[#1D1D1F] leading-[1.03] max-w-[960px] mb-6 font-geist"
           style={{
             opacity: headlineVisible ? 1 : 0,
             transform: headlineVisible ? 'none' : 'translate3d(0, 24px, 0)',
@@ -397,21 +397,26 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           <span className="text-[#007AFF]">Modernize with confidence.</span>
         </h1>
 
-        {/* Description — reveals third */}
-        <p
-          className="text-base sm:text-lg md:text-xl text-[#3A3A3C] max-w-[660px] leading-relaxed mb-8 font-normal font-sans"
+        {/* Clear Value Proposition & Supporting Sentence — reveals third */}
+        <div
+          className="max-w-[760px] mb-8 space-y-3"
           style={{
             opacity: descVisible ? 1 : 0,
             transform: descVisible ? 'none' : 'translate3d(0, 18px, 0)',
             transition: prefersReduced ? 'none' : 'opacity 0.75s cubic-bezier(0.16, 1, 0.3, 1), transform 0.75s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
         >
-          Analyze architecture, dependencies, risk hotspots, and test guardrails before touching production code.
-        </p>
+          <p className="text-base sm:text-lg md:text-xl text-[#1D1D1F] font-semibold leading-relaxed font-sans">
+            CodeOracle is an automated codebase intelligence engine for software engineers and tech leads who inherit complex Python and JavaScript codebases—extracting deep architectural dependencies, highlighting blast radius risk, and generating characterization test guardrails before you change a single line.
+          </p>
+          <p className="text-xs sm:text-sm md:text-base text-[#6E6E73] leading-relaxed">
+            Turn opaque monolithic repositories into deterministic dependency graphs, verified pytest/Vitest suites, and phased migration roadmaps in seconds—without executing untrusted code.
+          </p>
+        </div>
 
         {/* CTAs — reveals fourth */}
         <div
-          className="flex flex-col sm:flex-row items-center justify-center gap-3.5 mb-6"
+          className="flex flex-col sm:flex-row items-center justify-center gap-3.5 mb-4"
           style={{
             opacity: ctasVisible ? 1 : 0,
             transform: ctasVisible ? 'none' : 'translate3d(0, 18px, 0)',
@@ -440,9 +445,61 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           </button>
         </div>
 
+        {/* Quick Explore Section Links */}
+        <div
+          className="flex flex-wrap items-center justify-center gap-2 mb-4"
+          style={{
+            opacity: hintVisible ? 1 : 0,
+            transform: hintVisible ? 'none' : 'translate3d(0, 12px, 0)',
+            transition: prefersReduced ? 'none' : 'opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1), transform 0.65s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}
+        >
+          <span className="text-[11px] font-mono text-[#86868B] mr-1">Explore:</span>
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById('what-is-codeoracle');
+              el?.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-medium text-[#424245] bg-white/80 hover:bg-white border border-[#E5E5EA] hover:border-[#007AFF]/40 hover:text-[#007AFF] shadow-2xs transition-all"
+          >
+            <span>What is CodeOracle?</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById('how-it-works');
+              el?.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-medium text-[#424245] bg-white/80 hover:bg-white border border-[#E5E5EA] hover:border-[#007AFF]/40 hover:text-[#007AFF] shadow-2xs transition-all"
+          >
+            <span>How It Works</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById('risk-section');
+              el?.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-medium text-[#424245] bg-white/80 hover:bg-white border border-[#E5E5EA] hover:border-[#007AFF]/40 hover:text-[#007AFF] shadow-2xs transition-all"
+          >
+            <span>Risk Hotspots</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById('protection-section');
+              el?.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-medium text-[#424245] bg-white/80 hover:bg-white border border-[#E5E5EA] hover:border-[#007AFF]/40 hover:text-[#007AFF] shadow-2xs transition-all"
+          >
+            <span>Safety Tests</span>
+          </button>
+        </div>
+
         {/* Scroll hint — reveals last */}
         <div
-          className="pt-2"
+          className="pt-1"
           style={{
             opacity: hintVisible ? 1 : 0,
             transform: hintVisible ? 'none' : 'translate3d(0, 12px, 0)',

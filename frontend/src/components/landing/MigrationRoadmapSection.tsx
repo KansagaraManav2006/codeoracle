@@ -71,6 +71,7 @@ export const MigrationRoadmapSection: React.FC = () => {
       className={`relative w-full ${prefersReduced ? '' : 'min-h-[280vh]'}`}
     >
       <section
+        id="migration-roadmap"
         ref={sectionRef}
         className={`${prefersReduced ? 'relative py-8' : 'sticky top-12 md:top-14 h-[calc(100svh-3.5rem)] flex flex-col justify-center'}
           py-8 lg:py-12 px-4 sm:px-6 bg-[#F5F5F7] overflow-hidden`}
@@ -87,10 +88,10 @@ export const MigrationRoadmapSection: React.FC = () => {
           >
             <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#EAF4FF] text-[#007AFF] text-[11px] font-semibold uppercase tracking-wider mb-2 font-geist-mono">
               <Milestone className="w-3 h-3" />
-              <span>Ordered Execution Plan</span>
+              <span>Phased Modernization Waves</span>
             </div>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-[#1D1D1F] leading-tight mb-1.5 font-geist">
-              Turn analysis into an ordered modernization roadmap.
+              Phased Migration Roadmap: Turn analysis into an ordered execution plan.
             </h2>
             <p className="text-xs sm:text-sm text-[#6E6E73] leading-relaxed max-w-[660px] mx-auto font-sans">
               Never modernize in arbitrary order. CodeOracle sequences work into dependency waves — protecting baselines first and advancing from zero-risk leaves to core entry points.

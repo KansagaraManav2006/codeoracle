@@ -68,9 +68,9 @@ export const FaqSection: React.FC = () => {
       className="w-full min-h-[100svh] flex flex-col justify-center py-8 lg:py-12 pt-20 px-4 sm:px-6 bg-[#FFFFFF] overflow-hidden"
     >
       <div className="max-w-[1140px] mx-auto w-full">
-        {/* Header (10-15% top area) */}
+        {/* Header */}
         <div
-          className="text-center max-w-[760px] mx-auto mb-6 lg:mb-8 transition-all duration-700 ease-out"
+          className="text-center max-w-[760px] mx-auto mb-6 lg:mb-8 transition-all duration-500 ease-out"
           style={{
             opacity: prefersReduced || inView ? 1 : 0,
             transform: prefersReduced || inView ? 'none' : 'translate3d(0, 24px, 0)',
@@ -78,17 +78,17 @@ export const FaqSection: React.FC = () => {
         >
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4FF] text-[#007AFF] text-xs font-semibold uppercase tracking-wider mb-2.5 font-geist-mono">
             <HelpCircle className="w-3.5 h-3.5" />
-            <span>Frequently Asked Questions</span>
+            <span>Architecture &amp; Security FAQ</span>
           </div>
           <h2 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-[#1D1D1F] leading-tight mb-2.5 font-geist">
-            Answers for curious engineers.
+            Frequently Asked Questions: Architecture, Security, and Code Analysis.
           </h2>
-          <p className="text-xs sm:text-sm lg:text-base text-[#6E6E73] leading-relaxed font-sans max-w-[620px] mx-auto">
+          <p className="text-xs sm:text-sm lg:text-base text-[#6E6E73] leading-relaxed font-sans max-w-[660px] mx-auto">
             Everything you need to know about our AST parsing, security boundaries, and modernization philosophy.
           </p>
         </div>
 
-        {/* 2-Column Accordion Grid (65-75% main content) */}
+        {/* 2-Column Accordion Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 lg:gap-3.5 mb-6">
           {/* Column 1 */}
           <div className="space-y-2.5">
@@ -98,13 +98,16 @@ export const FaqSection: React.FC = () => {
               return (
                 <div
                   key={faq.q}
-                  className={`rounded-xl border overflow-hidden transition-all duration-300 ease-out ${
+                  className={`rounded-xl border overflow-hidden transition-all duration-300 ease-out transform-gpu ${
                     isOpen ? 'bg-white border-[#007AFF]/40 shadow-apple' : 'bg-[#F5F5F7] border-[#E5E5EA] hover:border-[#D2D2D7]'
                   }`}
                   style={{
                     opacity: prefersReduced || inView ? 1 : 0,
-                    transform: prefersReduced || inView ? 'none' : 'translate3d(0, 12px, 0)',
-                    transitionDelay: prefersReduced ? '0ms' : `${idx * 30}ms`,
+                    transform: prefersReduced || inView ? 'scale(1) translate3d(0, 0, 0)' : 'scale(0.96) translate3d(0, 16px, 0)',
+                    transitionDuration: '0.45s',
+                    transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                    transitionDelay: prefersReduced ? '0ms' : `${idx * 40}ms`,
+                    willChange: 'opacity, transform',
                   }}
                 >
                   <button
@@ -140,13 +143,16 @@ export const FaqSection: React.FC = () => {
               return (
                 <div
                   key={faq.q}
-                  className={`rounded-xl border overflow-hidden transition-all duration-300 ease-out ${
+                  className={`rounded-xl border overflow-hidden transition-all duration-300 ease-out transform-gpu ${
                     isOpen ? 'bg-white border-[#007AFF]/40 shadow-apple' : 'bg-[#F5F5F7] border-[#E5E5EA] hover:border-[#D2D2D7]'
                   }`}
                   style={{
                     opacity: prefersReduced || inView ? 1 : 0,
-                    transform: prefersReduced || inView ? 'none' : 'translate3d(0, 12px, 0)',
-                    transitionDelay: prefersReduced ? '0ms' : `${(idx + 6) * 30}ms`,
+                    transform: prefersReduced || inView ? 'scale(1) translate3d(0, 0, 0)' : 'scale(0.96) translate3d(0, 16px, 0)',
+                    transitionDuration: '0.45s',
+                    transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                    transitionDelay: prefersReduced ? '0ms' : `${(idx + 6) * 40}ms`,
+                    willChange: 'opacity, transform',
                   }}
                 >
                   <button

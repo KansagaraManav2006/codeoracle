@@ -136,6 +136,7 @@ export const ProductRevealSection: React.FC<ProductRevealSectionProps> = ({ onEx
     >
       {/* Sticky Viewport Stage: Pinned during scroll expansion */}
       <section
+        id="product-reveal"
         className={`${
           reducedMotion ? 'relative py-12' : 'sticky top-12 md:top-14 h-[calc(100svh-3.5rem)] flex flex-col justify-center'
         } py-3 px-4 sm:px-6 overflow-hidden`}
@@ -152,10 +153,10 @@ export const ProductRevealSection: React.FC<ProductRevealSectionProps> = ({ onEx
           >
             <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#EAF4FF] text-[#007AFF] text-[11px] font-semibold uppercase tracking-wider mb-1.5 shadow-sm font-geist-mono">
               <Sparkles className="w-3 h-3" />
-              <span>Immediate Grounded Evidence</span>
+              <span>Live Ingestion Evidence</span>
             </div>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[#1D1D1F] leading-[1.08] mb-1.5 font-geist">
-              A repository becomes a system you can reason about.
+              Live Repository Evidence: Turn 29,000 LOC into clear architecture.
             </h2>
             <p className="text-xs sm:text-sm text-[#6E6E73] leading-relaxed max-w-[640px] mx-auto font-sans">
               Real static analysis extracts unambiguous architectural primitives from your codebase — replacing guesswork with measured complexity, dependencies, and behavioral boundaries.

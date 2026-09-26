@@ -57,6 +57,7 @@ export const ImpactSimulationSection: React.FC = () => {
 
   return (
     <section
+      id="impact-simulation"
       ref={sectionRef}
       className="min-h-[100svh] w-full flex flex-col justify-center py-8 lg:py-12 pt-20 px-4 sm:px-6 bg-[#FFFFFF] overflow-hidden"
     >
@@ -70,10 +71,10 @@ export const ImpactSimulationSection: React.FC = () => {
         >
           <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#EAF4FF] text-[#007AFF] text-[11px] font-semibold uppercase tracking-wider mb-2 font-geist-mono">
             <Radio className="w-3 h-3" />
-            <span>Change Impact Simulator</span>
+            <span>Downstream Impact Simulator</span>
           </div>
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-[#1D1D1F] leading-tight mb-1.5 font-geist">
-            Understand what may break before making the change.
+            Blast Radius Simulation: Understand what may break before making the change.
           </h2>
           <p className="text-xs sm:text-sm text-[#6E6E73] leading-relaxed max-w-[660px] mx-auto font-sans">
             Select any file to trace immediate callers, transitive propagation ripples, and critical application entry points before touching production code.

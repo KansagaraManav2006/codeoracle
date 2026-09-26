@@ -28,45 +28,46 @@ export const TrustSection: React.FC = () => {
     <>
       {/* Screen 1: High-Trust Principles */}
       <section
-        id="trust-principles"
+        id="trust-section"
         ref={section1Ref}
         className="w-full min-h-[100svh] flex flex-col justify-center py-8 lg:py-12 pt-20 px-4 sm:px-6 bg-[#F5F5F7] overflow-hidden"
       >
+        <div id="trust-principles" className="sr-only" />
         <div className="max-w-[1140px] mx-auto w-full">
           <div
             className="text-center max-w-[760px] mx-auto mb-6 lg:mb-8"
             style={{
               opacity: prefersReduced || inView1 ? 1 : 0,
               transform: prefersReduced || inView1 ? 'none' : 'translate3d(0, 24px, 0)',
-              transition: 'opacity 0.75s cubic-bezier(0.16, 1, 0.3, 1), transform 0.75s cubic-bezier(0.16, 1, 0.3, 1)',
+              transition: 'opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1), transform 0.55s cubic-bezier(0.16, 1, 0.3, 1)',
             }}
           >
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4FF] text-[#007AFF] text-xs font-semibold uppercase tracking-wider mb-2.5 font-geist-mono">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>High-Trust Engineering</span>
+              <span>Evidence-Based Architecture</span>
             </div>
             <h2 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-[#1D1D1F] leading-tight mb-2.5 font-geist">
-              Every conclusion should show its evidence.
+              Transparent &amp; Deterministic: Every conclusion should show its evidence.
             </h2>
             <p className="text-xs sm:text-sm lg:text-base text-[#6E6E73] leading-relaxed font-sans max-w-[660px] mx-auto">
               Engineering trust is earned through transparency. We reveal our parsing boundaries, factor weights, and confidence levels at every layer.
             </p>
           </div>
 
-          {/* 6 Principles Grid — each card staggered individually */}
+          {/* 6 Principles Grid — each card staggered individually with zoom-in */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 lg:gap-4 mb-6">
             {principles.map((p, idx) => (
               <div
                 key={p.title}
-                className="bg-white rounded-2xl p-4 sm:p-5 border border-[#E5E5EA] shadow-apple flex flex-col justify-between hover:-translate-y-1 hover:shadow-apple-md transition-all duration-200"
+                className="bg-white rounded-2xl p-4 sm:p-5 border border-[#E5E5EA] shadow-apple flex flex-col justify-between hover:-translate-y-1 hover:shadow-apple-md transition-all duration-200 transform-gpu"
                 style={{
                   opacity: prefersReduced || inView1 ? 1 : 0,
-                  filter: prefersReduced || inView1 ? 'blur(0px)' : 'blur(10px)',
-                  transform: prefersReduced || inView1 ? 'none' : 'translate3d(0, 24px, 0) scale(0.97)',
-                  transitionDelay: prefersReduced ? '0ms' : `${idx * 80}ms`,
-                  transitionProperty: 'opacity, filter, transform',
-                  transitionDuration: '0.7s',
+                  transform: prefersReduced || inView1 ? 'scale(1) translate3d(0, 0, 0)' : 'scale(0.93) translate3d(0, 20px, 0)',
+                  transitionDelay: prefersReduced ? '0ms' : `${idx * 70}ms`,
+                  transitionProperty: 'opacity, transform',
+                  transitionDuration: '0.5s',
                   transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                  willChange: 'opacity, transform',
                 }}
               >
                 <div>

@@ -1,6 +1,7 @@
 import React from 'react';
 import LandingNavbar from './LandingNavbar';
 import HeroSection from './HeroSection';
+import WhatIsCodeOracleSection from './WhatIsCodeOracleSection';
 import ProductRevealSection from './ProductRevealSection';
 import ProblemSection from './ProblemSection';
 import MainProductStory from './MainProductStory';
@@ -69,6 +70,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <RecentProjectsSection onOpenProject={onOpenProject} disabled={isLoading} />
           </div>
         )}
+
+        {/* 03b. Plain-Language "What is CodeOracle?" Definition */}
+        <WhatIsCodeOracleSection />
 
         {/* 04. Immediate Repository Proof Reveal (145 files, 29k LOC) */}
         <ProductRevealSection onExploreDemo={() => onLoadDemo()} />

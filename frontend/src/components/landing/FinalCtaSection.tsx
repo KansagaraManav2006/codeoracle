@@ -18,16 +18,18 @@ export const FinalCtaSection: React.FC<FinalCtaSectionProps> = ({
 
   return (
     <section
-      id="final-cta-section"
+      id="final-cta"
       ref={sectionRef}
       className="w-full min-h-[100svh] flex flex-col justify-center py-8 lg:py-12 pt-20 px-4 sm:px-6 bg-[#F5F5F7] overflow-hidden"
     >
+      <div id="final-cta-section" className="sr-only" />
       <div className="max-w-[1040px] mx-auto w-full">
         <div
-          className="bg-white rounded-[32px] sm:rounded-[40px] border border-[#E5E5EA] shadow-apple-lg p-6 sm:p-10 lg:p-14 text-center relative overflow-hidden transition-all duration-700 ease-out"
+          className="bg-white rounded-[32px] sm:rounded-[40px] border border-[#E5E5EA] shadow-apple-lg p-6 sm:p-10 lg:p-14 text-center relative overflow-hidden transition-all duration-500 ease-out transform-gpu"
           style={{
             opacity: prefersReduced || inView ? 1 : 0,
-            transform: prefersReduced || inView ? 'none' : 'scale(0.96) translate3d(0, 32px, 0)',
+            transform: prefersReduced || inView ? 'scale(1) translate3d(0, 0, 0)' : 'scale(0.94) translate3d(0, 24px, 0)',
+            willChange: 'opacity, transform',
           }}
         >
           {/* Subtle Apple blue diffusion focus point with animated pulse */}

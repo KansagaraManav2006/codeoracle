@@ -46,9 +46,9 @@ export const AudienceSection: React.FC = () => {
       className="w-full min-h-[100svh] flex flex-col justify-center py-8 lg:py-12 pt-20 px-4 sm:px-6 bg-[#F5F5F7] overflow-hidden"
     >
       <div className="max-w-[1240px] mx-auto w-full">
-        {/* Header (10-15% top area) */}
+        {/* Header */}
         <div
-          className="text-center max-w-[760px] mx-auto mb-6 lg:mb-8 transition-all duration-700 ease-out"
+          className="text-center max-w-[760px] mx-auto mb-6 lg:mb-8 transition-all duration-500 ease-out"
           style={{
             opacity: prefersReduced || inView ? 1 : 0,
             transform: prefersReduced || inView ? 'none' : 'translate3d(0, 24px, 0)',
@@ -56,28 +56,29 @@ export const AudienceSection: React.FC = () => {
         >
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4FF] text-[#007AFF] text-xs font-semibold uppercase tracking-wider mb-2.5 font-geist-mono">
             <UserCheck className="w-3.5 h-3.5" />
-            <span>Who It&apos;s For</span>
+            <span>Target Personas</span>
           </div>
           <h2 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-[#1D1D1F] leading-tight mb-2.5 font-geist">
-            Built for engineers entering code they didn&apos;t write.
+            Target Users: Built for engineers entering code they didn&apos;t write.
           </h2>
           <p className="text-xs sm:text-sm lg:text-base text-[#6E6E73] leading-relaxed font-sans max-w-[660px] mx-auto">
             Whether you are on-boarding into a legacy monolith, planning a cloud modernization, or reviewing risky PRs, CodeOracle gives you architectural clarity.
           </p>
         </div>
 
-        {/* 5 Roles Grid (65-75% main content) */}
+        {/* 5 Roles Grid (Cards with Zoom-In Scroll Reveal) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-4 mb-6">
           {audiences.map((aud, idx) => {
             const Icon = aud.icon;
             return (
               <div
                 key={aud.role}
-                className="bg-white rounded-2xl p-4 sm:p-5 border border-[#E5E5EA] shadow-apple flex flex-col justify-between hover:-translate-y-1 hover:border-[#007AFF]/40 hover:shadow-apple-md transition-all duration-500 ease-out"
+                className="bg-white rounded-2xl p-4 sm:p-5 border border-[#E5E5EA] shadow-apple flex flex-col justify-between hover:-translate-y-1 hover:border-[#007AFF]/40 hover:shadow-apple-md transition-all duration-500 ease-out transform-gpu"
                 style={{
                   opacity: prefersReduced || inView ? 1 : 0,
-                  transform: prefersReduced || inView ? 'none' : 'scale(0.94) translate3d(0, 24px, 0)',
-                  transitionDelay: prefersReduced ? '0ms' : `${idx * 70}ms`,
+                  transform: prefersReduced || inView ? 'scale(1) translate3d(0, 0, 0)' : 'scale(0.93) translate3d(0, 24px, 0)',
+                  transitionDelay: prefersReduced ? '0ms' : `${idx * 60}ms`,
+                  willChange: 'opacity, transform',
                 }}
               >
                 <div>
