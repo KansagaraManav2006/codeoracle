@@ -1347,6 +1347,9 @@ def load_demo_benchmark(
     # Reuse existing demo project if already ingested and analyzed
     existing_proj = db.query(Project).filter(Project.id == project_id).first()
     if existing_proj:
+        if not getattr(existing_proj, "is_public_demo", 0):
+            existing_proj.is_public_demo = 1
+            db.commit()
         analysis_exists = db.query(ProjectAnalysisRecord).filter(ProjectAnalysisRecord.project_id == project_id).first()
         if analysis_exists:
             return ProjectMetadataResponse(

@@ -467,6 +467,11 @@ export const useJobPoller = (): UseJobPollerReturn => {
     setError(null);
     setErrorCode(null);
     setRepoFetchError(null);
+    try {
+      localStorage.removeItem('codeoracle_active_project_id');
+    } catch {
+      // ignore
+    }
   }, [clearPolling]);
 
   useEffect(() => {

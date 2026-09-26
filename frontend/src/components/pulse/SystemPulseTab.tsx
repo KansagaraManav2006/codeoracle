@@ -134,7 +134,7 @@ export const SystemPulseTab: React.FC<SystemPulseTabProps> = ({
                 onClick={() => setLensMode('health')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
                   lensMode === 'health'
-                    ? 'bg-[#007AFF] text-white shadow-[0_2px_8px_rgba(0,122,255,0.4)]'
+                    ? 'bg-indigo text-white shadow-indigo'
                     : 'text-white/65 hover:text-white/90 hover:bg-white/[0.04]'
                 }`}
                 aria-pressed={lensMode === 'health'}
@@ -146,7 +146,7 @@ export const SystemPulseTab: React.FC<SystemPulseTabProps> = ({
                 onClick={() => setLensMode('confidence')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
                   lensMode === 'confidence'
-                    ? 'bg-[#007AFF] text-white shadow-[0_2px_8px_rgba(0,122,255,0.4)]'
+                    ? 'bg-indigo text-white shadow-indigo'
                     : 'text-white/65 hover:text-white/90 hover:bg-white/[0.04]'
                 }`}
                 aria-pressed={lensMode === 'confidence'}
@@ -161,7 +161,7 @@ export const SystemPulseTab: React.FC<SystemPulseTabProps> = ({
               onClick={fetchSystemPulse}
               disabled={loading}
               title="Refresh System Pulse"
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white bg-white/[0.08] hover:bg-white/[0.14] active:scale-[0.98] border border-white/10 transition-all duration-200 backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007AFF]"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white bg-white/[0.08] hover:bg-white/[0.14] active:scale-[0.98] border border-white/10 transition-all duration-200 backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo"
             >
               <RefreshCw
                 className={`w-3.5 h-3.5 text-white/90 transition-transform ${loading ? 'animate-spin' : ''}`}

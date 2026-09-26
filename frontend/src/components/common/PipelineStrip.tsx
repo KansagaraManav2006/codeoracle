@@ -29,8 +29,8 @@ export const PipelineStrip: React.FC<PipelineStripProps> = ({
 
   const handleClick = (id: PipelineStage) => {
     if (id === 'ingest') onIngest();
-    if (id === 'analyze' && hasProject) onAnalyze();
-    if (id === 'output' && hasProject) onOutput();
+    if (id === 'analyze') onAnalyze();
+    if (id === 'output') onOutput();
   };
 
   return (
@@ -42,7 +42,6 @@ export const PipelineStrip: React.FC<PipelineStripProps> = ({
         {STEPS.map((step, idx) => {
           const isDone = idx < currentIdx;
           const isCurrent = step.id === stage;
-          const locked = step.id !== 'ingest' && !hasProject;
           return (
             <React.Fragment key={step.id}>
               {idx > 0 && (
@@ -56,14 +55,9 @@ export const PipelineStrip: React.FC<PipelineStripProps> = ({
               <li className="shrink-0">
                 <button
                   type="button"
-                  disabled={locked}
                   onClick={() => handleClick(step.id)}
                   aria-current={isCurrent ? 'step' : undefined}
-                  className={`flex items-center gap-2 rounded-lg px-1.5 sm:px-2 py-1 text-left transition-colors ${
-                    locked
-                      ? 'opacity-40 cursor-not-allowed'
-                      : 'hover:bg-tile cursor-pointer'
-                  }`}
+                  className="flex items-center gap-2 rounded-lg px-1.5 sm:px-2 py-1 text-left transition-colors hover:bg-tile cursor-pointer"
                 >
                   <span
                     className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-[11px] font-bold border ${
@@ -84,7 +78,9 @@ export const PipelineStrip: React.FC<PipelineStripProps> = ({
                     >
                       {step.label}
                     </span>
-                    <span className="block text-[10px] text-ink-4 mt-0.5">{step.hint}</span>
+                    <span className="block text-[10px] text-ink-4 mt-0.5">
+                      {!hasProject && step.id !== 'ingest' ? 'Pending analysis' : step.hint}
+                    </span>
                   </span>
                 </button>
               </li>

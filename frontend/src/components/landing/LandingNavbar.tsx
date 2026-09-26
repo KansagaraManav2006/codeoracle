@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Sparkles, Menu, X, User, LogOut, Github } from 'lucide-react';
+import { ArrowRight, Sparkles, Menu, X, User, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { navigateTo } from '../../utils/navigation';
 
@@ -90,15 +90,6 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({
           >
             Modernization
           </button>
-          <a
-            href="https://github.com/KansagaraManav2006/codeoracle"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-[#181715] transition-colors flex items-center gap-1.5 focus:outline-none"
-          >
-            <Github className="w-3.5 h-3.5" />
-            <span>GitHub</span>
-          </a>
         </div>
 
         {/* CTA & Auth Actions */}
@@ -209,15 +200,6 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({
             >
               Modernization Pipeline
             </button>
-            <a
-              href="https://github.com/KansagaraManav2006/codeoracle"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 py-1.5 hover:text-[#4C4FD6]"
-            >
-              <Github className="w-4 h-4" />
-              <span>GitHub Repository</span>
-            </a>
           </div>
 
           <div className="space-y-2 pt-1">

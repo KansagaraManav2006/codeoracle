@@ -8,6 +8,8 @@ interface EmptyStateProps {
   description: string;
   actionText?: string;
   onAction?: () => void;
+  secondaryActionText?: string;
+  onSecondaryAction?: () => void;
   trustCopy?: string;
   iconVariant?: 'brand' | 'signal' | 'success' | 'muted';
 }
@@ -18,6 +20,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   description,
   actionText,
   onAction,
+  secondaryActionText,
+  onSecondaryAction,
   trustCopy,
   iconVariant = 'brand',
 }) => {
@@ -40,16 +44,28 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
       <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-ink-3">{description}</p>
 
-      {actionText && onAction && (
-        <div className="mt-5">
-          <Button
-            variant="indigo"
-            size="sm"
-            onClick={onAction}
-            className="shadow-xs font-semibold"
-          >
-            {actionText}
-          </Button>
+      {((actionText && onAction) || (secondaryActionText && onSecondaryAction)) && (
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+          {actionText && onAction && (
+            <Button
+              variant="indigo"
+              size="sm"
+              onClick={onAction}
+              className="shadow-xs font-semibold"
+            >
+              {actionText}
+            </Button>
+          )}
+          {secondaryActionText && onSecondaryAction && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onSecondaryAction}
+              className="shadow-xs font-semibold"
+            >
+              {secondaryActionText}
+            </Button>
+          )}
         </div>
       )}
 

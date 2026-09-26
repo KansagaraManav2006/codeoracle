@@ -24,7 +24,95 @@ import { RegisterPage } from './components/auth/RegisterPage';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useCurrentRoute, navigateTo } from './utils/navigation';
 import { useJobPoller } from './hooks/useJobPoller';
+import EmptyState from './components/common/EmptyState';
+import {
+  FolderGit2,
+  Activity,
+  BookOpen,
+  Flame,
+  Workflow,
+  Network,
+  TestTube,
+  Wand2,
+  Map,
+  LucideIcon,
+} from 'lucide-react';
 import { TabType } from './types';
+
+interface EmptyFeatureConfig {
+  icon: LucideIcon;
+  headline: string;
+  description: string;
+}
+
+const TAB_TITLES: Record<TabType, string> = {
+  overview: 'Project Details',
+  pulse: 'System Pulse',
+  explanation: 'Explanation',
+  hotspots: 'Risk Hotspots',
+  graph: 'Dependency Graph',
+  'neural-map': 'Neural Map',
+  tests: 'Generated Tests',
+  refactor: 'Refactor Proposals',
+  migration: 'Migration Plan',
+};
+
+const EMPTY_FEATURE_CONFIGS: Record<TabType, EmptyFeatureConfig> = {
+  overview: {
+    icon: FolderGit2,
+    headline: 'Project Details requires an active codebase',
+    description:
+      'Select a recent project or analyze a codebase to view file hierarchy, language metrics, and project metadata.',
+  },
+  pulse: {
+    icon: Activity,
+    headline: 'System Pulse requires an analyzed codebase',
+    description:
+      'Analyze a codebase or explore the demo dataset to view system health scores, subsystem status, and real-time reliability signals.',
+  },
+  explanation: {
+    icon: BookOpen,
+    headline: 'Codebase Explanation requires an analyzed codebase',
+    description:
+      'Inspect comprehensive module explanations, domain boundaries, and data flow summaries by analyzing a codebase or loading the demo.',
+  },
+  hotspots: {
+    icon: Flame,
+    headline: 'Risk Hotspots require an analyzed codebase',
+    description:
+      'Analyze a codebase or load the demo dataset to identify high-cyclomatic complexity files, architectural debt, and high-risk modification zones.',
+  },
+  graph: {
+    icon: Workflow,
+    headline: 'Dependency Graph requires an analyzed codebase',
+    description:
+      'Visualize circular dependencies, module fan-in/fan-out, and architectural hierarchies by analyzing a codebase or loading the demo.',
+  },
+  'neural-map': {
+    icon: Network,
+    headline: 'Neural Map requires an analyzed codebase',
+    description:
+      'Explore interactive 2D semantic force-directed cluster embeddings of modules and files once a codebase has been analyzed.',
+  },
+  tests: {
+    icon: TestTube,
+    headline: 'Generated Tests require an analyzed codebase',
+    description:
+      'Automated regression suites, safety nets, and boundary test cases are generated against parsed functions in an active project.',
+  },
+  refactor: {
+    icon: Wand2,
+    headline: 'Refactor Proposals require an analyzed codebase',
+    description:
+      'Review AI-driven architectural modernization diffs and decoupling proposals once codebase analysis has completed.',
+  },
+  migration: {
+    icon: Map,
+    headline: 'Migration Plan requires an analyzed codebase',
+    description:
+      'View phased step-by-step migration plans, breaking changes, and risk mitigations for an analyzed project.',
+  },
+};
 
 const NeuralMapPage = lazy(() => import('./components/NeuralMap/NeuralMapPage'));
 
@@ -98,6 +186,20 @@ const WorkspaceContent: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<TabType>(getInitialTab);
   const [targetFile, setTargetFile] = useState<string | null>(getInitialFile);
+  const [isIngestView, setIsIngestView] = useState<boolean>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    if (tabParam === 'ingest') return true;
+    if (tabParam) return false;
+    const urlProj = params.get('project');
+    let storedProj: string | null = null;
+    try {
+      storedProj = localStorage.getItem('codeoracle_active_project_id');
+    } catch {
+      // ignore
+    }
+    return !(urlProj || storedProj);
+  });
   const [testRevision, setTestRevision] = useState(0);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [isGeneratingTests, setIsGeneratingTests] = useState(false);
@@ -134,15 +236,55 @@ const WorkspaceContent: React.FC = () => {
     setImpactModalOpen(true);
   };
 
-
-  // If a ?project= URL param is given on mount or change, open it
+  // If a ?project= URL param or stored project ID is available on mount, open it
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const projId = params.get('project');
+    const urlProjId = params.get('project');
+    let storedProjId: string | null = null;
+    try {
+      storedProjId = localStorage.getItem('codeoracle_active_project_id');
+    } catch {
+      // ignore
+    }
+    const projId = urlProjId || storedProjId;
     if (projId && (!project || project.project_id !== projId)) {
-      openProject(projId);
+      openProject(projId).catch(() => {
+        try {
+          localStorage.removeItem('codeoracle_active_project_id');
+        } catch {
+          // ignore
+        }
+      });
     }
   }, [openProject]);
+
+  // When project loads, persist ID to localStorage and update URL
+  useEffect(() => {
+    if (project?.project_id) {
+      try {
+        localStorage.setItem('codeoracle_active_project_id', project.project_id);
+      } catch {
+        // ignore
+      }
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('project') !== project.project_id) {
+        params.set('project', project.project_id);
+        const newUrl = `${window.location.pathname}?${params.toString()}`;
+        window.history.replaceState({}, '', newUrl);
+      }
+    }
+  }, [project?.project_id]);
+
+  // Clear active project ID if user signs out
+  useEffect(() => {
+    if (!isAuthenticated) {
+      try {
+        localStorage.removeItem('codeoracle_active_project_id');
+      } catch {
+        // ignore
+      }
+    }
+  }, [isAuthenticated]);
 
   // Check background summary metrics for status dots on tabs
   useEffect(() => {
@@ -178,7 +320,7 @@ const WorkspaceContent: React.FC = () => {
   }, [project?.project_id]);
 
   // Update URL search parameters when tab, file, or project changes
-  const updateUrlParams = useCallback((newTab: TabType, newFile: string | null) => {
+  const updateUrlParams = useCallback((newTab: TabType | 'ingest', newFile: string | null) => {
     const params = new URLSearchParams(window.location.search);
     params.set('tab', newTab);
     if (newFile) {
@@ -194,9 +336,30 @@ const WorkspaceContent: React.FC = () => {
   }, [project?.project_id]);
 
   const handleTabChange = useCallback((tab: TabType) => {
+    setIsIngestView(false);
     setActiveTab(tab);
     updateUrlParams(tab, targetFile);
   }, [targetFile, updateUrlParams]);
+
+  const handleIngest = useCallback(() => {
+    setIsIngestView(true);
+    updateUrlParams('ingest', null);
+  }, [updateUrlParams]);
+
+  const handleReset = useCallback(() => {
+    reset();
+    setIsIngestView(true);
+    try {
+      localStorage.removeItem('codeoracle_active_project_id');
+    } catch {
+      // ignore
+    }
+    const params = new URLSearchParams(window.location.search);
+    params.delete('project');
+    params.set('tab', 'ingest');
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState({}, '', newUrl);
+  }, [reset]);
 
   const handleSelectFile = useCallback((filePath: string) => {
     setTargetFile(filePath);
@@ -207,9 +370,15 @@ const WorkspaceContent: React.FC = () => {
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
-      const t = (params.get('tab') as TabType) || 'overview';
+      const tabParam = params.get('tab');
+      if (tabParam === 'ingest') {
+        setIsIngestView(true);
+      } else {
+        setIsIngestView(false);
+        const t = (tabParam as TabType) || 'overview';
+        setActiveTab(t);
+      }
       const f = params.get('file') || null;
-      setActiveTab(t);
       setTargetFile(f);
     };
     window.addEventListener('popstate', handlePopState);
@@ -348,8 +517,9 @@ const WorkspaceContent: React.FC = () => {
       <AppSidebar
         hasProject={Boolean(project)}
         activeTab={activeTab}
+        isIngestActive={isIngestView}
         onTabChange={handleTabChange}
-        onIngest={reset}
+        onIngest={handleIngest}
         collapsed={sidebarCollapsed}
         onToggleCollapsed={handleToggleSidebar}
         mobileOpen={mobileNavOpen}
@@ -370,24 +540,42 @@ const WorkspaceContent: React.FC = () => {
           project={project}
           targetFile={targetFile}
           onSelectFile={handleSelectFile}
-          onReset={reset}
+          onReset={handleReset}
           onOpenImpactModal={handleOpenImpactModal}
           onOpenSidebar={() => setMobileNavOpen(true)}
           onToggleSidebar={handleToggleSidebar}
           sidebarCollapsed={sidebarCollapsed}
           onViewLanding={() => navigateTo('/')}
+          featureTitle={isIngestView ? 'Analyze a codebase' : TAB_TITLES[activeTab]}
+          featureSubtitle={
+            isIngestView
+              ? 'ZIP or public GitHub · Python / JS · 100k lines · 200MB'
+              : 'Requires an analyzed codebase or active project'
+          }
         />
 
         {/* Main Page Content */}
         <main
           id="main-content"
           className={`flex-1 w-full ${
-            activeTab === 'graph' || activeTab === 'neural-map'
+            !isIngestView && (activeTab === 'graph' || activeTab === 'neural-map') && project
               ? 'px-3 sm:px-4 py-3'
               : 'px-4 sm:px-6 py-5'
           }`}
         >
-          {project ? (
+          {isIngestView ? (
+            <WorkspaceShell>
+              <div className="w-full max-w-[1020px] mx-auto space-y-8 py-4">
+                <InputSection
+                  onAnalyzeGithub={submitGithub}
+                  onAnalyzeZip={submitZip}
+                  onLoadDemo={loadDemo}
+                  disabled={loading}
+                />
+                <RecentProjectsSection onOpenProject={openProject} disabled={loading} />
+              </div>
+            </WorkspaceShell>
+          ) : project ? (
             <>
               {!(activeTab === 'graph' || activeTab === 'neural-map') && (
                 <PipelineStrip
@@ -397,7 +585,7 @@ const WorkspaceContent: React.FC = () => {
                       : 'analyze'
                   }
                   hasProject={Boolean(project)}
-                  onIngest={reset}
+                  onIngest={handleIngest}
                   onAnalyze={() => handleTabChange('explanation')}
                   onOutput={() => handleTabChange('tests')}
                 />
@@ -411,7 +599,7 @@ const WorkspaceContent: React.FC = () => {
                       files={files}
                       onSelectFile={handleSelectFile}
                       onNavigateTab={handleTabChange}
-                      onReset={reset}
+                      onReset={handleReset}
                     />
                   )}
                   {activeTab === 'pulse' && (
@@ -512,17 +700,35 @@ const WorkspaceContent: React.FC = () => {
               </WorkspaceShell>
             </>
           ) : (
-            <WorkspaceShell>
-              <div className="w-full max-w-[1020px] mx-auto space-y-8 py-4">
-                <InputSection
-                  onAnalyzeGithub={submitGithub}
-                  onAnalyzeZip={submitZip}
-                  onLoadDemo={loadDemo}
-                  disabled={loading}
+            <>
+              {!(activeTab === 'graph' || activeTab === 'neural-map') && (
+                <PipelineStrip
+                  stage={
+                    activeTab === 'tests' || activeTab === 'refactor' || activeTab === 'migration'
+                      ? 'output'
+                      : 'analyze'
+                  }
+                  hasProject={false}
+                  onIngest={handleIngest}
+                  onAnalyze={() => handleTabChange('explanation')}
+                  onOutput={() => handleTabChange('tests')}
                 />
-                <RecentProjectsSection onOpenProject={openProject} disabled={loading} />
-              </div>
-            </WorkspaceShell>
+              )}
+              <WorkspaceShell>
+                <div className="w-full max-w-[1020px] mx-auto py-12">
+                  <EmptyState
+                    icon={EMPTY_FEATURE_CONFIGS[activeTab].icon}
+                    headline={EMPTY_FEATURE_CONFIGS[activeTab].headline}
+                    description={EMPTY_FEATURE_CONFIGS[activeTab].description}
+                    actionText="Analyze a codebase"
+                    onAction={handleIngest}
+                    secondaryActionText="Load demo dataset"
+                    onSecondaryAction={() => loadDemo()}
+                    trustCopy="No external code execution required. Analysis runs in isolated, read-only sandboxes."
+                  />
+                </div>
+              </WorkspaceShell>
+            </>
           )}
         </main>
 
