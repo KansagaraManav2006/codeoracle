@@ -25,6 +25,11 @@ def resolve_database_url(
     """
     db_url = custom_database_url or getattr(settings, "DATABASE_URL", None) or "sqlite:///./codeoracle.db"
 
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql+psycopg2://", 1)
+    elif db_url.startswith("postgresql://") and not db_url.startswith("postgresql+psycopg2://"):
+        db_url = db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+
     if not db_url.startswith("sqlite"):
         return db_url
 

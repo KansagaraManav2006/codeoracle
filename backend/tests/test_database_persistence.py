@@ -19,9 +19,15 @@ from app.testgen.models import GeneratedTestFile, ProjectTestResult, TEST_GENERA
 
 
 def test_resolve_database_url_unit(tmp_path):
-    # 1. PostgreSQL URL unchanged
+    # 1. PostgreSQL URL conversion
     pg_url = "postgresql://user:pass@localhost:5432/dbname"
-    assert resolve_database_url(pg_url) == pg_url
+    assert resolve_database_url(pg_url) == "postgresql+psycopg2://user:pass@localhost:5432/dbname"
+    
+    legacy_pg_url = "postgres://user:pass@localhost:5432/dbname?sslmode=require"
+    assert resolve_database_url(legacy_pg_url) == "postgresql+psycopg2://user:pass@localhost:5432/dbname?sslmode=require"
+    
+    explicit_pg_url = "postgresql+psycopg2://user:pass@localhost:5432/dbname"
+    assert resolve_database_url(explicit_pg_url) == "postgresql+psycopg2://user:pass@localhost:5432/dbname"
 
     # 2. In-memory SQLite unchanged
     assert resolve_database_url("sqlite:///:memory:") == "sqlite:///:memory:"
@@ -82,6 +88,7 @@ def test_integration_full_workflow_persistence_across_sessions_and_engine_recrea
 
     # Store Project
     proj = Project(
+        is_public_demo=True,
         id=project_id,
         display_name="Persistence Sample",
         source_type="zip",
