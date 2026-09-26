@@ -44,6 +44,7 @@ interface NavGroup {
 interface AppSidebarProps {
   hasProject: boolean;
   activeTab: TabType;
+  isIngestActive?: boolean;
   onTabChange: (tab: TabType) => void;
   onIngest: () => void;
   collapsed: boolean;
@@ -60,6 +61,7 @@ interface AppSidebarProps {
 export const AppSidebar: React.FC<AppSidebarProps> = ({
   hasProject,
   activeTab,
+  isIngestActive,
   onTabChange,
   onIngest,
   collapsed,
@@ -109,8 +111,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
     },
   ];
 
-  const isIngestActive = !hasProject;
-  const analysisLocked = !hasProject;
+  const isIngestSelected = isIngestActive ?? (!hasProject && activeTab === 'overview');
 
   useEffect(() => {
     if (!mobileOpen) return;
@@ -127,7 +128,6 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       onMobileClose();
       return;
     }
-    if (analysisLocked) return;
     onTabChange(id);
     onMobileClose();
   };
@@ -195,14 +195,12 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             <ul className="space-y-0.5">
               {group.items.map((item) => {
                 const Icon = item.icon;
-                const isActive = item.id === 'ingest' ? isIngestActive : hasProject && activeTab === item.id;
-                const locked = item.id !== 'ingest' && analysisLocked;
+                const isActive = item.id === 'ingest' ? isIngestSelected : (!isIngestSelected && activeTab === item.id);
                 return (
                   <li key={item.id}>
                     <button
                       type="button"
                       onClick={() => handleNav(item.id)}
-                      disabled={locked}
                       title={item.label}
                       aria-current={isActive ? 'page' : undefined}
                       className={`w-full flex items-center gap-3 rounded-lg text-left transition-colors duration-fast focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo ${
@@ -210,8 +208,6 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       } ${
                         isActive
                           ? 'bg-indigo-surface text-indigo font-bold border border-indigo/20 shadow-xs'
-                          : locked
-                          ? 'text-ink-4 cursor-not-allowed opacity-60'
                           : 'text-ink-2 hover:bg-tile hover:text-ink font-medium'
                       }`}
                     >

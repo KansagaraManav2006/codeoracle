@@ -818,7 +818,7 @@ export const RefactoredCodeTab: React.FC<RefactoredCodeTabProps> = ({
             label: 'Rule Registry',
             variant: 'secondary' as const,
             onClick: () => setRulesModalOpen(true),
-            icon: <Sparkles className="w-3.5 h-3.5 text-[#5AC8FA]" />,
+            icon: <Sparkles className="w-3.5 h-3.5 text-amber-on-dark" />,
           },
           {
             label: 'Download Proposal',

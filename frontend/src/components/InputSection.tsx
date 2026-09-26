@@ -144,15 +144,12 @@ export const InputSection: React.FC<InputSectionProps> = ({
           </Badge>
         }
         actions={
-          <div className="flex flex-wrap gap-1.5">
-            <Badge tone="amber" size="sm">
-              200 MB ZIP
-            </Badge>
-            <Badge tone="amber" size="sm">
-              100k lines
+          <div className="flex items-center gap-2">
+            <Badge tone="neutral" size="sm">
+              Max 200 MB
             </Badge>
             <Badge tone="indigo" size="sm">
-              .py / .js / .jsx
+              Python &bull; JS &bull; TS
             </Badge>
           </div>
         }

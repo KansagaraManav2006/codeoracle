@@ -15,6 +15,8 @@ interface ProjectContextBarProps {
   onToggleSidebar?: () => void;
   sidebarCollapsed?: boolean;
   onViewLanding?: () => void;
+  featureTitle?: string;
+  featureSubtitle?: string;
 }
 
 export const ProjectContextBar: React.FC<ProjectContextBarProps> = ({
@@ -27,6 +29,8 @@ export const ProjectContextBar: React.FC<ProjectContextBarProps> = ({
   onToggleSidebar,
   sidebarCollapsed = false,
   onViewLanding,
+  featureTitle,
+  featureSubtitle,
 }) => {
   return (
     <div className="sticky top-0 z-sticky bg-surface/90 backdrop-blur-md border-b border-line">
@@ -73,9 +77,9 @@ export const ProjectContextBar: React.FC<ProjectContextBarProps> = ({
             </div>
           ) : (
             <div className="min-w-0">
-              <p className="font-display font-bold text-sm text-ink">Analyze a codebase</p>
+              <p className="font-display font-bold text-sm text-ink">{featureTitle || 'Analyze a codebase'}</p>
               <p className="text-[10px] text-ink-3 hidden sm:block">
-                ZIP or public GitHub · Python / JS · 100k lines · 200MB
+                {featureSubtitle || 'ZIP or public GitHub · Python / JS · 100k lines · 200MB'}
               </p>
             </div>
           )}

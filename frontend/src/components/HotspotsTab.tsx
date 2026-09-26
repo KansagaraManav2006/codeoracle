@@ -373,9 +373,24 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
         }
         description="Prioritize refactoring targets using explainable complexity, findings, fan-in, and downstream blast radius."
         actions={
-          <div className="flex items-center gap-2 px-3.5 py-1.5 bg-white/[0.08] border border-white/10 rounded-xl text-xs font-mono text-white/80 shrink-0 backdrop-blur-sm">
-            <span className="w-2 h-2 rounded-full bg-[#34C759] inline-block shadow-[0_0_8px_rgba(52,199,89,0.5)]" />
-            <span>Static AST &amp; Dependency Graph</span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleInspectInGraph(topHotspot ? getFilePath(topHotspot) : '')}
+              icon={<Network className="w-3.5 h-3.5" />}
+              className="text-white border-white/20 hover:bg-white/10"
+            >
+              Dependency Map
+            </Button>
+            <Button
+              variant="indigo"
+              size="sm"
+              onClick={() => handleWhatBreaks(topHotspot ? getFilePath(topHotspot) : '')}
+              icon={<Target className="w-3.5 h-3.5" />}
+            >
+              Simulate Impact
+            </Button>
           </div>
         }
       />
@@ -448,11 +463,11 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
                 <strong className="text-white font-semibold">Why this file ranks #1: </strong>
                 {data.recommendedStartReason ||
                   data.recommended_start_reason ||
-                  `This file ranks #1 because it has the highest combined hotspot score (${getHotspotScore(
+                  `Highest combined hotspot score (${getHotspotScore(
                     topHotspot
-                  )}/100, RISK: ${getOverallRisk(topHotspot).toUpperCase()}) based on cyclomatic complexity (${getComplexityVal(
+                  )}/100, ${getOverallRisk(topHotspot).toUpperCase()}) based on cyclomatic complexity (${getComplexityVal(
                     topHotspot
-                  )} CC, COMPLEXITY: ${getComplexitySev(topHotspot).toUpperCase()}), incoming callers (${getFanIn(
+                  )} CC), incoming callers (${getFanIn(
                     topHotspot
                   )}), and downstream blast radius (${getBlastRadius(topHotspot)} files).`}
               </p>
@@ -533,7 +548,7 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
             </div>
           </div>
 
-          {/* All 5 Working Action Buttons */}
+          {/* 4 Focused Action Buttons */}
           <div className="pt-2 flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
@@ -543,17 +558,17 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
               icon={<Network className="w-3.5 h-3.5 text-amber-on-dark" />}
               title="Inspect coupling in interactive Dependency Map"
             >
-              Inspect in Dependency Map
+              Inspect in Map
             </Button>
             <Button
               variant="outline"
               size="sm"
-              className="!bg-white/15 hover:!bg-white/25 active:!bg-white/30 !text-white !border-white/30 shadow-none font-bold"
+              className="!bg-white/15 hover:!bg-white/25 active:!bg-white/30 !text-white !border-white/30 shadow-none font-semibold"
               onClick={() => handleWhatBreaks(getFilePath(topHotspot))}
               icon={<Target className="w-3.5 h-3.5 text-amber-on-dark" />}
               title="Simulate downstream blast radius and affected entry points"
             >
-              What breaks if I change this?
+              Analyze Impact
             </Button>
             <Button
               variant="outline"
@@ -563,44 +578,34 @@ export const HotspotsTab: React.FC<HotspotsTabProps> = ({
               icon={<TestTube className="w-3.5 h-3.5 text-amber-on-dark" />}
               title="Generate characterization pinning tests for this file"
             >
-              Generate Safety Tests
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="!bg-white/10 hover:!bg-white/20 active:!bg-white/25 !text-white !border-white/25 shadow-none"
-              onClick={() => handleReviewModernization(getFilePath(topHotspot))}
-              icon={<Wand2 className="w-3.5 h-3.5 text-amber-on-dark" />}
-              title="Preview automated modernization proposals in disposable sandbox"
-            >
-              Review Modernization Proposals
+              Generate Tests
             </Button>
             <Button
               variant="indigo"
               size="sm"
-              onClick={() => handleOpenImpactPlan(getFilePath(topHotspot))}
-              icon={<Map className="w-3.5 h-3.5" />}
-              title="Open the Migration Plan tab with this file selected"
+              onClick={() => handleReviewModernization(getFilePath(topHotspot))}
+              icon={<Wand2 className="w-3.5 h-3.5" />}
+              title="Preview automated modernization proposals"
             >
-              Open Impact &amp; Plan →
+              Modernize Code
             </Button>
           </div>
         </section>
       )}
 
       {/* 3. Static-Score Disclaimer Banner */}
-      <section className="bg-[#FEF9EE] border border-amber-line/70 rounded-xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+      <section className="bg-[#FEF9EE] border border-amber-line/70 rounded-xl p-4 sm:p-4.5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
         <div className="flex items-start gap-3">
           <ShieldAlert className="w-5 h-5 text-amber-strong shrink-0 mt-0.5" />
           <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <strong className="text-ink font-semibold">Static Scoring Disclaimer (AST &amp; Callgraph Analysis)</strong>
+              <strong className="text-ink font-semibold">Static AST &amp; Dependency Coupling Analysis</strong>
               <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-pill bg-white border border-amber-line text-amber-strong uppercase shadow-xs">
-                NO GIT CHURN CLAIMED
+                STATIC ANALYSIS
               </span>
             </div>
             <p className="text-ink-2 leading-relaxed max-w-3xl">
-              Hotspot scores are deterministically computed using static Python and JavaScript AST metrics: cyclomatic complexity, incoming caller fan-in, detected legacy modernization findings, and dependency graph blast radius. Git commit history, author revisions, and commit churn frequency are not analyzed for uploaded archives. All scores reflect static architectural coupling and refactoring risk. Files with partial parses or unresolved imports carry lower confidence ratings.
+              Scores are deterministically calculated using static AST complexity, callgraph fan-in, and dependency blast radius without requiring Git repository churn history.
             </p>
           </div>
         </div>

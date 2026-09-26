@@ -133,9 +133,9 @@ export const RegisterPage: React.FC = () => {
           </div>
 
           <div className="mb-6">
-            <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#181715] tracking-tight">
+            <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#181715] tracking-tight">
               Create your account
-            </h2>
+            </h1>
             <p className="text-sm text-[#5C554D] mt-1.5">
               Start analyzing repositories with private project ownership.
             </p>

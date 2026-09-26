@@ -738,99 +738,28 @@ ${
       id="tabpanel-explanation"
       aria-labelledby="tab-explanation"
     >
-      {/* ========================================================================= */}
-      {/* 0. ANALYSIS CONFIDENCE BANNER (Confidence-Aware Status Bar)                */}
-      {/* ========================================================================= */}
-      <section
-        className={`w-full rounded-xl border p-4 sm:px-5 sm:py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs ${
-          canonicalCoverage.confidence === 'high'
-            ? 'bg-teal-surface/60 border-teal/30'
-            : canonicalCoverage.confidence === 'medium'
-            ? 'bg-indigo-surface/60 border-indigo/25'
-            : canonicalCoverage.confidence === 'partial'
-            ? 'bg-amber-surface/70 border-amber/35'
-            : 'bg-red-surface/70 border-red/35'
-        }`}
-        aria-label="Analysis Confidence Status"
-      >
-        <div className="flex items-center gap-3">
-          <div
-            className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 border ${
-              canonicalCoverage.confidence === 'high'
-                ? 'bg-teal/10 text-teal-strong border-teal/25'
-                : canonicalCoverage.confidence === 'partial'
-                ? 'bg-amber/10 text-amber-strong border-amber/30'
-                : 'bg-indigo/10 text-indigo border-indigo/25'
-            }`}
-          >
-            {canonicalCoverage.confidence === 'high' ? (
-              <CheckCircle2 className="w-4 h-4" />
-            ) : (
-              <AlertTriangle className="w-4 h-4" />
-            )}
-          </div>
-
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono text-[11px] font-black uppercase tracking-wider text-ink">
-                ANALYSIS CONFIDENCE:
-              </span>
-              <Badge
-                tone={
-                  canonicalCoverage.confidence === 'high'
-                    ? 'green'
-                    : canonicalCoverage.confidence === 'partial'
-                    ? 'amber'
-                    : 'indigo'
-                }
-                size="sm"
-              >
-                {canonicalCoverage.confidence.toUpperCase()}
-              </Badge>
-              <span className="text-xs text-ink-3 hidden sm:inline">·</span>
-              <span className="font-sans text-xs text-ink-2 font-medium">
-                <strong>{canonicalCoverage.fully_parsed}</strong> / {canonicalCoverage.total_source_files} files fully parsed
-                {canonicalCoverage.partial > 0 && <span> · <strong>{canonicalCoverage.partial}</strong> partial</span>}
-                {canonicalCoverage.fallback > 0 && <span> · <strong>{canonicalCoverage.fallback}</strong> fallback</span>}
-              </span>
-            </div>
-            <p className="text-[11px] text-ink-3 mt-0.5 leading-snug">
-              {canonicalCoverage.limitation_notice ||
-                'Full AST contracts extracted. Architecture topology is grounded in complete deterministic evidence.'}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0 self-start md:self-auto">
-          {canonicalGraph.unresolved_imports > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowDiagnosticsDetails((prev) => !prev)}
-              className="text-[11px] font-mono font-bold text-indigo hover:underline px-2 py-1 rounded bg-surface border border-line"
-            >
-              {canonicalGraph.unresolved_imports} relationships need review
-            </button>
-          )}
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* 1. EXECUTIVE OVERVIEW: CORE ARCHITECTURE FACTS & KPIS                     */}
-      {/* ========================================================================= */}
+      {/* 1. EXECUTIVE OVERVIEW: CORE ARCHITECTURE FACTS & KPIS */}
       <PageHeroHeader
         icon={BookOpen}
         title="EXPLANATION"
         contextLabel={projectName ? `ACTIVE CODEBASE: ${projectName}` : undefined}
         eyebrow="Architecture Intelligence"
+        confidence={canonicalCoverage.confidence}
         badge={
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/[0.08] text-white/80 border border-white/10">
-            AST Evidence
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/[0.08] text-white/80 border border-white/10 font-mono">
+            {canonicalCoverage.full_ast_percentage}% AST Coverage
           </span>
         }
         description="Deterministic AST evidence for languages, parse coverage, coupling, entry points, and dependency topology."
         actions={[
           {
-            label: "Download Markdown",
+            label: "Explore Dependencies",
+            variant: "primary",
+            onClick: () => onNavigateTab?.('graph'),
+            icon: <Network className="w-3.5 h-3.5" strokeWidth={1.75} />,
+          },
+          {
+            label: "Download Summary",
             variant: "secondary",
             onClick: handleDownloadMarkdown,
             icon: <Download className="w-3.5 h-3.5" strokeWidth={1.75} />,
@@ -845,6 +774,82 @@ ${
           },
         ]}
       />
+
+      {/* 2. Analysis Confidence Status Strip (when partial or review needed) */}
+      {(canonicalCoverage.confidence !== 'high' || canonicalGraph.unresolved_imports > 0) && (
+        <section
+          className={`w-full rounded-xl border p-4 sm:px-5 sm:py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs ${
+            canonicalCoverage.confidence === 'high'
+              ? 'bg-teal-surface/60 border-teal/30'
+              : canonicalCoverage.confidence === 'medium'
+              ? 'bg-indigo-surface/60 border-indigo/25'
+              : canonicalCoverage.confidence === 'partial'
+              ? 'bg-amber-surface/70 border-amber/35'
+              : 'bg-red-surface/70 border-red/35'
+          }`}
+          aria-label="Analysis Confidence Status"
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 border ${
+                canonicalCoverage.confidence === 'high'
+                  ? 'bg-teal/10 text-teal-strong border-teal/25'
+                  : canonicalCoverage.confidence === 'partial'
+                  ? 'bg-amber/10 text-amber-strong border-amber/30'
+                  : 'bg-indigo/10 text-indigo border-indigo/25'
+              }`}
+            >
+              {canonicalCoverage.confidence === 'high' ? (
+                <CheckCircle2 className="w-4 h-4" />
+              ) : (
+                <AlertTriangle className="w-4 h-4" />
+              )}
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono text-[11px] font-black uppercase tracking-wider text-ink">
+                  ANALYSIS COVERAGE:
+                </span>
+                <Badge
+                  tone={
+                    canonicalCoverage.confidence === 'high'
+                      ? 'green'
+                      : canonicalCoverage.confidence === 'partial'
+                      ? 'amber'
+                      : 'indigo'
+                  }
+                  size="sm"
+                >
+                  {canonicalCoverage.confidence.toUpperCase()}
+                </Badge>
+                <span className="text-xs text-ink-3 hidden sm:inline">·</span>
+                <span className="font-sans text-xs text-ink-2 font-medium">
+                  <strong>{canonicalCoverage.fully_parsed}</strong> / {canonicalCoverage.total_source_files} files fully parsed
+                  {canonicalCoverage.partial > 0 && <span> · <strong>{canonicalCoverage.partial}</strong> partial</span>}
+                  {canonicalCoverage.fallback > 0 && <span> · <strong>{canonicalCoverage.fallback}</strong> fallback</span>}
+                </span>
+              </div>
+              <p className="text-[11px] text-ink-3 mt-0.5 leading-snug">
+                {canonicalCoverage.limitation_notice ||
+                  'Full AST contracts extracted. Architecture topology is grounded in complete deterministic evidence.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 self-start md:self-auto">
+            {canonicalGraph.unresolved_imports > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowDiagnosticsDetails((prev) => !prev)}
+                className="text-[11px] font-mono font-bold text-indigo hover:underline px-2.5 py-1 rounded-lg bg-surface border border-line shadow-xs cursor-pointer"
+              >
+                {canonicalGraph.unresolved_imports} relationships need review
+              </button>
+            )}
+          </div>
+        </section>
+      )}
 
       <Card variant="primary" padding="lg">
 

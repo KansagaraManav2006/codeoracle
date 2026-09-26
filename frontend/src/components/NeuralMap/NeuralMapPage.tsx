@@ -246,7 +246,7 @@ export default function NeuralMapPage({
                 label: 'Guided Tour',
                 variant: 'secondary' as const,
                 onClick: () => setIsTourOpen(true),
-                icon: <Sparkles className="w-3.5 h-3.5 text-[#5AC8FA]" />,
+                icon: <Sparkles className="w-3.5 h-3.5 text-amber-on-dark" />,
               },
               {
                 label: 'Fullscreen',
