@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -100,8 +100,15 @@ static_dir = get_static_dir()
 
 if static_dir and static_dir.exists():
     assets_dir = static_dir / "assets"
+    
+    class CachedStaticFiles(StaticFiles):
+        def file_response(self, full_path, stat_result):
+            response = super().file_response(full_path, stat_result)
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            return response
+
     if assets_dir.exists():
-        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="static_assets")
+        app.mount("/assets", CachedStaticFiles(directory=str(assets_dir)), name="static_assets")
 
     # SPA Fallback for non-API GET requests
     @app.get("/{full_path:path}")
@@ -119,11 +126,11 @@ if static_dir and static_dir.exists():
             is_inside = str(file_path).startswith(str(static_dir.resolve()))
 
         if is_inside and file_path.exists() and file_path.is_file():
-            return FileResponse(file_path)
+            return FileResponse(file_path, headers={"Cache-Control": "public, max-age=31536000, immutable"} if file_path.parent.name == "assets" else {"Cache-Control": "no-cache, no-store, must-revalidate"})
 
         index_file = static_dir / "index.html"
         if index_file.exists():
-            return FileResponse(index_file)
+            return FileResponse(index_file, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
         raise HTTPException(status_code=404, detail="Resource not found")
 else:
