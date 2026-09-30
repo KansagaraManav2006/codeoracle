@@ -91,6 +91,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def add_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/assets/"):
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return response
+
 # Register API and Auth Routers
 app.include_router(auth_router, prefix="/api")
 app.include_router(api_router, prefix="/api")
@@ -101,14 +108,8 @@ static_dir = get_static_dir()
 if static_dir and static_dir.exists():
     assets_dir = static_dir / "assets"
     
-    class CachedStaticFiles(StaticFiles):
-        def file_response(self, full_path, stat_result):
-            response = super().file_response(full_path, stat_result)
-            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
-            return response
-
     if assets_dir.exists():
-        app.mount("/assets", CachedStaticFiles(directory=str(assets_dir)), name="static_assets")
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="static_assets")
 
     # SPA Fallback for non-API GET requests
     @app.get("/{full_path:path}")
