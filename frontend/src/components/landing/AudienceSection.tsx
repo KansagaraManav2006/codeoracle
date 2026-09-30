@@ -90,7 +90,7 @@ export const AudienceSection: React.FC = () => {
                     </span>
                   </div>
                   <h3 className="text-sm font-bold text-[#1D1D1F] mb-1 font-geist">{aud.role}</h3>
-                  <h4 className="text-xs font-semibold text-[#007AFF] mb-2 leading-snug">{aud.headline}</h4>
+                  <h3 className="text-xs font-semibold text-[#007AFF] mb-2 leading-snug">{aud.headline}</h3>
                   <p className="text-[11px] sm:text-xs text-[#6E6E73] leading-relaxed">{aud.desc}</p>
                 </div>
 
