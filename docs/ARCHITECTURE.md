@@ -1,72 +1,76 @@
-# CodeOracle - System Architecture Specification
+# CodeOracle Architecture
 
-## 1. System Context & Overview
+CodeOracle relies on a decoupled, asynchronous, and scalable architectural pattern, splitting frontend concerns from backend processing.
 
-CodeOracle is an automated codebase inspection, documentation, test generation, and refactoring platform. The architecture emphasizes high modularity, strict separation of concerns, and security isolation for untrusted user uploads.
+## High-Level Data Flow
 
-```
-                 +-------------------------------------------------+
-                 |            React + TypeScript + Vite            |
-                 |      (UI Shell, React Flow, Diff Viewer)        |
-                 +------------------------+------------------------+
-                                          | REST API (HTTP / JSON)
-                                          v
-                 +-------------------------------------------------+
-                 |                FastAPI Gateway                  |
-                 |    (Health, Job Dispatcher, Result Routers)    |
-                 +----+-------------------+-------------------+----+
-                      |                   |                   |
-                      v                   v                   v
-           +------------------+  +------------------+  +------------------+
-           | Ingestion Engine |  | Database (SQLite)|  | Job Queue Worker |
-           | (ZIP / GitHub)   |  | (Jobs/Metadata)  |  | (Async Tasks)    |
-           +--------+---------+  +------------------+  +--------+---------+
-                    |                                           |
-                    v                                           v
-           +------------------+                        +------------------+
-           | Secure Sandbox   |                        | Analysis Engine  |
-           | Workspaces Dir   |                        | (Python ast / JS)|
-           +------------------+                        +--------+---------+
-                                                                |
-                                             +------------------+------------------+
-                                             |                                     |
-                                             v                                     v
-                                  +--------------------+                +--------------------+
-                                  | LLM Provider Layer |                | Test & Refactoring |
-                                  | (OpenAI-Compatible)|                | Engine             |
-                                  +--------------------+                +--------------------+
+```mermaid
+graph TD
+    Client[React Frontend] -->|HTTP/REST| API[FastAPI Backend]
+    API -->|Validates| Auth[Authentication]
+    Auth -->|Creates/Verifies Session| API
+    
+    API -->|Schedules/Polls| Jobs[Job System]
+    Jobs -->|Downloads| Ingestion[Ingestion Pipeline]
+    
+    Ingestion -->|ZIP / GitHub / Demo| SourceCode[Code Storage]
+    SourceCode -->|Triggers| Analysis[Code Analysis Engine]
+    
+    Analysis -->|Parses AST| AST[AST Processors]
+    AST -->|Extracts Metadata| DB[(PostgreSQL)]
+    
+    API -->|Queries Metadata| DB
+    DB -->|Returns JSON| Workspace[Workspace / Visualization]
+    
+    Workspace -->|Transforms| Exports[Exports: JSON/Mermaid]
 ```
 
-## 2. Core Architectural Layers
+## Component Overview
 
-### 2.1 Ingestion Layer (`app.ingestion`)
-- **Zip Extractor (`app.ingestion.zip_ingest`)**:
-  - Streamed chunk validation to prevent in-memory payload exhaustion.
-  - Multi-tier Zip Slip path containment check: `Path(dest).is_relative_to(target_dir)`.
-  - Rejects `../`, absolute paths, drive letters (`C:`), UNC paths, null bytes, symlinks (`S_IFLNK`), and encrypted entries.
-  - Enforces thresholds: max 100MB compressed, 300MB uncompressed, 3,000 file entries, 25MB per file, and 100x compression ratio.
-- **GitHub Ingestor (`app.ingestion.github_ingest`)**:
-  - Non-interactive `git clone --depth 1` subprocess with argument array security (`["git", "clone", ...]`).
-  - Sets `GIT_TERMINAL_PROMPT=0` to prevent interactive hangs.
-  - Validates HTTPS URLs against `https://github.com/owner/repo` patterns. Rejects credentials, query strings, fragments, and non-github hostnames.
-  - Enforces strict 30-second timeout.
-- **Source Discovery Engine (`app.ingestion.discovery`)**:
-  - Filters out ignored directories (`.git`, `node_modules`, `vendor`, `dist`, `build`, `coverage`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.venv`, `venv`, `target`).
-  - Filters out minified JS (`*.min.js`), lockfiles, source maps (`*.map`), and binary files.
-  - Counts text lines defensively (UTF-8 with `errors='replace'`).
-  - Enforces maximum 50,000 relevant source lines limit.
-  - Generates SHA-256 hashes per file and global project content hash.
+### Frontend (React + Vite)
+- The frontend is a Single Page Application (SPA) built with React.
+- **Routing & Navigation**: Handles client-side routing.
+- **Job Poller State Machine**: Implements robust long-polling via `useJobPoller` to query job status without blocking the UI.
+- **Visualization Components**: Uses React Three Fiber for the Neural Map and interactive DOM components for the Dependency Graph and Workspace modules.
 
-### 2.2 Database Layer (`app.models.db`)
-- SQLite database `codeoracle.db` managed via SQLAlchemy.
-- Tables:
-  - `jobs`: ID, state (`queued`, `extracting`, `analyzing`, `generating`, `completed`, `failed`), stage, progress_percentage, source_type, source_url, project_id, message, error_code, error_message, created_at, updated_at.
-  - `projects`: ID, display_name, source_type, source_url, detected_languages, total_files, total_lines, content_hash, workspace_id, created_at.
-  - `project_files`: ID, project_id, relative_path, language, size_bytes, line_count, sha256_hash.
+### Backend API (FastAPI)
+- Exposes a RESTful API with strict Pydantic validation schemas.
+- Manages static asset delivery (serving Vite's production build) with proper caching strategies.
+- Handles standard endpoints (projects, demo, analysis data).
 
-### 2.3 Single Container Deployment Strategy
-- Multi-stage Dockerfile:
-  1. Build React SPA with Node 22 (`npm run build` -> `/frontend/dist`).
-  2. Install Python 3.12 runtime and backend dependencies.
-  3. Copy built frontend static assets into `/app/static`.
-  4. FastAPI serves API routes under `/api/*`, static assets under `/assets`, and SPA fallback routing for client-side deep links.
+### Authentication
+- Uses secure, HTTP-only, SameSite=Lax cookies for session management.
+- Supports both local Email/Password authentication (with bcrypt) and Google OAuth2 integration.
+- Strictly isolates user project ownership at the database level.
+
+### Job System & Polling Lifecycle
+- Background tasks in FastAPI are utilized for asynchronous execution of heavy operations (ingestion, code analysis).
+- The frontend initiates a job, receives a Job ID, and polls `GET /api/jobs/{job_id}` until the state is `completed` or `failed`.
+- This ensures the UI remains responsive and connection timeouts are avoided.
+
+### Ingestion Pipeline
+- **GitHub Ingestion**: Fetches the default branch via GitHub API, downloads the archive, and extracts it to memory/disk.
+- **ZIP Ingestion**: Parses user-uploaded ZIP archives, validating contents and size constraints.
+- **Demo**: Loads pre-bundled benchmark repositories without downloading external dependencies.
+
+### Code Analysis Engine
+- **AST Parsing**: Python's `ast` module (and custom parsers for JS) process source code into abstract syntax trees.
+- Extracts variables, functions, class definitions, complexity metrics, and import statements.
+- Determines dependency structures by analyzing inter-file references.
+
+### PostgreSQL
+- The primary datastore acting as the source of truth.
+- Managed via SQLAlchemy ORM.
+- Stores users, sessions, jobs, projects, and the deeply nested analysis metadata.
+
+### Workspace / Visualization
+- The frontend consumes normalized JSON structures to render:
+  - System Pulse (health metrics)
+  - Risk Hotspots (complexity indicators)
+  - Dependency Graph (node/edge graphs)
+  - Neural Map (3D topology)
+  - Generated Tests and Refactor Proposals
+
+### Exports
+- Users can export the entire workspace data structure as a clean JSON file.
+- Specific structures like the Dependency Graph can be exported directly into Mermaid syntax for documentation embedding.
