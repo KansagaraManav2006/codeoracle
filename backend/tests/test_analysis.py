@@ -614,6 +614,7 @@ def test_12_api_analysis_endpoints(tmp_path):
         total_lines=1,
         content_hash="api_hash_123",
         workspace_id="ws_api",
+        is_public_demo=1,
         created_at=datetime.now(timezone.utc),
     )
     pf = ProjectFile(id="f_api", project_id="proj_api_123", relative_path="main.py", language="python", size_bytes=15, line_count=1, sha256_hash="ha")
@@ -724,6 +725,7 @@ def test_typescript_files_are_discovered_and_analyzed(tmp_path) -> None:
         total_lines=1,
         content_hash="typescript_hash",
         workspace_id="ws_typescript",
+        is_public_demo=1,
         created_at=datetime.now(timezone.utc),
     ))
     db.add(ProjectFile(

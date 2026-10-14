@@ -133,6 +133,7 @@ def test_manual_analysis_returns_202():
         total_lines=1,
         content_hash="hash202",
         workspace_id="ws202",
+        is_public_demo=1,
         created_at=datetime.now(timezone.utc),
     )
     db.add(proj)
@@ -163,6 +164,7 @@ def test_reanalysis_job_lifecycle(tmp_path):
         total_lines=0,
         content_hash="lhash",
         workspace_id="ws_lifecycle",
+        is_public_demo=1,
         created_at=datetime.now(timezone.utc),
     )
     db.add(proj)
@@ -195,6 +197,7 @@ def test_duplicate_active_analysis_prevention():
         total_lines=0,
         content_hash="duphash",
         workspace_id="wsdup",
+        is_public_demo=1,
         created_at=datetime.now(timezone.utc),
     )
     job = Job(
@@ -229,6 +232,7 @@ def test_get_analysis_does_not_start_analysis():
         total_lines=0,
         content_hash="ns_hash",
         workspace_id="wsns",
+        is_public_demo=1,
         created_at=datetime.now(timezone.utc),
     )
     db.add(proj)
@@ -253,6 +257,7 @@ def test_pending_analysis_returns_409():
         total_lines=0,
         content_hash="phash",
         workspace_id="wspend",
+        is_public_demo=1,
         created_at=datetime.now(timezone.utc),
     )
     job = Job(

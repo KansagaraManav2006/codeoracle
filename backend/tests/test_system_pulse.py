@@ -114,6 +114,7 @@ def setup_database():
         source_type="zip",
         content_hash="pulse_test_hash",
         workspace_id="ws_pulse",
+        is_public_demo=1,
         created_at=datetime.now(timezone.utc),
     )
     db.add(project)
@@ -298,6 +299,7 @@ def test_system_pulse_404_and_409():
         source_type="zip",
         content_hash="un_hash",
         workspace_id="ws_unanalyzed",
+        is_public_demo=1,
         created_at=datetime.now(timezone.utc),
     )
     db.add(un_proj)

@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: codeoracle-prod-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-codeoracle}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-codeoracle_prod_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-codeoracle}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-codeoracle} -d ${POSTGRES_DB:-codeoracle}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - codeoracle-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: codeoracle-prod-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-codeoracle}:${POSTGRES_PASSWORD:-codeoracle_prod_secret}@db:5432/${POSTGRES_DB:-codeoracle}
+      ENVIRONMENT: production
+      SECRET_KEY: ${SECRET_KEY:-codeoracle-prod-insecure-secret-key-change-in-production}
+      PORT: 8000
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - codeoracle-network
+
+volumes:
+  pgdata:
+    name: codeoracle-prod-pgdata
+
+networks:
+  codeoracle-network:
+    name: codeoracle-prod-network

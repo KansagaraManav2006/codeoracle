@@ -1,0 +1,102 @@
+name: CodeOracle CI
+
+on:
+  push:
+    branches: [main, master, Trupesh2, TRUPESH]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  backend-checks:
+    name: Backend Tests & Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: "backend/requirements.txt"
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run backend pytest suite
+        run: |
+          pytest tests/ -v
+
+  frontend-checks:
+    name: Frontend Tests, Lint & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: "frontend/package-lock.json"
+
+      - name: Install frontend dependencies deterministically
+        run: npm ci
+
+      - name: Run frontend unit tests
+        run: npm test
+
+      - name: Run TypeScript type-check
+        run: npm run lint
+
+      - name: Run production frontend build
+        run: npm run build
+
+  docker-image-build:
+    name: Production Docker Build & Smoke Test
+    needs: [backend-checks, frontend-checks]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build production Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          load: true
+          tags: codeoracle:ci-test
+
+      - name: Smoke test container startup and health endpoint
+        run: |
+          docker run -d --name codeoracle-smoke -p 8000:8000 codeoracle:ci-test
+          READY=0
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/api/health > /dev/null 2>&1; then
+              echo "Container health check passed on attempt $i."
+              READY=1
+              break
+            fi
+            echo "Waiting for health endpoint (attempt $i/30)..."
+            sleep 1
+          done
+          docker logs codeoracle-smoke
+          docker stop codeoracle-smoke
+          if [ $READY -ne 1 ]; then
+            echo "Smoke test failed: /api/health did not respond with 200 OK."
+            exit 1
+          fi

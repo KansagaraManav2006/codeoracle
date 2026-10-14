@@ -268,6 +268,7 @@ def test_verification_api_endpoints(test_db, tmp_path, monkeypatch):
         content_hash="apihash",
         workspace_id="ws_api_test",
         is_trusted=0,
+        is_public_demo=1,
     )
     test_db.add(proj)
     test_db.add(

@@ -1,0 +1,79 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: codeoracle-dev-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-codeoracle}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-codeoracle_dev_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-codeoracle}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-codeoracle} -d ${POSTGRES_DB:-codeoracle}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - codeoracle-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.dev
+    container_name: codeoracle-dev-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-codeoracle}:${POSTGRES_PASSWORD:-codeoracle_dev_secret}@db:5432/${POSTGRES_DB:-codeoracle}
+      ENVIRONMENT: development
+      SECRET_KEY: ${SECRET_KEY:-codeoracle-dev-insecure-secret-key-change-in-production}
+      FRONTEND_URL: http://localhost:5173
+      CORS_ORIGINS: '["http://localhost:5173","http://127.0.0.1:5173","http://localhost:8000","http://127.0.0.1:8000"]'
+      WORKSPACES_DIR: workspaces
+      TEMP_STORAGE_DIR: temp_storage
+    volumes:
+      - ./backend/app:/app/app
+      - ./demo:/app/demo
+      - ./workspaces:/app/workspaces
+      - ./temp_storage:/app/temp_storage
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - codeoracle-network
+
+  frontend:
+    image: node:22-alpine
+    container_name: codeoracle-dev-frontend
+    restart: unless-stopped
+    working_dir: /frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_BACKEND_TARGET: http://backend:8000
+    volumes:
+      - ./frontend:/frontend
+      - /frontend/node_modules
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - codeoracle-network
+
+volumes:
+  pgdata:
+    name: codeoracle-dev-pgdata
+
+networks:
+  codeoracle-network:
+    name: codeoracle-dev-network

@@ -274,6 +274,7 @@ def test_hotspots_api_endpoint(test_db: Session):
         source_type="zip",
         content_hash="dummyhash",
         workspace_id="dummyws",
+        is_public_demo=1,
     )
     test_db.add(project)
     test_db.commit()
