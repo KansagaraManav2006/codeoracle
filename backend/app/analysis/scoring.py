@@ -1,4 +1,6 @@
-from typing import Tuple, Dict
+from typing import Tuple, Dict, List, Any
+
+SCORING_VERSION = "1.2.0"
 
 def get_risk_level(score: int) -> str:
     """Returns the canonical overall risk level for a given hotspot score."""
@@ -40,6 +42,15 @@ def calculate_hotspot_score(
     Computes a deterministic static hotspot score (0-100) and returns the 
     total score alongside the individual factor contributions.
     """
+    if complexity_raw <= 0 and loc_raw <= 0 and fan_in_raw <= 0 and warnings_raw <= 0 and blast_radius_raw <= 0:
+        return 0, {
+            "complexity": 0,
+            "loc": 0,
+            "fan_in": 0,
+            "warnings": 0,
+            "blast_radius": 0,
+        }
+
     complexity_severity = get_complexity_severity(complexity_raw)
     rating_floors = {"critical": 22, "high": 15, "medium": 8, "low": 2}
     rating_floor = rating_floors.get(complexity_severity, 2)
@@ -71,4 +82,47 @@ def calculate_hotspot_score(
     }
 
     return hotspot_score, factors
+
+
+def get_hotspot_explanation_details(
+    complexity_raw: int,
+    loc_raw: int,
+    fan_in_raw: int,
+    warnings_raw: int,
+    blast_radius_raw: int,
+    parse_status: str = "full",
+    unresolved_relations: int = 0,
+) -> Dict[str, Any]:
+    """Returns formula, evidence, confidence, and limitations for a hotspot score."""
+    score, factors = calculate_hotspot_score(
+        complexity_raw, loc_raw, fan_in_raw, warnings_raw, blast_radius_raw
+    )
+    complexity_sev = get_complexity_severity(complexity_raw)
+    confidence = get_parse_confidence(parse_status, unresolved_relations)
+
+    evidence: List[str] = [
+        f"Cyclomatic complexity: {complexity_raw} ({complexity_sev} severity)",
+        f"Lines of code: {loc_raw} LOC",
+        f"Direct incoming callers (fan-in): {fan_in_raw}",
+        f"Legacy warnings: {warnings_raw}",
+        f"Transitive blast radius: {blast_radius_raw} downstream files",
+    ]
+
+    limitations: List[str] = [
+        "Static AST derivation only; runtime execution was not performed.",
+    ]
+    if parse_status != "full":
+        limitations.append(f"Parser returned status '{parse_status}', which may omit subtle nested symbols.")
+    if unresolved_relations > 0:
+        limitations.append(f"{unresolved_relations} unresolved dependency relations may cause blast radius to be an underestimate.")
+
+    return {
+        "formula": "Complexity(0-35) + LOC(0-10) + Fan-in(0-15) + Warnings(0-20) + Blast Radius(0-20)",
+        "score": score,
+        "factors": factors,
+        "evidence": evidence,
+        "confidence": confidence,
+        "limitations": limitations,
+    }
+
 

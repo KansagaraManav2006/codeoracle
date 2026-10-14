@@ -42,6 +42,9 @@ class RiskAssessment(CamelModel):
     direct_dependents: List[str] = Field(default_factory=list)
     reason: str
     recommended_action: str
+    formula: str = "Complexity(0-35) + LOC(0-10) + Fan-in(0-15) + Warnings(0-20) + Blast Radius(0-20)"
+    evidence: List[str] = Field(default_factory=list)
+    limitations: List[str] = Field(default_factory=list)
 
     @property
     def file(self) -> str:
@@ -65,6 +68,8 @@ HotspotItem = RiskAssessment
 class HotspotsResponse(CamelModel):
     project_id: str
     project_name: str
+    analyzer_version: str = "1.1.0"
+    scoring_version: str = "1.2.0"
     score_mode: str = "static"
     total_files: int
     hotspots: List[RiskAssessment] = Field(default_factory=list)

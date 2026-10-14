@@ -222,6 +222,7 @@ class ProjectExplanation(BaseModel):
 class ProjectAnalysis(BaseModel):
     project_id: str
     analyzer_version: str = ANALYZER_VERSION
+    scoring_version: str = "1.2.0"
     content_hash: str
     analyzed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     languages: List[str] = Field(default_factory=list)

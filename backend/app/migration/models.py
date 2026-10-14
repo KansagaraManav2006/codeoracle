@@ -18,6 +18,7 @@ class ReadinessDimension(BaseModel):
     formula: str = ""
     evidence: List[str] = Field(default_factory=list)
     confidence: str = "medium"  # "high" | "medium" | "low"
+    limitations: List[str] = Field(default_factory=list)
     breakdown: List[DimensionBreakdownItem] = Field(default_factory=list)
 
 
@@ -82,6 +83,8 @@ class ReadinessAssessment(BaseModel):
     threshold_label: str  # "60–79: Ready With Care"
     confidence: str = "medium"  # "high" | "medium" | "low"
     confidence_reasons: List[str] = Field(default_factory=list)
+    formula: str = "sum(dimension.score * weight for dimension in dimensions)"
+    limitations: List[str] = Field(default_factory=list)
     full_ast_coverage_pct: float = 0.0
     parser_readiness_score: int = 0
     why_score: WhyScore = Field(default_factory=WhyScore)
@@ -151,6 +154,8 @@ class MigrationWave(BaseModel):
 
 class MigrationPlanResponse(BaseModel):
     project_id: str
+    analyzer_version: str = "1.1.0"
+    scoring_version: str = "1.2.0"
     readiness_score: int = Field(ge=0, le=100)
     readiness_label: str
     readiness_confidence: str = "medium"  # "high" | "medium" | "low"

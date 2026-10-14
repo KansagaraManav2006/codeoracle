@@ -107,6 +107,24 @@ def compute_static_hotspot_item(
     else:
         recommended_action = f"Inspect module dependencies in the Dependency Graph to review architectural coupling."
 
+    # Evidence items
+    evidence = [
+        f"Cyclomatic complexity: {complexity_raw} ({complexity_severity})",
+        f"Lines of code: {loc_raw} LOC",
+        f"Direct incoming callers: {fan_in_raw}",
+        f"Legacy warnings: {warnings_raw}",
+        f"Transitive blast radius: {blast_radius_raw} file(s)",
+    ]
+
+    # Limitations items
+    limitations = [
+        "Static AST derivation only; runtime execution was not performed.",
+    ]
+    if parse_status != "full":
+        limitations.append(f"Parse status is '{parse_status}', which may lead to incomplete symbol or call coverage.")
+    if unresolved_relations > 0:
+        limitations.append(f"{unresolved_relations} unresolved import relations may underestimate blast radius.")
+
     return RiskAssessment(
         file_path=file_path,
         hotspot_score=hotspot_score,
@@ -121,6 +139,8 @@ def compute_static_hotspot_item(
         direct_dependents=direct_dependents,
         reason=reason,
         recommended_action=recommended_action,
+        evidence=evidence,
+        limitations=limitations,
     )
 
 

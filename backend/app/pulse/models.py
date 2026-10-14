@@ -36,7 +36,9 @@ class HealthDimensionCard(BaseModel):
     confidence: str = "high"  # 'high' | 'medium' | 'low'
     status: str = "Healthy"
     mainPressure: str = "None"
+    formula: str = ""
     evidence: List[str] = Field(default_factory=list)
+    limitations: List[str] = Field(default_factory=list)
     metrics: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -88,12 +90,16 @@ class RepositoryHealth(BaseModel):
     label: str = "Stable"  # 'Stable' | 'Stable with pressure points' | 'Needs attention' | 'High risk' | 'Analysis incomplete'
     confidence: str = "high"  # 'high' | 'medium' | 'low'
     isPartial: bool = False
+    formula: str = "Migration Readiness Score (5 weighted dimensions)"
+    limitations: List[str] = Field(default_factory=list)
     whyScore: WhyScoreEvidence = Field(default_factory=WhyScoreEvidence)
     dimensions: Dict[str, HealthDimensionCard] = Field(default_factory=dict)
     snapshotComparison: Optional[SnapshotComparison] = None
 
 
 class SystemPulseResponse(BaseModel):
+    analyzer_version: str = "1.1.0"
+    scoring_version: str = "1.2.0"
     health: RepositoryHealth
     subsystems: List[SubsystemHealth] = Field(default_factory=list)
     pressureZones: List[PressureZone] = Field(default_factory=list)

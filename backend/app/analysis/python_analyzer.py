@@ -434,7 +434,13 @@ def fallback_python_tokenize_analysis(
 
     try:
         readline = io.StringIO(file_content).readline
-        tokens = list(tokenize.generate_tokens(readline))
+        tokens = []
+        gen = tokenize.generate_tokens(readline)
+        while True:
+            try:
+                tokens.append(next(gen))
+            except (StopIteration, tokenize.TokenError, Exception):
+                break
 
         i = 0
         n_tokens = len(tokens)
@@ -506,6 +512,16 @@ def fallback_python_tokenize_analysis(
 
     except Exception as e:
         logger.warning("Lexical fallback tokenizer encountered error on module %s: %s", module_id, str(e))
+
+    if not imports:
+        import re
+        for idx, line in enumerate(file_content.splitlines(), start=1):
+            m = re.match(r"^\s*import\s+([A-Za-z0-9_]+)", line)
+            if m:
+                imports.append(ImportInfo(module_name=m.group(1), imported_symbols=[m.group(1)], source_line=idx))
+            m2 = re.match(r"^\s*from\s+([A-Za-z0-9_.]+)\s+import", line)
+            if m2:
+                imports.append(ImportInfo(module_name=m2.group(1), source_line=idx))
 
     return imports, classes, functions, legacy_warnings
 

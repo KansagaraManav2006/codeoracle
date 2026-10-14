@@ -104,6 +104,26 @@ class JavaScriptTreeSitterVisitor:
             elif ntype == "expression_statement":
                 self._handle_expression_statement(child, lineno)
 
+            # Resilient fallback for TypeScript constructs producing parse errors in Tree-sitter JS
+            if child.has_error:
+                text = self._get_text(child)
+                fn_matches = re.finditer(r"(?:export\s+)?function\s+([A-Za-z0-9_$]+)", text)
+                for m in fn_matches:
+                    fn_name = m.group(1)
+                    if not any(f.name == fn_name for f in self.functions):
+                        sym_id = generate_symbol_id(self.module_id, "function", fn_name, lineno)
+                        self.functions.append(
+                            SymbolInfo(
+                                symbol_id=sym_id,
+                                kind="function",
+                                name=fn_name,
+                                qualified_name=fn_name,
+                                start_line=lineno,
+                                end_line=child.end_point[0] + 1,
+                            )
+                        )
+                        self.exports.append(ExportInfo(name=fn_name, kind="function", source_line=lineno))
+
             # Scan recursively for calls and warnings inside
             self._scan_node_risks_and_calls(child)
 
@@ -205,6 +225,31 @@ class JavaScriptTreeSitterVisitor:
                         source_line=lineno,
                     )
                 )
+
+            elif child.type == "ERROR":
+                # Resilient fallback for TypeScript exported function with type annotations
+                child_text = self._get_text(child)
+                fn_match = re.search(r"function\s+([A-Za-z0-9_$]+)", child_text)
+                if fn_match:
+                    fn_name = fn_match.group(1)
+                    sym_id = generate_symbol_id(self.module_id, "function", fn_name, lineno)
+                    self.functions.append(
+                        SymbolInfo(
+                            symbol_id=sym_id,
+                            kind="function",
+                            name=fn_name,
+                            qualified_name=fn_name,
+                            start_line=lineno,
+                            end_line=child.end_point[0] + 1,
+                        )
+                    )
+                    self.exports.append(
+                        ExportInfo(
+                            name=fn_name,
+                            kind="function",
+                            source_line=lineno,
+                        )
+                    )
 
 
     def _handle_variable_declaration(self, node: Any, lineno: int, is_export: bool = False) -> None:
