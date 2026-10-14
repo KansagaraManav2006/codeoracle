@@ -3,7 +3,7 @@ services:
     name: codeoracle
     runtime: docker
     plan: free
-    healthCheckPath: /api/health
+    healthCheckPath: /api/health/readiness
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -11,10 +11,18 @@ services:
           property: connectionString
       - key: ENVIRONMENT
         value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
       - key: TEST_EXECUTION_ENABLED
         value: "false"
       - key: TEST_EXECUTION_ALLOW_UNTRUSTED
         value: "false"
+      - key: WORKSPACES_DIR
+        value: "/app/workspaces"
+      - key: STATIC_DIR
+        value: "/app/static"
 
 databases:
   - name: codeoracle-db

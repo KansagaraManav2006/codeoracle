@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import shutil
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,6 +15,7 @@ from app.models.db import Job, JobState, Project, ProjectFile
 from app.ingestion.discovery import IngestionError, discover_source_files
 from app.ingestion.github_ingest import clone_github_repository, extract_repo_display_name, validate_github_url
 from app.ingestion.zip_ingest import extract_zip_safely, validate_zip_stream
+from app.monitoring import record_job_start, record_job_completion
 
 from app.jobs.queue import is_job_cancelled
 from app.jobs.recovery import recover_stale_jobs
@@ -52,11 +54,14 @@ def process_zip_job(job_id: str, workspace_id: str, temp_zip_path: Path, display
     """
     db = SessionLocal()
     raw_dir = get_workspace_dir(workspace_id) / "raw"
+    start_time = time.perf_counter()
+    record_job_start()
 
     try:
         job = db.query(Job).filter(Job.id == job_id).first()
         if not job or is_job_cancelled(db, job_id):
             cleanup_workspace(workspace_id)
+            record_job_completion("zip_ingest", "cancelled", time.perf_counter() - start_time)
             return
 
         # Step 1: Extraction
@@ -70,6 +75,7 @@ def process_zip_job(job_id: str, workspace_id: str, temp_zip_path: Path, display
 
         if is_job_cancelled(db, job_id):
             cleanup_workspace(workspace_id)
+            record_job_completion("zip_ingest", "cancelled", time.perf_counter() - start_time)
             return
 
         # Step 2: Source Discovery & Filtering
@@ -132,6 +138,7 @@ def process_zip_job(job_id: str, workspace_id: str, temp_zip_path: Path, display
         job.updated_at = datetime.now(timezone.utc)
 
         db.commit()
+        record_job_completion("zip_ingest", "completed", time.perf_counter() - start_time)
 
     except IngestionError as ie:
         db.rollback()
@@ -145,6 +152,7 @@ def process_zip_job(job_id: str, workspace_id: str, temp_zip_path: Path, display
             job.updated_at = datetime.now(timezone.utc)
             db.commit()
         cleanup_workspace(workspace_id)
+        record_job_completion("zip_ingest", "failed", time.perf_counter() - start_time, ie.code)
 
     except Exception as e:
         db.rollback()
@@ -158,6 +166,7 @@ def process_zip_job(job_id: str, workspace_id: str, temp_zip_path: Path, display
             job.updated_at = datetime.now(timezone.utc)
             db.commit()
         cleanup_workspace(workspace_id)
+        record_job_completion("zip_ingest", "failed", time.perf_counter() - start_time, "INTERNAL_ERROR")
 
     finally:
         db.close()
@@ -175,11 +184,14 @@ def process_github_job(job_id: str, workspace_id: str, clean_url: str) -> None:
     """
     db = SessionLocal()
     raw_dir = get_workspace_dir(workspace_id) / "raw"
+    start_time = time.perf_counter()
+    record_job_start()
 
     try:
         job = db.query(Job).filter(Job.id == job_id).first()
         if not job or is_job_cancelled(db, job_id):
             cleanup_workspace(workspace_id)
+            record_job_completion("github_ingest", "cancelled", time.perf_counter() - start_time)
             return
 
         # Step 1: Clone
@@ -193,6 +205,7 @@ def process_github_job(job_id: str, workspace_id: str, clean_url: str) -> None:
 
         if is_job_cancelled(db, job_id):
             cleanup_workspace(workspace_id)
+            record_job_completion("github_ingest", "cancelled", time.perf_counter() - start_time)
             return
 
         # Step 2: Source Discovery
@@ -256,21 +269,24 @@ def process_github_job(job_id: str, workspace_id: str, clean_url: str) -> None:
         job.updated_at = datetime.now(timezone.utc)
 
         db.commit()
+        record_job_completion("github_ingest", "completed", time.perf_counter() - start_time)
 
     except IngestionError as ie:
         db.rollback()
         logger.warning("Ingestion error for GitHub job %s: %s [%s]", job_id, ie.message, ie.code)
         job = db.query(Job).filter(Job.id == job_id).first()
+        err_code = getattr(ie, "subcode", None) or ie.code
         if job:
             job.state = JobState.FAILED
             job.stage = "Failed"
-            job.error_code = getattr(ie, "subcode", None) or ie.code
+            job.error_code = err_code
             job.error_message = ie.message
             if getattr(ie, "technical_message", None):
                 job.message = str(ie.technical_message)[:250]
             job.updated_at = datetime.now(timezone.utc)
             db.commit()
         cleanup_workspace(workspace_id)
+        record_job_completion("github_ingest", "failed", time.perf_counter() - start_time, err_code)
 
     except Exception as e:
         db.rollback()
@@ -284,6 +300,7 @@ def process_github_job(job_id: str, workspace_id: str, clean_url: str) -> None:
             job.updated_at = datetime.now(timezone.utc)
             db.commit()
         cleanup_workspace(workspace_id)
+        record_job_completion("github_ingest", "failed", time.perf_counter() - start_time, "INTERNAL_ERROR")
 
     finally:
         db.close()

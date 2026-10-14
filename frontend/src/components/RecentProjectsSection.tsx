@@ -78,12 +78,12 @@ export const RecentProjectsSection: React.FC<RecentProjectsSectionProps> = ({
     return (
       p.display_name.toLowerCase().includes(q) ||
       p.source_type.toLowerCase().includes(q) ||
-      p.detected_languages.some((l) => l.toLowerCase().includes(q))
+      (p.detected_languages || []).some((l) => l.toLowerCase().includes(q))
     );
   });
 
   return (
-    <div className="w-full bg-[#FFFDFC] rounded-3xl border border-[#C8BEB0] shadow-sm p-5 sm:p-7 transition-all">
+    <div className="w-full bg-[#FFFDFC] rounded-3xl border border-[#C8BEB0] shadow-sm p-3.5 sm:p-7 transition-all">
       {/* Shelf Header */}
       <div className="flex flex-col gap-3 border-b border-[#ECE5DA] pb-4 mb-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
@@ -182,7 +182,7 @@ export const RecentProjectsSection: React.FC<RecentProjectsSectionProps> = ({
           {filteredProjects.map((proj) => (
             <div
               key={proj.project_id}
-              className="group flex flex-col justify-between rounded-2xl border border-[#C8BEB0] bg-[#F5F1E9]/70 hover:bg-[#FFFDFC] p-4 transition-all duration-200 hover:border-[#4C4FD6]/50 hover:shadow-md hover:-translate-y-0.5"
+              className="group flex flex-col justify-between rounded-2xl border border-[#C8BEB0] bg-[#F5F1E9]/70 hover:bg-[#FFFDFC] p-3 sm:p-4 transition-all duration-200 hover:border-[#4C4FD6]/50 hover:shadow-md hover:-translate-y-0.5"
             >
               <div>
                 <div className="flex items-start justify-between gap-2 mb-2">
@@ -198,7 +198,7 @@ export const RecentProjectsSection: React.FC<RecentProjectsSectionProps> = ({
                 </div>
 
                 <div className="flex flex-wrap gap-1 mb-3">
-                  {proj.detected_languages.map((lang) => (
+                  {(proj.detected_languages || ((proj as any).language ? [(proj as any).language] : [])).map((lang) => (
                     <span
                       key={lang}
                       className="px-2 py-0.5 rounded-md bg-[#EAE9FB] text-[#4C4FD6] font-mono text-[10px] font-bold uppercase border border-[#4C4FD6]/20"
@@ -208,7 +208,7 @@ export const RecentProjectsSection: React.FC<RecentProjectsSectionProps> = ({
                   ))}
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-[#5C554D] font-mono pt-2 border-t border-[#ECE5DA] mb-4">
+                <div className="flex flex-wrap items-center justify-between gap-1 text-xs text-[#5C554D] font-mono pt-2 border-t border-[#ECE5DA] mb-4">
                   <div className="flex items-center gap-1.5">
                     <FileCode className="w-3.5 h-3.5 text-[#4C4FD6]" />
                     <span>{proj.total_files} files</span>

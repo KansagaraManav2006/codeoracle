@@ -15,8 +15,13 @@ from app.database import Base, SessionLocal, engine, ensure_schema_compatibility
 import app.models.db  # noqa: F401
 from app.ingestion.service import recover_interrupted_jobs
 from app.ingestion.workspace import cleanup_abandoned_jobs
+from app.monitoring import (
+    StructuredLoggingMiddleware,
+    mark_startup_completed,
+    setup_logging,
+)
 
-
+setup_logging(is_production=(getattr(settings, "ENVIRONMENT", "development") == "production"))
 logger = logging.getLogger(__name__)
 
 
@@ -76,6 +81,7 @@ async def lifespan(app: FastAPI):
         cleaned_sessions = cleanup_expired_sessions(db)
         cleaned_jobs = cleanup_abandoned_jobs(db)
         logger.info("Startup maintenance: cleaned %d expired sessions and %d stale job artifacts.", cleaned_sessions, cleaned_jobs)
+        mark_startup_completed()
     finally:
         db.close()
         
@@ -90,6 +96,9 @@ app = FastAPI(
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
 )
+
+# Structured logging & telemetry middleware
+app.add_middleware(StructuredLoggingMiddleware)
 
 # CORS configuration with environment-configured origins (no wildcard with credentials)
 app.add_middleware(
