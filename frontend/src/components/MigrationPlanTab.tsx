@@ -843,12 +843,12 @@ export const MigrationPlanTab: React.FC<MigrationPlanTabProps> = ({
                             <span>Wave Checklist:</span>
                           </div>
                           <span className="text-[10px] font-mono text-ink-3 font-semibold">
-                            {wave.checklist.filter((c) => completedTasks[c.id]).length} / {wave.checklist.length} done
+                            {(wave.checklist || []).filter((c) => completedTasks[c.id]).length} / {(wave.checklist || []).length} done
                           </span>
                         </div>
 
                         <div className="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar pr-1">
-                          {wave.checklist.map((item) => {
+                          {(wave.checklist || []).map((item) => {
                             const isDone = Boolean(completedTasks[item.id]);
                             return (
                               <div

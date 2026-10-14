@@ -48,6 +48,8 @@ yarn-error.log*
 frontend/dist/
 frontend/dist-ssr/
 frontend/.vite/
+frontend/test-results/
+frontend/playwright-report/
 
 # IDE & OS
 .DS_Store
