@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -18,6 +18,9 @@ import Card from '../common/Card';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
 
+import { analysisService } from '../../services';
+import { useProjectQuery } from '../../hooks/useProjectQuery';
+
 interface SystemPulseTabProps {
   projectId: string;
   projectName: string;
@@ -33,35 +36,18 @@ export const SystemPulseTab: React.FC<SystemPulseTabProps> = ({
   onNavigateTab,
   onSelectFile,
 }) => {
-  const [data, setData] = useState<SystemPulseResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
   const [lensMode, setLensMode] = useState<'health' | 'confidence'>('health');
 
-  const fetchSystemPulse = useCallback(async () => {
-    if (!projectId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/projects/${projectId}/system-pulse`);
-      if (!res.ok) {
-        if (res.status === 409) {
-          throw new Error('Analysis required before viewing System Pulse. Please run analysis on the project first.');
-        }
-        throw new Error(`Failed to load System Pulse data (HTTP ${res.status}).`);
-      }
-      const json: SystemPulseResponse = await res.json();
-      setData(json);
-    } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred while fetching System Pulse.');
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
+  const queryFn = useCallback(
+    (signal: AbortSignal) => analysisService.getSystemPulse(projectId, { signal }),
+    [projectId]
+  );
 
-  useEffect(() => {
-    fetchSystemPulse();
-  }, [fetchSystemPulse]);
+  const { data, loading, error, refetch: fetchSystemPulse } = useProjectQuery<SystemPulseResponse>({
+    projectId,
+    queryFn,
+  });
+
 
   // Loading State
   if (loading && !data) {

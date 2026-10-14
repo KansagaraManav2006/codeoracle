@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { HotspotsResponse, RiskAssessment } from '../types';
 import { analysisService } from '../services';
+import { useProjectQuery } from './useProjectQuery';
 import {
   HotspotSortField,
   EvidenceFilter,
@@ -17,9 +18,6 @@ export interface UseHotspotsProps {
 }
 
 export function useHotspots({ projectId, targetFile }: UseHotspotsProps) {
-  const [data, setData] = useState<HotspotsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [riskFilter, setRiskFilter] = useState<'all' | 'critical' | 'high' | 'medium' | 'low'>('all');
   const [evidenceFilter, setEvidenceFilter] = useState<EvidenceFilter>('all');
@@ -35,25 +33,16 @@ export function useHotspots({ projectId, targetFile }: UseHotspotsProps) {
     }
   }, [targetFile]);
 
-  const fetchHotspots = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const json = await analysisService.getHotspots(projectId);
-      setData(json);
-    } catch (err: any) {
-      setError(err.message || 'Error fetching hotspots');
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
+  const queryFn = useCallback(
+    (signal: AbortSignal) => analysisService.getHotspots(projectId, { signal }),
+    [projectId]
+  );
 
-  useEffect(() => {
-    if (projectId) {
-      fetchHotspots();
-      setVisibleHotspots(50);
-    }
-  }, [projectId, fetchHotspots]);
+  const { data, loading, error, refetch: fetchHotspots } = useProjectQuery<HotspotsResponse>({
+    projectId,
+    queryFn,
+    onSuccess: () => setVisibleHotspots(50),
+  });
 
   // Reset visible count when filters change
   useEffect(() => {

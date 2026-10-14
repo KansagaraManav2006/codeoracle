@@ -296,3 +296,5 @@ export const SignInPage: React.FC = () => {
     </div>
   );
 };
+
+export default SignInPage;

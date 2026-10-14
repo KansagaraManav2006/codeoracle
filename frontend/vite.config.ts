@@ -23,10 +23,18 @@ export default defineConfig({
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom'],
-          'vendor-xyflow': ['@xyflow/react'],
-          'vendor-icons': ['lucide-react'],
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('@xyflow')) {
+              return 'vendor-xyflow';
+            }
+            if (id.includes('lucide-react')) {
+              return 'vendor-icons';
+            }
+            if (id.includes('d3-force') || id.includes('d3-quadtree')) {
+              return 'vendor-d3';
+            }
+          }
         },
       },
     },

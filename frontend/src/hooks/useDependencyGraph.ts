@@ -20,6 +20,8 @@ import {
 } from '../utils/graphUtils';
 import { ListSortField } from '../components/graph/GraphListViewTable';
 
+import { useProjectQuery } from './useProjectQuery';
+
 export interface UseDependencyGraphProps {
   projectId?: string | null;
   targetFile?: string | null;
@@ -31,10 +33,6 @@ export function useDependencyGraph({
   targetFile,
   onSelectFile,
 }: UseDependencyGraphProps) {
-  const [graph, setGraph] = useState<GraphResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   // View & Layout Modes
   const [viewMode, setViewMode] = useState<'graph' | 'list'>('graph');
   const [graphLayout, setGraphLayout] = useState<GraphLayoutMode>('architecture');
@@ -59,23 +57,25 @@ export function useDependencyGraph({
   const [sortField, setSortField] = useState<ListSortField>('cc');
   const [sortAsc, setSortAsc] = useState(false);
 
-  const fetchGraph = useCallback(async () => {
-    if (!projectId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await analysisService.getDependencyGraph(projectId, 'module');
-      setGraph(data);
-    } catch (err: any) {
-      setError(err.message || 'Unable to fetch dependency graph.');
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
+  const queryFn = useCallback(
+    (signal: AbortSignal) => {
+      if (!projectId) throw new Error('No project ID');
+      return analysisService.getDependencyGraph(projectId, 'module', undefined, undefined, false, {
+        signal,
+      });
+    },
+    [projectId]
+  );
 
-  useEffect(() => {
-    fetchGraph();
-  }, [fetchGraph]);
+  const {
+    data: graph,
+    loading,
+    error,
+    refetch: fetchGraph,
+  } = useProjectQuery<GraphResponse>({
+    projectId,
+    queryFn,
+  });
 
   // Synchronize targetFile prop with selected node
   useEffect(() => {

@@ -15,7 +15,16 @@ export class ApiError extends Error {
   }
 }
 
-export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+export function isAbortError(err: unknown): boolean {
+  return (
+    (err instanceof DOMException && err.name === 'AbortError') ||
+    (err instanceof Error && err.name === 'AbortError')
+  );
+}
+
+const inFlightGets = new Map<string, Promise<unknown>>();
+
+async function executeFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (!headers.has('Accept')) {
     headers.set('Accept', 'application/json');
@@ -48,3 +57,28 @@ export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> 
 
   return response.json() as Promise<T>;
 }
+
+export async function fetchJson<T>(
+  url: string,
+  init?: RequestInit & { dedupe?: boolean }
+): Promise<T> {
+  const method = (init?.method || 'GET').toUpperCase();
+  const shouldDedupe = (init?.dedupe ?? true) && method === 'GET' && !init?.signal;
+
+  if (shouldDedupe) {
+    const existing = inFlightGets.get(url);
+    if (existing) {
+      return existing as Promise<T>;
+    }
+
+    const promise = executeFetch<T>(url, init).finally(() => {
+      inFlightGets.delete(url);
+    });
+
+    inFlightGets.set(url, promise);
+    return promise;
+  }
+
+  return executeFetch<T>(url, init);
+}
+

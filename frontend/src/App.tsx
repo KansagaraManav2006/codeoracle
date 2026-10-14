@@ -2,16 +2,7 @@ import React, { useEffect, useState, useCallback, lazy, Suspense, useRef } from 
 import AppSidebar from './components/AppSidebar';
 import ProjectContextBar from './components/ProjectContextBar';
 import WorkspaceShell from './components/WorkspaceShell';
-import LandingPage from './components/landing/LandingPage';
 import JobProgressView from './components/JobProgressView';
-import ProjectOverviewTab from './components/ProjectOverviewTab';
-import ExplanationTab from './components/ExplanationTab';
-import HotspotsTab from './components/HotspotsTab';
-import DependencyGraphTab from './components/DependencyGraphTab';
-import GeneratedTestsTab from './components/GeneratedTestsTab';
-import RefactoredCodeTab from './components/RefactoredCodeTab';
-import MigrationPlanTab from './components/MigrationPlanTab';
-import SystemPulseTab from './components/pulse/SystemPulseTab';
 import InputSection from './components/InputSection';
 import RecentProjectsSection from './components/RecentProjectsSection';
 import { ToastProvider } from './components/common/Toast';
@@ -19,11 +10,10 @@ import PipelineStrip from './components/common/PipelineStrip';
 import ShortcutsModal from './components/common/ShortcutsModal';
 import ChangeImpactModal from './components/common/ChangeImpactModal';
 import { NotFoundPage } from './components/common/NotFoundPage';
-import { SignInPage } from './components/auth/SignInPage';
-import { RegisterPage } from './components/auth/RegisterPage';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useCurrentRoute, navigateTo } from './utils/navigation';
 import { useJobPoller } from './hooks/useJobPoller';
+import { analysisService, refactorService } from './services';
 import EmptyState from './components/common/EmptyState';
 import {
   FolderGit2,
@@ -135,7 +125,49 @@ const EMPTY_FEATURE_CONFIGS: Record<TabType, EmptyFeatureConfig> = {
   },
 };
 
+const LandingPage = lazy(() => import('./components/landing/LandingPage'));
+const SignInPage = lazy(() => import('./components/auth/SignInPage'));
+const RegisterPage = lazy(() => import('./components/auth/RegisterPage'));
+const ProjectOverviewTab = lazy(() => import('./components/ProjectOverviewTab'));
+const SystemPulseTab = lazy(() => import('./components/pulse/SystemPulseTab'));
+const ExplanationTab = lazy(() => import('./components/ExplanationTab'));
+const HotspotsTab = lazy(() => import('./components/HotspotsTab'));
+const DependencyGraphTab = lazy(() => import('./components/DependencyGraphTab'));
 const NeuralMapPage = lazy(() => import('./components/NeuralMap/NeuralMapPage'));
+const GeneratedTestsTab = lazy(() => import('./components/GeneratedTestsTab'));
+const RefactoredCodeTab = lazy(() => import('./components/RefactoredCodeTab'));
+const MigrationPlanTab = lazy(() => import('./components/MigrationPlanTab'));
+
+const TabLoadingSkeleton: React.FC = () => (
+  <div className="p-6 max-w-7xl mx-auto space-y-6 animate-pulse" role="status" aria-live="polite">
+    <div className="flex items-center justify-between pb-4 border-b border-line">
+      <div className="space-y-2">
+        <div className="h-6 w-44 rounded-md bg-stone-200/70" />
+        <div className="h-3.5 w-72 rounded-md bg-stone-200/50" />
+      </div>
+      <div className="h-8 w-28 rounded-lg bg-stone-200/70" />
+    </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="h-24 rounded-xl bg-stone-200/60" />
+      <div className="h-24 rounded-xl bg-stone-200/60" />
+      <div className="h-24 rounded-xl bg-stone-200/60" />
+      <div className="h-24 rounded-xl bg-stone-200/60" />
+    </div>
+    <div className="h-72 w-full rounded-2xl bg-stone-200/50" />
+    <span className="sr-only">Loading view...</span>
+  </div>
+);
+
+const RouteLoadingFallback: React.FC = () => (
+  <div className="min-h-screen bg-canvas flex items-center justify-center p-6" role="status" aria-live="polite">
+    <div className="w-full max-w-sm space-y-4 text-center animate-pulse">
+      <div className="h-10 w-10 mx-auto rounded-full bg-stone-200/70" />
+      <div className="h-5 w-40 mx-auto rounded-md bg-stone-200/70" />
+      <div className="h-3.5 w-56 mx-auto rounded-md bg-stone-200/50" />
+      <span className="sr-only">Loading page...</span>
+    </div>
+  </div>
+);
 
 const WorkspaceContent: React.FC = () => {
   const currentRoute = useCurrentRoute();
@@ -307,7 +339,7 @@ const WorkspaceContent: React.FC = () => {
     }
   }, [isAuthenticated]);
 
-  // Check background summary metrics for status dots on tabs
+  // Check background summary metrics for status dots on tabs with cancellation
   useEffect(() => {
     if (!project?.project_id) {
       setHasDependencyLoops(false);
@@ -315,29 +347,44 @@ const WorkspaceContent: React.FC = () => {
       return;
     }
 
+    const controller = new AbortController();
+    const currentProjectId = project.project_id;
+
     // Check cycles
-    fetch(`/api/projects/${project.project_id}/graph?level=module`)
-      .then((res) => (res.ok ? res.json() : null))
+    analysisService
+      .getDependencyGraph(currentProjectId, 'module', undefined, undefined, false, {
+        signal: controller.signal,
+      })
       .then((data) => {
-        if (data?.cycles && data.cycles.length > 0) {
-          setHasDependencyLoops(true);
-        } else {
+        if (project.project_id === currentProjectId) {
+          setHasDependencyLoops(Boolean(data?.cycles && data.cycles.length > 0));
+        }
+      })
+      .catch((err) => {
+        if (err?.name !== 'AbortError') {
           setHasDependencyLoops(false);
         }
-      })
-      .catch(() => setHasDependencyLoops(false));
+      });
 
     // Check human review needed
-    fetch(`/api/projects/${project.project_id}/refactor`)
-      .then((res) => (res.ok ? res.json() : null))
+    refactorService
+      .getProjectRefactor(currentProjectId, { signal: controller.signal })
       .then((data) => {
-        if (data && (data.breaking_warning_count > 0 || data.changed_files > 0)) {
-          setHasHumanReviewRequired(true);
-        } else {
-          setHasHumanReviewRequired(false);
+        if (project.project_id === currentProjectId) {
+          setHasHumanReviewRequired(
+            Boolean(data && (data.breaking_warning_count > 0 || data.changed_files > 0))
+          );
         }
       })
-      .catch(() => setHasHumanReviewRequired(false));
+      .catch((err) => {
+        if (err?.name !== 'AbortError') {
+          setHasHumanReviewRequired(false);
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
   }, [project?.project_id]);
 
   // Update URL search parameters when tab, file, or project changes
@@ -496,22 +543,32 @@ const WorkspaceContent: React.FC = () => {
   // Route Dispatcher
   if (currentRoute === '/') {
     return (
-      <LandingPage
-        onAnalyzeGithub={handleAnalyzeGithubFromLanding}
-        onAnalyzeZip={handleAnalyzeZipFromLanding}
-        onLoadDemo={handleLoadDemoFromLanding}
-        onOpenProject={handleOpenProjectFromLanding}
-        isLoading={loading}
-      />
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <LandingPage
+          onAnalyzeGithub={handleAnalyzeGithubFromLanding}
+          onAnalyzeZip={handleAnalyzeZipFromLanding}
+          onLoadDemo={handleLoadDemoFromLanding}
+          onOpenProject={handleOpenProjectFromLanding}
+          isLoading={loading}
+        />
+      </Suspense>
     );
   }
 
   if (currentRoute === '/signin') {
-    return <AuthGuard isAuthenticated={isAuthenticated}><SignInPage /></AuthGuard>;
+    return (
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <AuthGuard isAuthenticated={isAuthenticated}><SignInPage /></AuthGuard>
+      </Suspense>
+    );
   }
 
   if (currentRoute === '/register') {
-    return <AuthGuard isAuthenticated={isAuthenticated}><RegisterPage /></AuthGuard>;
+    return (
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <AuthGuard isAuthenticated={isAuthenticated}><RegisterPage /></AuthGuard>
+      </Suspense>
+    );
   }
 
   if (currentRoute === '*') {
@@ -607,57 +664,57 @@ const WorkspaceContent: React.FC = () => {
               )}
               <WorkspaceShell>
                 <div className="w-full">
-                  {activeTab === 'overview' && (
-                    <ProjectOverviewTab
-                      project={project}
-                      summary={projectSummary}
-                      files={files}
-                      onSelectFile={handleSelectFile}
-                      onNavigateTab={handleTabChange}
-                      onReset={handleReset}
-                    />
-                  )}
-                  {activeTab === 'pulse' && (
-                    <SystemPulseTab
-                      projectId={project.project_id}
-                      projectName={project.display_name}
-                      targetFile={targetFile}
-                      onNavigateTab={handleTabChange}
-                      onSelectFile={handleSelectFile}
-                    />
-                  )}
-                  {activeTab === 'explanation' && (
-                    <ExplanationTab
-                      projectId={project.project_id}
-                      projectName={project.display_name}
-                      onNavigateTab={handleTabChange}
-                      onSelectFile={handleSelectFile}
-                      onFocusInGraph={handleFocusInGraph}
-                      onInspectImpact={handleInspectImpact}
-                    />
-                  )}
-                  {activeTab === 'hotspots' && (
-                    <HotspotsTab
-                      projectId={project.project_id}
-                      targetFile={targetFile}
-                      onNavigateTab={handleTabChange}
-                      onSelectFile={handleSelectFile}
-                      onFocusInGraph={handleFocusInGraph}
-                      onInspectImpact={handleInspectImpact}
-                    />
-                  )}
-                  {activeTab === 'graph' && (
-                    <DependencyGraphTab
-                      projectId={project.project_id}
-                      projectName={project.display_name}
-                      targetFile={targetFile}
-                      onInspectImpact={handleInspectImpact}
-                      onNavigateTab={handleTabChange}
-                      onSelectFile={handleSelectFile}
-                    />
-                  )}
-                  {activeTab === 'neural-map' && (
-                    <Suspense fallback={<p role="status">Loading Neural Map…</p>}>
+                  <Suspense fallback={<TabLoadingSkeleton />}>
+                    {activeTab === 'overview' && (
+                      <ProjectOverviewTab
+                        project={project}
+                        summary={projectSummary}
+                        files={files}
+                        onSelectFile={handleSelectFile}
+                        onNavigateTab={handleTabChange}
+                        onReset={handleReset}
+                      />
+                    )}
+                    {activeTab === 'pulse' && (
+                      <SystemPulseTab
+                        projectId={project.project_id}
+                        projectName={project.display_name}
+                        targetFile={targetFile}
+                        onNavigateTab={handleTabChange}
+                        onSelectFile={handleSelectFile}
+                      />
+                    )}
+                    {activeTab === 'explanation' && (
+                      <ExplanationTab
+                        projectId={project.project_id}
+                        projectName={project.display_name}
+                        onNavigateTab={handleTabChange}
+                        onSelectFile={handleSelectFile}
+                        onFocusInGraph={handleFocusInGraph}
+                        onInspectImpact={handleInspectImpact}
+                      />
+                    )}
+                    {activeTab === 'hotspots' && (
+                      <HotspotsTab
+                        projectId={project.project_id}
+                        targetFile={targetFile}
+                        onNavigateTab={handleTabChange}
+                        onSelectFile={handleSelectFile}
+                        onFocusInGraph={handleFocusInGraph}
+                        onInspectImpact={handleInspectImpact}
+                      />
+                    )}
+                    {activeTab === 'graph' && (
+                      <DependencyGraphTab
+                        projectId={project.project_id}
+                        projectName={project.display_name}
+                        targetFile={targetFile}
+                        onInspectImpact={handleInspectImpact}
+                        onNavigateTab={handleTabChange}
+                        onSelectFile={handleSelectFile}
+                      />
+                    )}
+                    {activeTab === 'neural-map' && (
                       <NeuralMapPage
                         key={project.project_id}
                         projectId={project.project_id}
@@ -668,49 +725,49 @@ const WorkspaceContent: React.FC = () => {
                           updateUrlParams(tab, file);
                         }}
                       />
-                    </Suspense>
-                  )}
-                  {activeTab === 'tests' && (
-                    <GeneratedTestsTab
-                      projectId={project.project_id}
-                      projectName={project.display_name}
-                      trustedDemo={project.source_type === 'demo_benchmark'}
-                      targetFile={targetFile}
-                      onSelectFile={handleSelectFile}
-                      onInspectImpact={handleInspectImpact}
-                      onNavigateTab={handleTabChange}
-                      onTestsUpdated={handleTestsUpdated}
-                      onStatusChange={(generating, err) => {
-                        setIsGeneratingTests(generating);
-                        setTestGenError(err || null);
-                      }}
-                    />
-                  )}
-                  {activeTab === 'refactor' && (
-                    <RefactoredCodeTab
-                      projectId={project.project_id}
-                      projectName={project.display_name}
-                      trustedDemo={project.source_type === 'demo_benchmark'}
-                      targetFile={targetFile}
-                      onSelectFile={handleSelectFile}
-                      onInspectImpact={handleInspectImpact}
-                      onNavigateTab={handleTabChange}
-                    />
-                  )}
-                  {activeTab === 'migration' && (
-                    <MigrationPlanTab
-                      projectId={project.project_id}
-                      projectName={project.display_name}
-                      refreshKey={testRevision}
-                      isGeneratingTests={isGeneratingTests}
-                      testGenError={testGenError}
-                      targetFile={targetFile}
-                      onNavigateTab={handleTabChange}
-                      onSelectFile={handleSelectFile}
-                      onFocusInGraph={handleFocusInGraph}
-                      onNavigateToTests={() => handleTabChange('tests')}
-                    />
-                  )}
+                    )}
+                    {activeTab === 'tests' && (
+                      <GeneratedTestsTab
+                        projectId={project.project_id}
+                        projectName={project.display_name}
+                        trustedDemo={project.source_type === 'demo_benchmark'}
+                        targetFile={targetFile}
+                        onSelectFile={handleSelectFile}
+                        onInspectImpact={handleInspectImpact}
+                        onNavigateTab={handleTabChange}
+                        onTestsUpdated={handleTestsUpdated}
+                        onStatusChange={(generating, err) => {
+                          setIsGeneratingTests(generating);
+                          setTestGenError(err || null);
+                        }}
+                      />
+                    )}
+                    {activeTab === 'refactor' && (
+                      <RefactoredCodeTab
+                        projectId={project.project_id}
+                        projectName={project.display_name}
+                        trustedDemo={project.source_type === 'demo_benchmark'}
+                        targetFile={targetFile}
+                        onSelectFile={handleSelectFile}
+                        onInspectImpact={handleInspectImpact}
+                        onNavigateTab={handleTabChange}
+                      />
+                    )}
+                    {activeTab === 'migration' && (
+                      <MigrationPlanTab
+                        projectId={project.project_id}
+                        projectName={project.display_name}
+                        refreshKey={testRevision}
+                        isGeneratingTests={isGeneratingTests}
+                        testGenError={testGenError}
+                        targetFile={targetFile}
+                        onNavigateTab={handleTabChange}
+                        onSelectFile={handleSelectFile}
+                        onFocusInGraph={handleFocusInGraph}
+                        onNavigateToTests={() => handleTabChange('tests')}
+                      />
+                    )}
+                  </Suspense>
                 </div>
               </WorkspaceShell>
             </>
