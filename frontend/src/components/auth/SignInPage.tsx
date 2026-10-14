@@ -12,9 +12,22 @@ export const SignInPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localErrors, setLocalErrors] = useState<{ email?: string; password?: string }>({});
   const [oauthErrorMsg, setOauthErrorMsg] = useState<string | null>(null);
+  const [justRegistered, setJustRegistered] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    if (params.get('registered') === 'true') {
+      setJustRegistered(true);
+      const prefillEmail = params.get('email');
+      if (prefillEmail) {
+        setEmail(prefillEmail);
+      }
+      setTimeout(() => {
+        const pwdInput = document.getElementById('signin-password');
+        pwdInput?.focus();
+      }, 50);
+    }
+
     const err = params.get('error');
     if (err) {
       if (err === 'google_access_denied') {
@@ -57,7 +70,7 @@ export const SignInPage: React.FC = () => {
     try {
       const ok = await login(email.trim(), password);
       if (ok) {
-        navigateTo('/workspace');
+        navigateTo('/workspace?tab=ingest');
       }
     } finally {
       setIsSubmitting(false);
@@ -139,6 +152,23 @@ export const SignInPage: React.FC = () => {
             </p>
           </div>
 
+          {/* Account Created Success Banner */}
+          {justRegistered && !error && (
+            <div
+              role="status"
+              className="mb-5 p-3.5 rounded-xl bg-[#EDF7ED] border border-[#B7DFB9] text-[#1E4620] text-xs flex items-start gap-2.5 animate-fade-in shadow-xs"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="shrink-0 mt-0.5 text-[#2E7D32]">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" strokeLinecap="round" strokeLinejoin="round" />
+                <polyline points="22 4 12 14.01 9 11.01" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <div className="flex-1">
+                <p className="font-semibold text-[#1E4620]">Account created successfully!</p>
+                <p className="text-[11px] text-[#2E7D32] mt-0.5">Please sign in with your email and password to access the workspace.</p>
+              </div>
+            </div>
+          )}
+
           {/* Server / OAuth Error Alert */}
           {(error || oauthErrorMsg) && (
             <div
@@ -180,7 +210,7 @@ export const SignInPage: React.FC = () => {
                 name="email"
                 type="email"
                 autoComplete="email"
-                autoFocus
+                autoFocus={!justRegistered}
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);

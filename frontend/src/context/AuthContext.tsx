@@ -83,7 +83,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setError(data.detail || 'Registration failed. Please try again.');
         return false;
       }
-      setUser(data.user);
+      // Clear any session cookie created during registration so user must sign in explicitly
+      try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+      } catch {
+        // ignore
+      }
+      setUser(null);
       return true;
     } catch (err) {
       setError('Network error. Unable to reach authentication service.');

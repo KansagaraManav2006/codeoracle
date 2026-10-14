@@ -5,7 +5,7 @@ interface GoogleAuthButtonProps {
   redirectUrl?: string;
 }
 
-export const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({ mode, redirectUrl = '/workspace' }) => {
+export const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({ mode, redirectUrl = '/workspace?tab=ingest' }) => {
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
   const [showSetupNotice, setShowSetupNotice] = useState(false);
   const [isLoading, setIsLoading] = useState(false);

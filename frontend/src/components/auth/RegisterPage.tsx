@@ -57,9 +57,10 @@ export const RegisterPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const ok = await register(email.trim(), password);
+      const cleanEmail = email.trim();
+      const ok = await register(cleanEmail, password);
       if (ok) {
-        navigateTo('/workspace');
+        navigateTo(`/signin?registered=true&email=${encodeURIComponent(cleanEmail)}`);
       }
     } finally {
       setIsSubmitting(false);

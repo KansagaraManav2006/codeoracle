@@ -44,7 +44,7 @@ function AuthGuard({
 }) {
   useEffect(() => {
     if (isAuthenticated) {
-      navigateTo('/workspace', { replace: true });
+      navigateTo('/workspace?tab=ingest', { replace: true });
     }
   }, [isAuthenticated]);
 
@@ -246,13 +246,7 @@ const WorkspaceContent: React.FC = () => {
     if (tabParam === 'ingest') return true;
     if (tabParam) return false;
     const urlProj = params.get('project');
-    let storedProj: string | null = null;
-    try {
-      storedProj = localStorage.getItem('codeoracle_active_project_id');
-    } catch {
-      // ignore
-    }
-    return !(urlProj || storedProj);
+    return !urlProj;
   });
   const [testRevision, setTestRevision] = useState(0);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -290,19 +284,16 @@ const WorkspaceContent: React.FC = () => {
     setImpactModalOpen(true);
   };
 
-  // If a ?project= URL param or stored project ID is available on mount, open it
+  // If a ?project= URL param is explicitly available on mount (and tab !== 'ingest'), open it
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
     const urlProjId = params.get('project');
-    let storedProjId: string | null = null;
-    try {
-      storedProjId = localStorage.getItem('codeoracle_active_project_id');
-    } catch {
-      // ignore
+    if (tabParam === 'ingest' || !urlProjId) {
+      return;
     }
-    const projId = urlProjId || storedProjId;
-    if (projId && (!project || project.project_id !== projId)) {
-      openProject(projId).catch(() => {
+    if (urlProjId && (!project || project.project_id !== urlProjId)) {
+      openProject(urlProjId).catch(() => {
         try {
           localStorage.removeItem('codeoracle_active_project_id');
         } catch {
@@ -446,12 +437,29 @@ const WorkspaceContent: React.FC = () => {
     updateUrlParams(activeTab, filePath);
   }, [activeTab, updateUrlParams]);
 
+  const handleOpenProject = useCallback((projectId: string) => {
+    setIsIngestView(false);
+    setActiveTab('overview');
+    updateUrlParams('overview', null);
+    openProject(projectId);
+  }, [openProject, updateUrlParams]);
+
+  // When an active job finishes and project is loaded, switch from ingest view to project overview
+  const prevLoadingRef = useRef(loading);
+  useEffect(() => {
+    if (prevLoadingRef.current && !loading && project?.project_id) {
+      setIsIngestView(false);
+      setActiveTab('overview');
+    }
+    prevLoadingRef.current = loading;
+  }, [loading, project?.project_id]);
+
   // Handle browser back/forward buttons
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
-      if (tabParam === 'ingest') {
+      if (tabParam === 'ingest' || (!tabParam && !params.get('project'))) {
         setIsIngestView(true);
       } else {
         setIsIngestView(false);
@@ -549,6 +557,8 @@ const WorkspaceContent: React.FC = () => {
 
   const handleOpenProjectFromLanding = (projectId: string) => {
     navigateTo('/workspace');
+    setIsIngestView(false);
+    setActiveTab('overview');
     openProject(projectId);
   };
 
@@ -656,7 +666,7 @@ const WorkspaceContent: React.FC = () => {
                   onLoadDemo={loadDemo}
                   disabled={loading}
                 />
-                <RecentProjectsSection onOpenProject={openProject} disabled={loading} />
+                <RecentProjectsSection onOpenProject={handleOpenProject} disabled={loading} />
               </div>
             </WorkspaceShell>
           ) : project ? (
