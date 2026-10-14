@@ -2,6 +2,7 @@ import React from 'react';
 import { X, Target } from 'lucide-react';
 import { ChangeImpact, TabType } from '../../types';
 import ChangeImpactView from './ChangeImpactView';
+import Dialog from './Dialog';
 
 export interface ChangeImpactModalProps {
   isOpen: boolean;
@@ -27,12 +28,14 @@ export const ChangeImpactModal: React.FC<ChangeImpactModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-modal flex items-center justify-center p-4 sm:p-6 bg-ink/60 backdrop-blur-[6px] animate-[fade-in_150ms_ease-out]"
+    <Dialog
+      isOpen={isOpen}
+      onClose={onClose}
+      titleId="change-impact-title"
+      backdropClassName="fixed inset-0 z-modal flex items-center justify-center p-4 sm:p-6 bg-ink/60 backdrop-blur-[6px] animate-[fade-in_150ms_ease-out]"
+      panelClassName="relative w-full max-w-3xl max-h-[90vh] bg-surface rounded-2xl border border-line shadow-4 flex flex-col overflow-hidden animate-[scale-up_150ms_ease-out]"
     >
-      <div className="relative w-full max-w-3xl max-h-[90vh] bg-surface rounded-2xl border border-line shadow-4 flex flex-col overflow-hidden animate-[scale-up_150ms_ease-out]">
+      <>
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-line bg-tile/70">
           <div className="flex items-center gap-2.5">
@@ -40,7 +43,7 @@ export const ChangeImpactModal: React.FC<ChangeImpactModalProps> = ({
               <Target className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-display font-bold text-sm sm:text-base text-ink">
+              <h3 id="change-impact-title" className="font-display font-bold text-sm sm:text-base text-ink">
                 What Breaks If I Change This?
               </h3>
               <p className="text-xs text-ink-3">
@@ -77,8 +80,8 @@ export const ChangeImpactModal: React.FC<ChangeImpactModalProps> = ({
             showHeroAction={false}
           />
         </div>
-      </div>
-    </div>
+      </>
+    </Dialog>
   );
 };
 

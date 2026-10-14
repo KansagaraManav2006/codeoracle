@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { GitFork, ArrowRight, X, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { findShortestPath, type NeuralLink, type NeuralNode } from './graphDataAdapter';
+import Dialog from '../common/Dialog';
 
 interface Props {
   isOpen: boolean;
@@ -22,8 +23,10 @@ export default function PathTracingModal({
   const [sourceId, setSourceId] = useState(initialSourceId || (nodes[0]?.id ?? ''));
   const [targetId, setTargetId] = useState(nodes[1]?.id ?? '');
 
-  // Keep source in sync if opened with a selected node
-  useMemo(() => {
+  // Sync source selection when the dialog is opened with a pre-selected node.
+  // Previously this called setState inside useMemo (a render-phase side effect);
+  // useEffect runs after commit, which is the correct place for state synchronization.
+  useEffect(() => {
     if (initialSourceId) setSourceId(initialSourceId);
   }, [initialSourceId]);
 
@@ -49,17 +52,14 @@ export default function PathTracingModal({
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Path Tracing"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-[fade-in_150ms_ease-out]"
-      onClick={onClose}
+    <Dialog
+      isOpen={isOpen}
+      onClose={onClose}
+      ariaLabel="Path Tracing"
+      backdropClassName="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-[fade-in_150ms_ease-out]"
+      panelClassName="w-full max-w-lg bg-[#0A1627] border border-cyan-500/40 rounded-2xl shadow-2xl p-5 text-white flex flex-col space-y-4"
     >
-      <div
-        className="w-full max-w-lg bg-[#0A1627] border border-cyan-500/40 rounded-2xl shadow-2xl p-5 text-white flex flex-col space-y-4"
-        onClick={e => e.stopPropagation()}
-      >
+      <>
         <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center border border-cyan-500/30">
@@ -76,6 +76,7 @@ export default function PathTracingModal({
             type="button"
             onClick={onClose}
             className="p-1 rounded-lg hover:bg-white/10 text-white/50 hover:text-white transition-colors"
+            aria-label="Close path tracer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -187,7 +188,7 @@ export default function PathTracingModal({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </>
+    </Dialog>
   );
 }

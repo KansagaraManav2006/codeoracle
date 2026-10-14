@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { X, Command } from 'lucide-react';
+import Dialog from './Dialog';
 
 interface ShortcutsModalProps {
   isOpen: boolean;
@@ -7,21 +8,6 @@ interface ShortcutsModalProps {
 }
 
 export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose }) => {
-  const dialogRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
   if (!isOpen) return null;
 
   const shortcuts = [
@@ -34,16 +20,14 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
   ];
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="shortcuts-title"
-      className="fixed inset-0 z-modal flex items-center justify-center p-4 bg-ink/40 backdrop-blur-[6px] animate-[fade-up_250ms_ease-sheet_both]"
+    <Dialog
+      isOpen={isOpen}
+      onClose={onClose}
+      titleId="shortcuts-title"
+      backdropClassName="fixed inset-0 z-modal flex items-center justify-center p-4 bg-ink/40 backdrop-blur-[6px] animate-[fade-up_250ms_ease-sheet_both]"
+      panelClassName="w-full max-w-[480px] bg-surface rounded-xl border border-line shadow-4 p-6 sm:p-7 relative"
     >
-      <div
-        ref={dialogRef}
-        className="w-full max-w-[480px] bg-surface rounded-xl border border-line shadow-4 p-6 sm:p-7 relative"
-      >
+      <>
         <div className="flex items-center justify-between pb-4 mb-4 border-b border-line">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-md bg-tile flex items-center justify-center text-ink-2">
@@ -81,8 +65,8 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
         <div className="mt-6 pt-4 border-t border-line text-center text-xs text-ink-3">
           Shortcuts are automatically disabled while typing in text inputs.
         </div>
-      </div>
-    </div>
+      </>
+    </Dialog>
   );
 };
 

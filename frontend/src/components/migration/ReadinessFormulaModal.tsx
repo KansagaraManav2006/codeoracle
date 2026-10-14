@@ -2,6 +2,7 @@ import React from 'react';
 import { X, Calculator, CheckCircle2 } from 'lucide-react';
 import { ReadinessDimension } from '../../types';
 import Button from '../common/Button';
+import Dialog from '../common/Dialog';
 
 interface ReadinessFormulaModalProps {
   dimension: ReadinessDimension | null;
@@ -17,13 +18,14 @@ export const ReadinessFormulaModal: React.FC<ReadinessFormulaModalProps> = ({
   if (!isOpen || !dimension) return null;
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="formula-modal-title"
-      className="fixed inset-0 z-modal flex items-center justify-center p-4 bg-ink/40 backdrop-blur-[6px] animate-[fade-in_150ms_ease-out_both]"
+    <Dialog
+      isOpen={isOpen}
+      onClose={onClose}
+      titleId="formula-modal-title"
+      backdropClassName="fixed inset-0 z-modal flex items-center justify-center p-4 bg-ink/40 backdrop-blur-[6px] animate-[fade-in_150ms_ease-out_both]"
+      panelClassName="w-full max-w-[560px] bg-surface rounded-xl border border-line shadow-4 p-6 space-y-5"
     >
-      <div className="w-full max-w-[560px] bg-surface rounded-xl border border-line shadow-4 p-6 space-y-5">
+      <>
         {/* Header */}
         <div className="flex items-start justify-between gap-3 pb-3 border-b border-line">
           <div className="flex items-center gap-2.5">
@@ -134,8 +136,8 @@ export const ReadinessFormulaModal: React.FC<ReadinessFormulaModalProps> = ({
             Close
           </Button>
         </div>
-      </div>
-    </div>
+      </>
+    </Dialog>
   );
 };
 

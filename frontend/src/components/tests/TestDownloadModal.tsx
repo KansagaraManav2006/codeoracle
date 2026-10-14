@@ -1,7 +1,8 @@
 import React from 'react';
-import { Download, ChevronRight } from 'lucide-react';
+import { Download, ChevronRight, X } from 'lucide-react';
 import { GeneratedTestFile } from '../../types';
 import Button from '../common/Button';
+import Dialog from '../common/Dialog';
 
 interface TestDownloadModalProps {
   open: boolean;
@@ -25,24 +26,26 @@ export const TestDownloadModal: React.FC<TestDownloadModalProps> = ({
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Download Characterization Test Suites"
+    <Dialog
+      isOpen={open}
+      onClose={onClose}
+      ariaLabel="Download Characterization Test Suites"
+      backdropClassName="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+      panelClassName="bg-surface border border-line rounded-xl max-w-lg w-full p-5 shadow-2 space-y-4"
     >
-      <div className="bg-surface border border-line rounded-xl max-w-lg w-full p-5 shadow-2 space-y-4">
+      <>
         <div className="flex items-center justify-between border-b border-line pb-3">
           <div className="flex items-center gap-2">
             <Download className="w-5 h-5 text-indigo" />
-            <h3 className="font-display font-bold text-base text-ink">Export Generated Test Suites</h3>
+            <h3 id="test-download-title" className="font-display font-bold text-base text-ink">Export Generated Test Suites</h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-ink-3 hover:text-ink text-sm font-bold p-1"
+            className="text-ink-3 hover:text-ink p-1 rounded transition-colors"
+            aria-label="Close download dialog"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -119,8 +122,8 @@ export const TestDownloadModal: React.FC<TestDownloadModalProps> = ({
             Cancel
           </Button>
         </div>
-      </div>
-    </div>
+      </>
+    </Dialog>
   );
 };
 

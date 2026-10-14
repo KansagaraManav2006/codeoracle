@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+
 import {
   Activity,
   BookOpen,
@@ -75,6 +76,23 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   loading = false,
 }) => {
   const { user, isAuthenticated, logout } = useAuth();
+
+  // Refs for focus management: trigger = the button that opens the drawer
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
+
+  // Track mobile viewport so we only apply inert/aria-hidden on small screens
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 1024);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)');
+    const onChange = () => setIsMobile(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  // The sidebar should be hidden from AT only when it is off-screen on mobile
+  const shouldInert = isMobile && !mobileOpen;
+
   const groups: NavGroup[] = [
     {
       label: 'Ingest',
@@ -113,6 +131,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
   const isIngestSelected = isIngestActive ?? (!hasProject && activeTab === 'overview');
 
+  // Escape closes drawer
   useEffect(() => {
     if (!mobileOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -121,6 +140,25 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [mobileOpen, onMobileClose]);
+
+  // Move focus into the sidebar when it opens; restore to trigger when it closes
+  useEffect(() => {
+    if (mobileOpen) {
+      // Focus the first focusable element inside the sidebar
+      const frameId = requestAnimationFrame(() => {
+        if (!sidebarRef.current) return;
+        const focusable = sidebarRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])'
+        );
+        focusable[0]?.focus();
+      });
+      return () => cancelAnimationFrame(frameId);
+    } else {
+      // Restore focus to the element that triggered the drawer
+      triggerRef.current?.focus();
+    }
+  }, [mobileOpen]);
+
 
   const handleNav = (id: NavId) => {
     if (id === 'ingest') {
@@ -388,10 +426,16 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       )}
 
       <aside
+        ref={sidebarRef}
         className={`fixed inset-y-0 left-0 z-[290] bg-sidebar border-r border-sidebar-line flex flex-col transition-[transform,width] duration-base ease-out lg:translate-x-0 shadow-sm ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         } ${collapsed ? 'lg:w-[72px] w-[260px]' : 'w-[260px]'}`}
         aria-label="Application sidebar"
+        // Hidden from AT when the mobile drawer is visually closed (lg+ always visible)
+        aria-hidden={shouldInert ? true : undefined}
+        // `inert` removes the element from tab order and AT when closed on mobile.
+        // Cast required until React types expose the HTML attribute natively.
+        {...(shouldInert ? { inert: '' } : {})}
       >
         <div className="lg:hidden flex items-center justify-between px-3 pt-3 pb-1 border-b border-sidebar-line">
           <div className="flex items-center gap-2">

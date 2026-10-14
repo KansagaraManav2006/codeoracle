@@ -39,6 +39,27 @@ import {
 } from 'lucide-react';
 import { TabType } from './types';
 
+/**
+ * AuthGuard – redirects authenticated users away from public-only auth routes.
+ * Uses useEffect so navigation happens after the component tree commits,
+ * not during render (which would violate React's rules).
+ */
+function AuthGuard({
+  isAuthenticated,
+  children,
+}: {
+  isAuthenticated: boolean;
+  children: React.ReactNode;
+}) {
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigateTo('/workspace', { replace: true });
+    }
+  }, [isAuthenticated]);
+
+  return <>{children}</>;
+}
+
 interface EmptyFeatureConfig {
   icon: LucideIcon;
   headline: string;
@@ -486,17 +507,11 @@ const WorkspaceContent: React.FC = () => {
   }
 
   if (currentRoute === '/signin') {
-    if (isAuthenticated) {
-      navigateTo('/workspace', { replace: true });
-    }
-    return <SignInPage />;
+    return <AuthGuard isAuthenticated={isAuthenticated}><SignInPage /></AuthGuard>;
   }
 
   if (currentRoute === '/register') {
-    if (isAuthenticated) {
-      navigateTo('/workspace', { replace: true });
-    }
-    return <RegisterPage />;
+    return <AuthGuard isAuthenticated={isAuthenticated}><RegisterPage /></AuthGuard>;
   }
 
   if (currentRoute === '*') {

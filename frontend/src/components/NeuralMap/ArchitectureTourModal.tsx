@@ -10,6 +10,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import type { NeuralGraph } from './graphDataAdapter';
+import Dialog from '../common/Dialog';
 
 interface Props {
   isOpen: boolean;
@@ -80,12 +81,16 @@ export default function ArchitectureTourModal({
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Architecture Guided Tour"
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[92vw] max-w-lg bg-[#091524]/95 border border-cyan-400/40 rounded-2xl shadow-2xl p-5 text-white backdrop-blur-md animate-[fade-up_200ms_ease-out]"
+    <Dialog
+      isOpen={isOpen}
+      onClose={onClose}
+      ariaLabel="Architecture Guided Tour"
+      // Backdrop is transparent + pointer-events-none so the canvas beneath is clickable
+      backdropClassName="fixed inset-0 z-50 pointer-events-none flex items-end justify-center pb-6"
+      panelClassName="pointer-events-auto w-[92vw] max-w-lg bg-[#091524]/95 border border-cyan-400/40 rounded-2xl shadow-2xl p-5 text-white backdrop-blur-md animate-[fade-up_200ms_ease-out]"
+      closeOnBackdrop={false}
     >
+      <>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-400/30 flex items-center justify-center shrink-0">
@@ -104,6 +109,7 @@ export default function ArchitectureTourModal({
           type="button"
           onClick={onClose}
           className="p-1 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+          aria-label="Exit Architecture Tour"
           title="Exit Tour"
         >
           <X className="w-4 h-4" />
@@ -158,6 +164,7 @@ export default function ArchitectureTourModal({
           )}
         </div>
       </div>
-    </div>
+      </>
+    </Dialog>
   );
 }
