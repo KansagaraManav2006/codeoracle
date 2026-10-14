@@ -135,11 +135,17 @@ def _is_reexport_pair(src_path: str, tgt_path: str) -> bool:
     return False
 
 
-def find_directed_cycles(nodes_set: Set[str], edges_list: List[Tuple[str, str]]) -> List[List[str]]:
+def find_directed_cycles(
+    nodes_set: Set[str],
+    edges_list: List[Tuple[str, str]],
+    max_depth: int = 30,
+    max_cycles: int = 500,
+) -> List[List[str]]:
     """
-    Finds elementary directed cycles in graph deterministically.
+    Finds elementary directed cycles in graph deterministically using iterative DFS.
     Returns canonical, deduplicated lists of node IDs forming cycles (e.g. ['A', 'B', 'A']).
     Excludes self-loops unless self-import edge genuinely exists.
+    Bounded by max_depth and max_cycles to prevent exponential blowup on dense large-scale graphs.
     """
     adj: Dict[str, List[str]] = {n: [] for n in nodes_set}
     for src, tgt in edges_list:
@@ -152,21 +158,30 @@ def find_directed_cycles(nodes_set: Set[str], edges_list: List[Tuple[str, str]])
 
     raw_cycles: List[List[str]] = []
     for start in sorted(nodes_set):
+        if len(raw_cycles) >= max_cycles:
+            break
         path = [start]
         in_path = {start}
+        stack = [(start, iter(adj.get(start, [])))]
 
-        def walk(current: str) -> None:
-            for neighbor in adj.get(current, []):
-                if neighbor == start and len(path) > 1:
-                    raw_cycles.append(path + [start])
-                elif neighbor not in in_path and neighbor >= start:
-                    in_path.add(neighbor)
-                    path.append(neighbor)
-                    walk(neighbor)
-                    path.pop()
-                    in_path.remove(neighbor)
+        while stack:
+            curr, neighbors_it = stack[-1]
+            try:
+                neighbor = next(neighbors_it)
+            except StopIteration:
+                stack.pop()
+                path.pop()
+                in_path.remove(curr)
+                continue
 
-        walk(start)
+            if neighbor == start and len(path) > 1:
+                raw_cycles.append(list(path) + [start])
+                if len(raw_cycles) >= max_cycles:
+                    break
+            elif neighbor not in in_path and neighbor > start and len(path) < max_depth:
+                in_path.add(neighbor)
+                path.append(neighbor)
+                stack.append((neighbor, iter(adj.get(neighbor, []))))
 
     canonical_cycles: Set[Tuple[str, ...]] = set()
     for cycle in raw_cycles:

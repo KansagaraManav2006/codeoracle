@@ -15,6 +15,9 @@ from app.ingestion.discovery import IngestionError, discover_source_files
 from app.ingestion.github_ingest import clone_github_repository, extract_repo_display_name, validate_github_url
 from app.ingestion.zip_ingest import extract_zip_safely, validate_zip_stream
 
+from app.jobs.queue import is_job_cancelled
+from app.jobs.recovery import recover_stale_jobs
+
 logger = logging.getLogger(__name__)
 
 
@@ -24,7 +27,7 @@ from app.ingestion.workspace import cleanup_workspace, get_workspace_dir
 def recover_interrupted_jobs(db: Session) -> int:
     """
     Recovers jobs interrupted by a server restart during startup.
-    Marks any job in QUEUED, EXTRACTING, or ANALYZING state as FAILED.
+    Marks any job in QUEUED, EXTRACTING, or ANALYZING state as FAILED with INTERRUPTED code.
     """
     interrupted_jobs = db.query(Job).filter(Job.state.in_([JobState.QUEUED, JobState.EXTRACTING, JobState.ANALYZING])).all()
     count = len(interrupted_jobs)
@@ -52,7 +55,8 @@ def process_zip_job(job_id: str, workspace_id: str, temp_zip_path: Path, display
 
     try:
         job = db.query(Job).filter(Job.id == job_id).first()
-        if not job:
+        if not job or is_job_cancelled(db, job_id):
+            cleanup_workspace(workspace_id)
             return
 
         # Step 1: Extraction
@@ -63,6 +67,10 @@ def process_zip_job(job_id: str, workspace_id: str, temp_zip_path: Path, display
         db.commit()
 
         extract_zip_safely(temp_zip_path, raw_dir)
+
+        if is_job_cancelled(db, job_id):
+            cleanup_workspace(workspace_id)
+            return
 
         # Step 2: Source Discovery & Filtering
         job.stage = "Discovering source files..."
@@ -170,7 +178,8 @@ def process_github_job(job_id: str, workspace_id: str, clean_url: str) -> None:
 
     try:
         job = db.query(Job).filter(Job.id == job_id).first()
-        if not job:
+        if not job or is_job_cancelled(db, job_id):
+            cleanup_workspace(workspace_id)
             return
 
         # Step 1: Clone
@@ -181,6 +190,10 @@ def process_github_job(job_id: str, workspace_id: str, clean_url: str) -> None:
         db.commit()
 
         clone_github_repository(clean_url, raw_dir)
+
+        if is_job_cancelled(db, job_id):
+            cleanup_workspace(workspace_id)
+            return
 
         # Step 2: Source Discovery
         job.stage = "Discovering source files..."

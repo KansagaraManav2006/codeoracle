@@ -161,10 +161,15 @@ def ensure_schema_compatibility() -> None:
             row[1]
             for row in connection.execute(text("PRAGMA table_info(jobs)"))
         }
-        if job_cols and "user_id" not in job_cols:
-            connection.execute(
-                text("ALTER TABLE jobs ADD COLUMN user_id VARCHAR(64) DEFAULT NULL")
-            )
+        if job_cols:
+            if "user_id" not in job_cols:
+                connection.execute(
+                    text("ALTER TABLE jobs ADD COLUMN user_id VARCHAR(64) DEFAULT NULL")
+                )
+            if "retry_count" not in job_cols:
+                connection.execute(
+                    text("ALTER TABLE jobs ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0")
+                )
         user_cols = {
             row[1]
             for row in connection.execute(text("PRAGMA table_info(users)"))

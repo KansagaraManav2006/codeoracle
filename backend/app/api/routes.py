@@ -27,6 +27,8 @@ from app.pulse.models import SystemPulseResponse
 from app.pulse.service import build_system_pulse
 from app.hotspots.models import HotspotsResponse
 from app.hotspots.service import compute_project_hotspots
+from app.jobs.limits import enforce_user_concurrency_limit, find_active_job_for_project
+from app.jobs.queue import cancel_job, get_queue_health
 from app.models.schema import (
     AnalyzeRequest,
     GitHubIngestRequest,
@@ -228,6 +230,8 @@ def submit_zip_upload(
             detail="Filename missing in upload request.",
         )
 
+    enforce_user_concurrency_limit(db, current_user.id if current_user else None)
+
     # Validate the upload stream BEFORE generating any server paths.
     # validate_zip_stream never writes to disk; it checks size and ZIP magic bytes only.
     try:
@@ -325,6 +329,8 @@ def submit_github_repo(
     except IngestionError as ie:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ie.message)
 
+    enforce_user_concurrency_limit(db, current_user.id if current_user else None)
+
     workspace_id = f"ws_{uuid.uuid4().hex[:12]}"
     job_id = f"job_{uuid.uuid4().hex[:12]}"
 
@@ -409,6 +415,62 @@ def get_job_status(
         created_at=job.created_at,
         updated_at=job.updated_at,
     )
+
+
+@router.post("/jobs/{job_id}/cancel", response_model=JobResponse)
+def cancel_job_endpoint(
+    job_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+) -> JobResponse:
+    """Cancels an in-flight or queued background job with explicit cancellation semantics."""
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job '{job_id}' not found.",
+        )
+
+    if job.user_id is not None:
+        if not current_user or current_user.id != job.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to cancel this job.",
+            )
+    elif job.project_id:
+        proj = db.query(Project).filter(Project.id == job.project_id).first()
+        if proj and not can_access_project(proj, current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to cancel this job.",
+            )
+
+    success, msg, updated_job = cancel_job(db, job_id, user_id=current_user.id if current_user else None)
+    if not success or not updated_job:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=msg,
+        )
+
+    return JobResponse(
+        job_id=updated_job.id,
+        state=updated_job.state,
+        stage=updated_job.stage,
+        progress_percentage=updated_job.progress_percentage,
+        source_type=updated_job.source_type,
+        source_url=updated_job.source_url,
+        project_id=updated_job.project_id,
+        message=updated_job.message,
+        polling_url=f"/api/jobs/{updated_job.id}",
+        created_at=updated_job.created_at,
+        updated_at=updated_job.updated_at,
+    )
+
+
+@router.get("/jobs/queue/health")
+def queue_health_endpoint(db: Session = Depends(get_db)):
+    """Reports health, readiness, and capacity of the durable job queue."""
+    return get_queue_health(db)
 
 
 @router.get("/projects", response_model=RecentProjectsListResponse)
@@ -711,22 +773,12 @@ def trigger_project_analysis(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ) -> JobResponse:
-    """Triggers static analysis for a project as an asynchronous background job."""
-    _get_authorized_project(project_id, db, current_user)
+    project = _get_authorized_project(project_id, db, current_user)
 
     force_flag = request.force if request else False
 
-    # Check for active analysis job for this project
-    active_job = (
-        db.query(Job)
-        .filter(
-            Job.project_id == project_id,
-            Job.source_type == "analysis",
-            Job.state.in_([JobState.QUEUED, JobState.ANALYZING]),
-        )
-        .first()
-    )
-
+    # 1. Check for active analysis job for this project
+    active_job = find_active_job_for_project(db, project_id, "analysis")
     if active_job:
         return JobResponse(
             job_id=active_job.id,
@@ -741,6 +793,35 @@ def trigger_project_analysis(
             created_at=active_job.created_at,
             updated_at=active_job.updated_at,
         )
+
+    # 2. Check cache key based on analyzer version and content hash
+    if not force_flag:
+        cached_rec = (
+            db.query(ProjectAnalysisRecord)
+            .filter(
+                ProjectAnalysisRecord.project_id == project_id,
+                ProjectAnalysisRecord.analyzer_version == ANALYZER_VERSION,
+                ProjectAnalysisRecord.content_hash == project.content_hash,
+            )
+            .first()
+        )
+        if cached_rec:
+            return JobResponse(
+                job_id=f"cached_{project_id}",
+                state=JobState.COMPLETED,
+                stage="Completed",
+                progress_percentage=100,
+                source_type="analysis",
+                source_url=None,
+                project_id=project_id,
+                message="Analysis up to date (cache hit).",
+                polling_url=f"/api/projects/{project_id}/analysis",
+                created_at=cached_rec.created_at,
+                updated_at=cached_rec.created_at,
+            )
+
+    # 3. Enforce per-user concurrency limit
+    enforce_user_concurrency_limit(db, current_user.id if current_user else None)
 
     job_id = f"job_analysis_{uuid.uuid4().hex[:12]}"
     job = Job(
@@ -1070,6 +1151,8 @@ def generate_project_tests(
             updated_at=active_job.updated_at,
         )
 
+    enforce_user_concurrency_limit(db, current_user.id if current_user else None)
+
     job_id = f"job_tg_{uuid.uuid4().hex[:12]}"
     new_job = Job(
         id=job_id,
@@ -1259,6 +1342,7 @@ def generate_project_refactor(
 ) -> ProjectRefactorResult:
     """Builds a non-destructive modernization proposal with diffs and risk warnings."""
     _get_authorized_project(project_id, db, current_user)
+    enforce_user_concurrency_limit(db, current_user.id if current_user else None)
     try:
         return run_refactor_for_project(db, project_id, force=payload.force)
     except ValueError as exc:

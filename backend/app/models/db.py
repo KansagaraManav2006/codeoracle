@@ -39,6 +39,7 @@ class JobState(str, Enum):
     GENERATING = "generating"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class Job(Base):
@@ -49,12 +50,13 @@ class Job(Base):
     state: Mapped[JobState] = mapped_column(String(32), default=JobState.QUEUED, nullable=False)
     stage: Mapped[str] = mapped_column(String(64), default="Queued", nullable=False)
     progress_percentage: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    source_type: Mapped[str] = mapped_column(String(32), nullable=False)  # 'zip' or 'github'
+    source_type: Mapped[str] = mapped_column(String(32), nullable=False)  # 'zip' or 'github' or 'analysis'
     source_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     project_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     message: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
     error_code: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 

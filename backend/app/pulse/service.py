@@ -143,10 +143,10 @@ def build_system_pulse(db: Session, project_id: str) -> SystemPulseResponse:
 
     # 1. Reuse canonical models
     # A. Migration Plan (Readiness score, dimensions, why_score, blockers)
-    plan: MigrationPlanResponse = build_migration_plan(db, project_id)
+    plan: MigrationPlanResponse = build_migration_plan(db, project_id, analysis=analysis)
 
     # B. Hotspots (Risks, complexity, highest hotspot)
-    hotspots_resp: HotspotsResponse = compute_project_hotspots(db, project_id)
+    hotspots_resp: HotspotsResponse = compute_project_hotspots(db, project_id, analysis=analysis)
 
     # C. Architecture Overview (Dependency graph summary, layers)
     arch_overview: ArchitectureOverview = build_architecture_overview(db, project_id, analysis)

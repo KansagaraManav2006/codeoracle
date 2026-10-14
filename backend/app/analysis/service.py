@@ -171,7 +171,7 @@ def process_analysis_job(job_id: str, project_id: str, force: bool = False) -> N
     db = SessionLocal()
     try:
         job = db.query(Job).filter(Job.id == job_id).first()
-        if not job:
+        if not job or job.state == JobState.CANCELLED:
             return
 
         job.state = JobState.ANALYZING
@@ -181,6 +181,10 @@ def process_analysis_job(job_id: str, project_id: str, force: bool = False) -> N
         db.commit()
 
         run_analysis_for_project(db, project_id, force=force)
+
+        db.refresh(job)
+        if job.state == JobState.CANCELLED:
+            return
 
         job.state = JobState.COMPLETED
         job.stage = "Completed"
@@ -193,7 +197,7 @@ def process_analysis_job(job_id: str, project_id: str, force: bool = False) -> N
         db.rollback()
         logger.exception("Failed to run analysis job %s for project %s", job_id, project_id)
         job = db.query(Job).filter(Job.id == job_id).first()
-        if job:
+        if job and job.state != JobState.CANCELLED:
             job.state = JobState.FAILED
             job.stage = "Failed"
             job.error_code = "ANALYSIS_FAILED"

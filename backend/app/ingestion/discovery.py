@@ -2,7 +2,7 @@ import hashlib
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Set
+from typing import List, Set, Tuple
 
 from app.config import settings
 
@@ -89,15 +89,73 @@ def is_minified_javascript(file_name: str, first_line: str, avg_line_length: flo
     return False
 
 
+def count_lines_fast(raw_bytes: bytes) -> int:
+    """Fast line counting using native bytecount without full string allocation."""
+    if not raw_bytes:
+        return 0
+    cnt = raw_bytes.count(b"\n")
+    if not raw_bytes.endswith(b"\n"):
+        cnt += 1
+    return cnt
+
+
+def _process_candidate_file(
+    file_path: Path,
+    root_path: Path,
+    language: str,
+    max_file_bytes: int,
+) -> DiscoveredFile | None:
+    try:
+        stat = file_path.stat()
+        file_size = stat.st_size
+        if file_size > max_file_bytes:
+            return None
+
+        raw_bytes = file_path.read_bytes()
+        if is_binary_content(raw_bytes):
+            return None
+
+        line_count = count_lines_fast(raw_bytes)
+
+        if language == "javascript":
+            fname = file_path.name
+            name_lower = fname.lower()
+            if ".min." in name_lower or name_lower.endswith("-min.js") or name_lower.endswith("-min.cjs") or name_lower.endswith("-min.mjs"):
+                return None
+            if line_count > 0 and (file_size / line_count) > 500:
+                return None
+            first_newline = raw_bytes.find(b"\n")
+            first_len = first_newline if first_newline != -1 else len(raw_bytes)
+            if first_len > 1000:
+                return None
+
+        rel_path = file_path.relative_to(root_path).as_posix()
+        file_sha256 = hashlib.sha256(raw_bytes).hexdigest()
+        entry_hash = hashlib.sha256(f"{rel_path}:{file_sha256}".encode("utf-8")).hexdigest()
+
+        return DiscoveredFile(
+            relative_path=rel_path,
+            absolute_path=file_path,
+            language=language,
+            size_bytes=file_size,
+            line_count=line_count,
+            sha256_hash=file_sha256,
+            entry_hash=entry_hash,
+        )
+    except Exception:
+        return None
+
+
 def discover_source_files(root_dir: Path) -> DiscoveryResult:
     """
     Traverses the directory, filters out ignored directories and non-source files,
     counts lines defensively, enforces the configured line limit, and returns structured result.
+    Uses bounded concurrency for reading and hashing large file trees.
     """
+    from concurrent.futures import ThreadPoolExecutor
+
     root_path = root_dir.resolve()
-    discovered: List[DiscoveredFile] = []
-    total_lines = 0
-    detected_languages: Set[str] = set()
+    candidates: List[Tuple[Path, str]] = []
 
     for dirpath, dirnames, filenames in os.walk(root_path, topdown=True):
         # Prune ignored directory names in-place; also reject symlink directories
@@ -116,13 +174,11 @@ def discover_source_files(root_dir: Path) -> DiscoveryResult:
 
             file_path = Path(dirpath) / fname
 
-            # Reject symlinks: never follow them, as a git repo may contain symlinks
-            # pointing to host-accessible paths outside the workspace.
+            # Reject symlinks: never follow them
             if file_path.is_symlink():
                 continue
 
             ext = file_path.suffix.lower()
-
             if ext not in SUPPORTED_EXTENSIONS:
                 continue
 
@@ -135,49 +191,34 @@ def discover_source_files(root_dir: Path) -> DiscoveryResult:
             else:
                 continue
 
-            try:
-                stat = file_path.stat()
-                file_size = stat.st_size
+            candidates.append((file_path, language))
 
-                if file_size > settings.MAX_FILE_BYTES:
-                    continue
+    discovered: List[DiscoveredFile] = []
+    total_lines = 0
+    detected_languages: Set[str] = set()
 
-                raw_bytes = file_path.read_bytes()
-                if is_binary_content(raw_bytes):
-                    continue
+    max_workers = min(16, max(os.cpu_count() or 4, 1))
+    if len(candidates) > 20:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            results = executor.map(
+                lambda c: _process_candidate_file(c[0], root_path, c[1], settings.MAX_FILE_BYTES),
+                candidates,
+            )
+            for res in results:
+                if res is not None:
+                    discovered.append(res)
+                    total_lines += res.line_count
+                    detected_languages.add(res.language)
+    else:
+        for fpath, lang in candidates:
+            res = _process_candidate_file(fpath, root_path, lang, settings.MAX_FILE_BYTES)
+            if res is not None:
+                discovered.append(res)
+                total_lines += res.line_count
+                detected_languages.add(res.language)
 
-                content_str = raw_bytes.decode("utf-8", errors="replace")
-                lines = content_str.splitlines()
-                line_count = len(lines)
-
-                if language == "javascript" and lines:
-                    avg_len = sum(len(l) for l in lines) / max(len(lines), 1)
-                    if is_minified_javascript(fname, lines[0], avg_len):
-                        continue
-
-                rel_path = file_path.relative_to(root_path).as_posix()
-                file_sha256 = hashlib.sha256(raw_bytes).hexdigest()
-                
-                # Deterministic entry hash including both relative path and file content hash
-                entry_hash = hashlib.sha256(f"{rel_path}:{file_sha256}".encode("utf-8")).hexdigest()
-
-                discovered.append(
-                    DiscoveredFile(
-                        relative_path=rel_path,
-                        absolute_path=file_path,
-                        language=language,
-                        size_bytes=file_size,
-                        line_count=line_count,
-                        sha256_hash=file_sha256,
-                        entry_hash=entry_hash,
-                    )
-                )
-
-                total_lines += line_count
-                detected_languages.add(language)
-
-            except Exception:
-                continue
+    # Sort deterministically
+    discovered.sort(key=lambda x: x.relative_path)
 
     # Enforce the configured relevant-source line limit.
     if total_lines > settings.MAX_RELEVANT_LINES:

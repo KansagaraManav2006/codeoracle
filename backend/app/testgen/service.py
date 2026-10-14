@@ -420,34 +420,41 @@ def process_test_generation_job(job_id: str, project_id: str, execute: bool = Fa
     db = SessionLocal()
     try:
         job = db.query(Job).filter(Job.id == job_id).first()
-        if not job:
-            logger.error("Job %s not found for test generation worker", job_id)
+        if not job or job.state == JobState.CANCELLED:
+            logger.error("Job %s not found or cancelled for test generation worker", job_id)
             return
 
         job.state = JobState.GENERATING
         job.stage = "Generating Unit Tests..."
         job.progress_percentage = 20
         job.message = "Running deterministic test generation..."
+        job.updated_at = datetime.now(timezone.utc)
         db.commit()
 
         res = run_test_generation_for_project(db, project_id, execute=execute, force=force)
+
+        db.refresh(job)
+        if job.state == JobState.CANCELLED:
+            return
 
         job.state = JobState.COMPLETED
         job.stage = "Test Generation Complete"
         job.progress_percentage = 100
         job.message = f"Generated {res.total_generated_tests} tests across {len(res.test_files)} files."
         job.project_id = project_id
+        job.updated_at = datetime.now(timezone.utc)
         db.commit()
 
     except Exception:
         logger.exception("Failed test generation job %s for project %s", job_id, project_id)
         job = db.query(Job).filter(Job.id == job_id).first()
-        if job:
+        if job and job.state != JobState.CANCELLED:
             job.state = JobState.FAILED
             job.stage = "Generation Failed"
             job.progress_percentage = 100
             job.error_code = "TEST_GENERATION_FAILED"
             job.error_message = "Test generation could not be completed safely."
+            job.updated_at = datetime.now(timezone.utc)
             db.commit()
     finally:
         db.close()

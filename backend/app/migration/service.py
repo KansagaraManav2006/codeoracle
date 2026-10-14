@@ -168,19 +168,23 @@ def _is_trivial_file(relative_path: str, line_count: int) -> bool:
     return False
 
 
-def build_migration_plan(db: Session, project_id: str) -> MigrationPlanResponse:
+def build_migration_plan(
+    db: Session,
+    project_id: str,
+    analysis: Optional[ProjectAnalysis] = None,
+) -> MigrationPlanResponse:
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise ValueError("Project not found.")
-    record = (
-        db.query(ProjectAnalysisRecord)
-        .filter(ProjectAnalysisRecord.project_id == project_id)
-        .first()
-    )
-    if not record:
-        raise RuntimeError("Analysis is required before creating a migration plan.")
-
-    analysis = ProjectAnalysis.model_validate(record.analysis_data)
+    if analysis is None:
+        record = (
+            db.query(ProjectAnalysisRecord)
+            .filter(ProjectAnalysisRecord.project_id == project_id)
+            .first()
+        )
+        if not record:
+            raise RuntimeError("Analysis is required before creating a migration plan.")
+        analysis = ProjectAnalysis.model_validate(record.analysis_data)
     modules: List[ModuleAnalysis] = analysis.modules
     module_by_id = {module.module_id: module for module in modules}
     path_by_id = {module.module_id: module.relative_path for module in modules}

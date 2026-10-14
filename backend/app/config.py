@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     TEST_EXECUTION_TIMEOUT_SECONDS: int = 20
     TEST_EXECUTION_MAX_OUTPUT_BYTES: int = 65536
     TEST_EXECUTION_MAX_ITERATIONS: int = 2
+
+    # Job Concurrency & Durability
+    MAX_CONCURRENT_JOBS_PER_USER: int = 2
+    MAX_CONCURRENT_WORKERS: int = 4
+    JOB_TIMEOUT_SECONDS: int = 300  # 5 minutes max execution
+    JOB_STALE_TIMEOUT_SECONDS: int = 600  # 10 minutes without heartbeat is stale
+    JOB_MAX_RETRIES: int = 2
     
     # Workspaces
     WORKSPACES_DIR: str = "workspaces"

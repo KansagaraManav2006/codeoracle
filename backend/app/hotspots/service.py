@@ -144,17 +144,22 @@ def compute_static_hotspot_item(
     )
 
 
-def compute_project_hotspots(db: Session, project_id: str) -> HotspotsResponse:
+def compute_project_hotspots(
+    db: Session,
+    project_id: str,
+    analysis: Optional[ProjectAnalysis] = None,
+) -> HotspotsResponse:
     """Computes ranked static hotspots for a project using analysis and dependency graph data."""
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise ValueError("Project not found.")
 
-    record = db.query(ProjectAnalysisRecord).filter(ProjectAnalysisRecord.project_id == project_id).first()
-    if not record:
-        raise RuntimeError("Analysis is required before calculating hotspots.")
+    if analysis is None:
+        record = db.query(ProjectAnalysisRecord).filter(ProjectAnalysisRecord.project_id == project_id).first()
+        if not record:
+            raise RuntimeError("Analysis is required before calculating hotspots.")
+        analysis = ProjectAnalysis.model_validate(record.analysis_data)
 
-    analysis = ProjectAnalysis.model_validate(record.analysis_data)
     modules = analysis.modules
 
     # Handle empty project
@@ -203,15 +208,17 @@ def compute_project_hotspots(db: Session, project_id: str) -> HotspotsResponse:
 
     hotspots: List[RiskAssessment] = []
     for module in modules:
-        # Transitive callers BFS
+        # Transitive callers BFS bounded to max 100 nodes
         visited: Set[str] = set()
         queue = deque([module.module_id])
-        while queue:
+        while queue and len(visited) < 100:
             curr = queue.popleft()
             for caller in dependents.get(curr, set()):
                 if caller not in visited and caller != module.module_id:
                     visited.add(caller)
                     queue.append(caller)
+                    if len(visited) >= 100:
+                        break
 
         direct_in = dependents.get(module.module_id, set())
         direct_dependents = sorted(path_by_id[c] for c in direct_in if c in path_by_id)
