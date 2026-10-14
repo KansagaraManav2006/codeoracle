@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { navigateTo } from '../../utils/navigation';
+import { navigateTo, Link } from '../../utils/navigation';
 import { AuthVisualPanel } from './AuthVisualPanel';
 import { GoogleAuthButton } from './GoogleAuthButton';
 
@@ -78,8 +78,8 @@ export const SignInPage: React.FC = () => {
       {/* Mobile brand illustration banner */}
       <div className="lg:hidden bg-[#181715] text-[#FFFDFC] p-6 pb-8 border-b border-[#3B3733]">
         <div className="flex items-center justify-between mb-4">
-          <button
-            onClick={() => navigateTo('/')}
+          <Link
+            href="/"
             className="flex items-center gap-2.5 font-display font-bold text-base text-[#FFFDFC]"
           >
             <div className="w-8 h-8 rounded-lg bg-[#23211E] border border-[#3B3733] flex items-center justify-center">
@@ -89,13 +89,13 @@ export const SignInPage: React.FC = () => {
               </svg>
             </div>
             <span>CodeOracle</span>
-          </button>
-          <button
-            onClick={() => navigateTo('/')}
+          </Link>
+          <Link
+            href="/"
             className="text-xs text-[#C8BEB0] hover:text-[#FFFDFC]"
           >
             ← Home
-          </button>
+          </Link>
         </div>
         <h2 className="font-display text-xl font-bold text-[#FFFDFC] mb-1">
           Pick up where your code left off.
@@ -110,23 +110,23 @@ export const SignInPage: React.FC = () => {
         <div className="w-full max-w-[420px]">
           {/* Header navigation back on desktop */}
           <div className="hidden lg:flex items-center justify-between mb-8">
-            <button
-              onClick={() => navigateTo('/')}
+            <Link
+              href="/"
               className="inline-flex items-center gap-1.5 text-xs font-mono text-[#5C554D] hover:text-[#181715] transition-colors"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
               Back to overview
-            </button>
+            </Link>
             <span className="text-xs text-[#5C554D]">
               New to CodeOracle?{' '}
-              <button
-                onClick={() => navigateTo('/register')}
+              <Link
+                href="/register"
                 className="font-semibold text-[#4C4FD6] hover:text-[#3E41B8] underline underline-offset-4"
               >
                 Create account
-              </button>
+              </Link>
             </span>
           </div>
 
@@ -283,12 +283,12 @@ export const SignInPage: React.FC = () => {
           <div className="mt-8 pt-6 border-t border-[#C8BEB0]/60 text-center">
             <p className="text-xs text-[#5C554D]">
               Want to inspect a codebase without an account?{' '}
-              <button
-                onClick={() => navigateTo('/workspace')}
+              <Link
+                href="/workspace"
                 className="font-semibold text-[#181715] hover:text-[#4C4FD6] underline underline-offset-4"
               >
                 Explore the public demo
-              </button>
+              </Link>
             </p>
           </div>
         </div>

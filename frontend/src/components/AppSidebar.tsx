@@ -26,7 +26,7 @@ import StatusPill from './common/StatusPill';
 import Badge from './common/Badge';
 import { sourceLabel } from '../utils/presentation';
 import { useAuth } from '../context/AuthContext';
-import { navigateTo } from '../utils/navigation';
+import { navigateTo, Link } from '../utils/navigation';
 
 type NavId = TabType | 'ingest';
 
@@ -362,30 +362,27 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           <div className={`pt-2 border-t border-sidebar-line ${collapsed ? 'flex justify-center' : 'space-y-1'}`}>
             {!collapsed ? (
               <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => navigateTo('/signin')}
+                <Link
+                  href="/signin"
                   className="flex-1 py-1.5 px-2 rounded-lg bg-tile hover:bg-surface border border-line text-[11px] font-semibold text-ink text-center transition-colors"
                 >
                   Sign in
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigateTo('/register')}
+                </Link>
+                <Link
+                  href="/register"
                   className="flex-1 py-1.5 px-2 rounded-lg bg-indigo text-white text-[11px] font-semibold text-center hover:bg-indigo-hover transition-colors"
                 >
                   Register
-                </button>
+                </Link>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => navigateTo('/signin')}
+              <Link
+                href="/signin"
                 title="Sign in"
                 className="p-2 rounded-lg text-indigo hover:bg-indigo-surface"
               >
                 <User className="w-4 h-4" />
-              </button>
+              </Link>
             )}
           </div>
         )}

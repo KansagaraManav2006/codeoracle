@@ -1,75 +1,19 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect } from 'react';
 import { CheckCircle2, AlertTriangle, WifiOff, Loader2 } from 'lucide-react';
-import { HealthResponse } from '../../types';
+import { useServiceHealth, ServiceStatus } from '../../hooks/useServiceHealth';
 
-export type ServiceStatus = 'ready' | 'checking' | 'degraded' | 'offline';
+export type { ServiceStatus };
 
 interface StatusPillProps {
   onStatusChange?: (status: ServiceStatus) => void;
 }
 
 export const StatusPill: React.FC<StatusPillProps> = ({ onStatusChange }) => {
-  const [status, setStatus] = useState<ServiceStatus>('checking');
-  const [statusMessage, setStatusMessage] = useState<string>('Checking service status...');
-  const lastChangeTime = useRef<number>(Date.now());
-  const pendingStatus = useRef<{ status: ServiceStatus; message: string } | null>(null);
-
-  const applyStatus = (newStatus: ServiceStatus, message: string) => {
-    const now = Date.now();
-    const elapsed = now - lastChangeTime.current;
-    const MIN_DISPLAY_MS = 2000;
-
-    if (elapsed < MIN_DISPLAY_MS) {
-      pendingStatus.current = { status: newStatus, message };
-      setTimeout(() => {
-        if (pendingStatus.current) {
-          setStatus(pendingStatus.current.status);
-          setStatusMessage(pendingStatus.current.message);
-          onStatusChange?.(pendingStatus.current.status);
-          lastChangeTime.current = Date.now();
-          pendingStatus.current = null;
-        }
-      }, MIN_DISPLAY_MS - elapsed);
-    } else {
-      setStatus(newStatus);
-      setStatusMessage(message);
-      onStatusChange?.(newStatus);
-      lastChangeTime.current = now;
-    }
-  };
-
-  const checkHealth = async () => {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-      const res = await fetch('/api/health', { signal: controller.signal });
-      clearTimeout(timeoutId);
-
-      if (!res.ok) {
-        if (res.status >= 500) {
-          applyStatus('degraded', 'Service response degraded');
-        } else {
-          applyStatus('offline', 'Service offline');
-        }
-        return;
-      }
-
-      const data: HealthResponse = await res.json();
-      if (data.status === 'healthy' || data.status === 'ready' || data.status === 'ok') {
-        applyStatus('ready', 'Service ready');
-      } else {
-        applyStatus('degraded', 'Service degraded');
-      }
-    } catch {
-      applyStatus('offline', 'Service offline — Backend unavailable');
-    }
-  };
+  const { status, statusMessage } = useServiceHealth();
 
   useEffect(() => {
-    checkHealth();
-    const interval = setInterval(checkHealth, 30000); // 30s polling per DESIGN.md §7.2
-    return () => clearInterval(interval);
-  }, []);
+    onStatusChange?.(status);
+  }, [status, onStatusChange]);
 
   const getStyle = () => {
     switch (status) {

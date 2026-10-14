@@ -328,6 +328,15 @@ const WorkspaceContent: React.FC = () => {
     }
   }, [project?.project_id]);
 
+  // Synchronize document title with active tab and active project
+  useEffect(() => {
+    if (currentRoute === '/workspace') {
+      const tabTitle = TAB_TITLES[activeTab] || 'Workspace';
+      const projectLabel = project?.display_name ? ` — ${project.display_name}` : '';
+      document.title = `${tabTitle}${projectLabel} | CodeOracle`;
+    }
+  }, [currentRoute, activeTab, project?.display_name]);
+
   // Clear active project ID if user signs out
   useEffect(() => {
     if (!isAuthenticated) {
