@@ -16,6 +16,78 @@ export function useReducedMotion(): boolean {
   return reducedMotion;
 }
 
+// ─── Shared Passive Scroll & Resize Listener ──────────────────────────────────
+type SharedScrollCallback = () => void;
+const scrollCallbacks = new Set<SharedScrollCallback>();
+let sharedScrollTicking = false;
+
+function onSharedScrollTick() {
+  if (!sharedScrollTicking) {
+    sharedScrollTicking = true;
+    requestAnimationFrame(() => {
+      scrollCallbacks.forEach((cb) => cb());
+      sharedScrollTicking = false;
+    });
+  }
+}
+
+export function subscribeSharedScroll(cb: SharedScrollCallback): () => void {
+  if (scrollCallbacks.size === 0 && typeof window !== 'undefined') {
+    window.addEventListener('scroll', onSharedScrollTick, { passive: true });
+    window.addEventListener('resize', onSharedScrollTick, { passive: true });
+  }
+  scrollCallbacks.add(cb);
+  return () => {
+    scrollCallbacks.delete(cb);
+    if (scrollCallbacks.size === 0 && typeof window !== 'undefined') {
+      window.removeEventListener('scroll', onSharedScrollTick);
+      window.removeEventListener('resize', onSharedScrollTick);
+    }
+  };
+}
+
+// ─── Shared IntersectionObserver Pool ──────────────────────────────────────────
+type InViewCallback = (entry: IntersectionObserverEntry) => void;
+const observerPool = new Map<
+  string,
+  { observer: IntersectionObserver; callbacks: Map<Element, InViewCallback> }
+>();
+
+function observeSharedElement(
+  el: Element,
+  threshold: number,
+  rootMargin: string,
+  cb: InViewCallback
+): () => void {
+  const key = `${threshold}:${rootMargin}`;
+  let pool = observerPool.get(key);
+  if (!pool) {
+    const callbacks = new Map<Element, InViewCallback>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const fn = callbacks.get(entry.target);
+          fn?.(entry);
+        });
+      },
+      { threshold, rootMargin }
+    );
+    pool = { observer, callbacks };
+    observerPool.set(key, pool);
+  }
+
+  pool.callbacks.set(el, cb);
+  pool.observer.observe(el);
+
+  return () => {
+    const p = observerPool.get(key);
+    if (p) {
+      p.callbacks.delete(el);
+      p.observer.unobserve(el);
+    }
+  };
+}
+
 // ─── In-View Observer ─────────────────────────────────────────────────────────
 
 interface InViewOptions {
@@ -25,30 +97,35 @@ interface InViewOptions {
 }
 
 export function useInView(options: InViewOptions = {}): [RefObject<HTMLDivElement>, boolean] {
+  return useInViewElement<HTMLDivElement>(options);
+}
+
+export function useInViewElement<T extends Element>(
+  options: InViewOptions = {}
+): [RefObject<T>, boolean] {
   const { threshold = 0.15, rootMargin = '0px', triggerOnce = true } = options;
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<T>(null);
   const [inView, setInView] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setInView(true);
-          if (triggerOnce) {
-            observer.unobserve(el);
-          }
-        } else if (!triggerOnce) {
-          setInView(false);
+    let unobserve: (() => void) | undefined;
+    unobserve = observeSharedElement(el, threshold, rootMargin, (entry) => {
+      if (entry.isIntersecting) {
+        setInView(true);
+        if (triggerOnce && unobserve) {
+          unobserve();
         }
-      },
-      { threshold, rootMargin }
-    );
+      } else if (!triggerOnce) {
+        setInView(false);
+      }
+    });
 
-    observer.observe(el);
-    return () => observer.disconnect();
+    return () => {
+      unobserve?.();
+    };
   }, [threshold, rootMargin, triggerOnce]);
 
   return [ref, inView];
@@ -65,8 +142,6 @@ export function useScrollProgress(_options: ScrollProgressOptions = {}): [RefObj
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    let ticking = false;
-
     const update = () => {
       const el = ref.current;
       if (!el) return;
@@ -77,47 +152,28 @@ export function useScrollProgress(_options: ScrollProgressOptions = {}): [RefObj
 
       if (totalDistance <= 0) {
         setProgress(1);
-        ticking = false;
         return;
       }
 
       const current = -rect.top;
       const raw = Math.min(Math.max(current / totalDistance, 0), 1);
       setProgress(raw);
-      ticking = false;
     };
 
-    const onScroll = () => {
-      if (!ticking) {
-        requestAnimationFrame(update);
-        ticking = true;
-      }
-    };
-
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll, { passive: true });
     update();
-
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
-    };
+    return subscribeSharedScroll(update);
   }, []);
 
   return [ref, progress];
 }
 
 // ─── Section Viewport Progress ─────────────────────────────────────────────────
-// Progress 0→1 as the section travels from "just entered viewport" to "fully scrolled past"
-// Useful for scroll-gating individual reveals within a section
 
 export function useSectionScrollProgress(): [RefObject<HTMLDivElement>, number] {
   const ref = useRef<HTMLDivElement>(null);
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    let ticking = false;
-
     const update = () => {
       const el = ref.current;
       if (!el) return;
@@ -125,37 +181,20 @@ export function useSectionScrollProgress(): [RefObject<HTMLDivElement>, number] 
       const rect = el.getBoundingClientRect();
       const windowH = window.innerHeight;
 
-      // 0 when top of section is at bottom of viewport
-      // 1 when bottom of section is at top of viewport
       const totalTravel = rect.height + windowH;
       const traveled = windowH - rect.top;
       const raw = Math.min(Math.max(traveled / totalTravel, 0), 1);
       setProgress(raw);
-      ticking = false;
     };
 
-    const onScroll = () => {
-      if (!ticking) {
-        requestAnimationFrame(update);
-        ticking = true;
-      }
-    };
-
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll, { passive: true });
     update();
-
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
-    };
+    return subscribeSharedScroll(update);
   }, []);
 
   return [ref, progress];
 }
 
 // ─── Parallax Offset ──────────────────────────────────────────────────────────
-// Returns a Y offset in px based on scroll position + a speed multiplier.
 
 export function useParallaxOffset(speed: number = 0.1): number {
   const [offset, setOffset] = useState(0);
@@ -164,23 +203,35 @@ export function useParallaxOffset(speed: number = 0.1): number {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
     if (mq.matches) return;
 
-    let ticking = false;
     const update = () => {
       setOffset(window.scrollY * speed);
-      ticking = false;
     };
-    const onScroll = () => {
-      if (!ticking) {
-        requestAnimationFrame(update);
-        ticking = true;
-      }
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
+
     update();
-    return () => window.removeEventListener('scroll', onScroll);
+    return subscribeSharedScroll(update);
   }, [speed]);
 
   return offset;
+}
+
+// ─── useScrollY ──────────────────────────────────────────────────────────────
+
+export function useScrollY(): number {
+  const [scrollY, setScrollY] = useState(0);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (mq.matches) return;
+
+    const update = () => {
+      setScrollY(window.scrollY);
+    };
+
+    update();
+    return subscribeSharedScroll(update);
+  }, []);
+
+  return scrollY;
 }
 
 // ─── Count-Up Animation ───────────────────────────────────────────────────────
@@ -225,7 +276,7 @@ export function useStaggerVisible(count: number, inView: boolean, delayMs = 120)
 
     for (let i = 0; i < count; i++) {
       const t = setTimeout(() => {
-        setVisibles(prev => {
+        setVisibles((prev) => {
           const next = [...prev];
           next[i] = true;
           return next;
@@ -259,7 +310,6 @@ export function interpolate(
   return outMin + ratio * (outMax - outMin);
 }
 
-// Premium easing functions
 export function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
 }
@@ -270,59 +320,4 @@ export function easeOutQuart(t: number): number {
 
 export function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
-// ─── useScrollY (simple scroll position) ─────────────────────────────────────
-
-export function useScrollY(): number {
-  const [scrollY, setScrollY] = useState(0);
-
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    if (mq.matches) return;
-    let ticking = false;
-    const handle = () => {
-      if (!ticking) {
-        requestAnimationFrame(() => {
-          setScrollY(window.scrollY);
-          ticking = false;
-        });
-        ticking = true;
-      }
-    };
-    window.addEventListener('scroll', handle, { passive: true });
-    return () => window.removeEventListener('scroll', handle);
-  }, []);
-
-  return scrollY;
-}
-
-// ─── useInViewRef (overload with generic element type) ────────────────────────
-
-export function useInViewElement<T extends Element>(options: InViewOptions = {}): [RefObject<T>, boolean] {
-  const { threshold = 0.15, rootMargin = '0px', triggerOnce = true } = options;
-  const ref = useRef<T>(null);
-  const [inView, setInView] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setInView(true);
-          if (triggerOnce) observer.unobserve(el);
-        } else if (!triggerOnce) {
-          setInView(false);
-        }
-      },
-      { threshold, rootMargin }
-    );
-
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [threshold, rootMargin, triggerOnce]);
-
-  return [ref, inView];
 }

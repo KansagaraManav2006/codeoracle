@@ -14,6 +14,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { useCurrentRoute, navigateTo } from './utils/navigation';
 import { useJobPoller } from './hooks/useJobPoller';
 import { analysisService, refactorService } from './services';
+import { markPerf } from './utils/perfMarks';
 import EmptyState from './components/common/EmptyState';
 import {
   FolderGit2,
@@ -413,9 +414,11 @@ const WorkspaceContent: React.FC = () => {
   }, [project?.project_id]);
 
   const handleTabChange = useCallback((tab: TabType) => {
+    markPerf(`codeoracle:tab-switch-start-${tab}`);
     setIsIngestView(false);
     setActiveTab(tab);
     updateUrlParams(tab, targetFile);
+    markPerf(`codeoracle:tab-switch-end-${tab}`);
   }, [targetFile, updateUrlParams]);
 
   const handleIngest = useCallback(() => {
