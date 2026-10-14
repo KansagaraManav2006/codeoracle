@@ -53,83 +53,89 @@ def extract_zip_safely(zip_file_path: Path, target_dir: Path) -> None:
     resolved_target = target_dir.resolve()
     resolved_target.mkdir(parents=True, exist_ok=True)
 
-    with zipfile.ZipFile(zip_file_path, "r") as zf:
-        infolist = zf.infolist()
+    try:
+        with zipfile.ZipFile(zip_file_path, "r") as zf:
+            infolist = zf.infolist()
 
-        # 1. Entry Count Limit
-        if len(infolist) > settings.MAX_ZIP_ENTRIES:
-            raise IngestionError(
-                code="EXCESSIVE_ENTRIES",
-                message=f"ZIP archive contains {len(infolist)} entries, exceeding maximum allowed limit of {settings.MAX_ZIP_ENTRIES}.",
-            )
-
-        total_uncompressed = 0
-
-        for zinfo in infolist:
-            # 2. Encrypted Archive Check
-            if zinfo.flag_bits & 0x1:
-                raise IngestionError(code="ENCRYPTED_ZIP", message="Encrypted ZIP archives are not supported.")
-
-            # 3. Individual File Size Limit Check during extraction
-            if not zinfo.is_dir() and zinfo.file_size > settings.MAX_FILE_BYTES:
+            # 1. Entry Count Limit
+            if len(infolist) > settings.MAX_ZIP_ENTRIES:
                 raise IngestionError(
-                    code="FILE_TOO_LARGE",
-                    message=f"ZIP entry '{zinfo.filename}' size ({zinfo.file_size} bytes) exceeds individual file limit of {settings.MAX_FILE_BYTES // (1024 * 1024)}MB.",
+                    code="EXCESSIVE_ENTRIES",
+                    message=f"ZIP archive contains {len(infolist)} entries, exceeding maximum allowed limit of {settings.MAX_ZIP_ENTRIES}.",
                 )
 
-            # 4. Unix Special File Entry Check (symlinks, FIFOs, sockets, character/block devices)
-            mode = (zinfo.external_attr >> 16) & 0o170000
-            if mode != 0 and mode not in (0o100000, 0o040000):  # 0o100000 = S_IFREG, 0o040000 = S_IFDIR
-                if mode == 0o120000:  # S_IFLNK
-                    raise IngestionError(
-                        code="SYMLINK_NOT_ALLOWED",
-                        message=f"ZIP contains symlink entry '{zinfo.filename}', which is not allowed.",
-                    )
-                else:
-                    raise IngestionError(
-                        code="UNSUPPORTED_ENTRY_TYPE",
-                        message=f"ZIP entry '{zinfo.filename}' has unsupported special entry type.",
-                    )
+            total_uncompressed = 0
 
-            # 5. Total Uncompressed Size & Compression Ratio Check
-            total_uncompressed += zinfo.file_size
-            if total_uncompressed > settings.MAX_ZIP_UNCOMPRESSED_BYTES:
-                raise IngestionError(
-                    code="EXCESSIVE_UNCOMPRESSED_SIZE",
-                    message=f"Total uncompressed ZIP size exceeds limit of {settings.MAX_ZIP_UNCOMPRESSED_BYTES // (1024 * 1024)}MB.",
-                )
+            for zinfo in infolist:
+                # 2. Encrypted Archive Check
+                if zinfo.flag_bits & 0x1:
+                    raise IngestionError(code="ENCRYPTED_ZIP", message="Encrypted ZIP archives are not supported.")
 
-            if zinfo.compress_size > 0:
-                ratio = zinfo.file_size / zinfo.compress_size
-                if ratio > settings.MAX_COMPRESSION_RATIO and zinfo.file_size > 1024 * 1024:
+                # 3. Individual File Size Limit Check during extraction
+                if not zinfo.is_dir() and zinfo.file_size > settings.MAX_FILE_BYTES:
                     raise IngestionError(
-                        code="EXCESSIVE_COMPRESSION_RATIO",
-                        message=f"ZIP entry '{zinfo.filename}' has suspicious compression ratio ({ratio:.1f}x).",
+                        code="FILE_TOO_LARGE",
+                        message=f"ZIP entry '{zinfo.filename}' size ({zinfo.file_size} bytes) exceeds individual file limit of {settings.MAX_FILE_BYTES // (1024 * 1024)}MB.",
                     )
 
-            # 6. Zip Slip Path Traversal Safeguard
-            fname = zinfo.filename
+                # 4. Unix Special File Entry Check (symlinks, FIFOs, sockets, character/block devices)
+                mode = (zinfo.external_attr >> 16) & 0o170000
+                if mode != 0 and mode not in (0o100000, 0o040000):  # 0o100000 = S_IFREG, 0o040000 = S_IFDIR
+                    if mode == 0o120000:  # S_IFLNK
+                        raise IngestionError(
+                            code="SYMLINK_NOT_ALLOWED",
+                            message=f"ZIP contains symlink entry '{zinfo.filename}', which is not allowed.",
+                        )
+                    else:
+                        raise IngestionError(
+                            code="UNSUPPORTED_ENTRY_TYPE",
+                            message=f"ZIP entry '{zinfo.filename}' has unsupported special entry type.",
+                        )
 
-            if "\x00" in fname:
-                raise IngestionError(code="PATH_TRAVERSAL", message="ZIP entry contains null bytes.")
+                # 5. Total Uncompressed Size & Compression Ratio Check
+                total_uncompressed += zinfo.file_size
+                if total_uncompressed > settings.MAX_ZIP_UNCOMPRESSED_BYTES:
+                    raise IngestionError(
+                        code="EXCESSIVE_UNCOMPRESSED_SIZE",
+                        message=f"Total uncompressed ZIP size exceeds limit of {settings.MAX_ZIP_UNCOMPRESSED_BYTES // (1024 * 1024)}MB.",
+                    )
 
-            if ":" in fname or fname.startswith(("/", "\\")):
-                raise IngestionError(code="PATH_TRAVERSAL", message=f"ZIP entry '{fname}' contains absolute path traversal risk.")
+                if zinfo.compress_size > 0:
+                    ratio = zinfo.file_size / zinfo.compress_size
+                    if ratio > settings.MAX_COMPRESSION_RATIO and zinfo.file_size > 1024 * 1024:
+                        raise IngestionError(
+                            code="EXCESSIVE_COMPRESSION_RATIO",
+                            message=f"ZIP entry '{zinfo.filename}' has suspicious compression ratio ({ratio:.1f}x).",
+                        )
 
-            dest_path = (resolved_target / fname).resolve()
+                # 6. Zip Slip Path Traversal Safeguard
+                fname = zinfo.filename
 
-            try:
-                if not dest_path.is_relative_to(resolved_target):
-                    raise IngestionError(code="PATH_TRAVERSAL", message=f"ZIP Slip path traversal detected in entry '{fname}'.")
-            except AttributeError:
-                if not str(dest_path).startswith(str(resolved_target)):
-                    raise IngestionError(code="PATH_TRAVERSAL", message=f"ZIP Slip path traversal detected in entry '{fname}'.")
+                if "\x00" in fname:
+                    raise IngestionError(code="PATH_TRAVERSAL", message="ZIP entry contains null bytes.")
 
-            if zinfo.is_dir():
-                dest_path.mkdir(parents=True, exist_ok=True)
-                continue
+                if ":" in fname or fname.startswith(("/", "\\")):
+                    raise IngestionError(code="PATH_TRAVERSAL", message=f"ZIP entry '{fname}' contains absolute path traversal risk.")
 
-            dest_path.parent.mkdir(parents=True, exist_ok=True)
+                dest_path = (resolved_target / fname).resolve()
 
-            with zf.open(zinfo) as src, open(dest_path, "wb") as dst:
-                shutil.copyfileobj(src, dst)
+                try:
+                    if not dest_path.is_relative_to(resolved_target):
+                        raise IngestionError(code="PATH_TRAVERSAL", message=f"ZIP Slip path traversal detected in entry '{fname}'.")
+                except AttributeError:
+                    if not str(dest_path).startswith(str(resolved_target)):
+                        raise IngestionError(code="PATH_TRAVERSAL", message=f"ZIP Slip path traversal detected in entry '{fname}'.")
+
+                if zinfo.is_dir():
+                    dest_path.mkdir(parents=True, exist_ok=True)
+                    continue
+
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+                with zf.open(zinfo) as src, open(dest_path, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
+    except Exception:
+        if resolved_target.exists():
+            shutil.rmtree(resolved_target, ignore_errors=True)
+        raise
+

@@ -18,7 +18,9 @@ from app.analysis.service import analysis_languages_are_current, process_analysi
 from app.config import settings
 from app.database import get_db
 from app.models.db import Job, JobState, Project, ProjectAnalysisRecord, ProjectFile, ProjectRefactorRecord, User
-from app.api.auth import can_access_project, get_current_user, get_current_user_optional
+from app.api.auth import can_access_project, can_delete_project, get_current_user, get_current_user_optional
+from app.api.rate_limiter import rate_limit
+from app.ingestion.workspace import delete_project_workspace_and_records, get_workspace_dir
 from app.migration.models import ChangeImpact, MigrationPlanResponse
 from app.migration.service import build_migration_plan, get_module_change_impact, migration_plan_markdown
 from app.pulse.models import SystemPulseResponse
@@ -212,7 +214,7 @@ def get_health() -> HealthResponse:
     )
 
 
-@router.post("/jobs/upload", response_model=JobResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post("/jobs/upload", response_model=JobResponse, status_code=status.HTTP_202_ACCEPTED, dependencies=[Depends(rate_limit("zip_upload", max_requests=10, window_seconds=60))])
 def submit_zip_upload(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
@@ -309,7 +311,7 @@ def _map_http_status_for_error_code(code: Optional[str]) -> Optional[int]:
     return None
 
 
-@router.post("/jobs/github", response_model=JobResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post("/jobs/github", response_model=JobResponse, status_code=status.HTTP_202_ACCEPTED, dependencies=[Depends(rate_limit("github_ingest", max_requests=10, window_seconds=60))])
 def submit_github_repo(
     payload: GitHubIngestRequest,
     background_tasks: BackgroundTasks,
@@ -502,6 +504,31 @@ def get_project_metadata(
     )
 
 
+@router.delete("/projects/{project_id}")
+def delete_project_endpoint(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Permanently delete a project, its source workspace files, and all associated database records."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Project '{project_id}' not found.")
+
+    if not can_delete_project(project, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not authorized to delete this project.",
+        )
+
+    delete_project_workspace_and_records(db, project)
+    return {
+        "status": "ok",
+        "message": f"Project '{project_id}' and all associated workspace data have been permanently deleted.",
+    }
+
+
+
 @router.get("/projects/{project_id}/summary", response_model=ProjectSummaryResponse)
 def get_project_summary(
     project_id: str,
@@ -676,7 +703,7 @@ def get_project_files(
 
 # --- Deterministic Static Analysis & Graph Endpoints ---
 
-@router.post("/projects/{project_id}/analyze", response_model=JobResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post("/projects/{project_id}/analyze", response_model=JobResponse, status_code=status.HTTP_202_ACCEPTED, dependencies=[Depends(rate_limit("analyze", max_requests=15, window_seconds=60))])
 def trigger_project_analysis(
     project_id: str,
     background_tasks: BackgroundTasks,
@@ -1002,7 +1029,7 @@ import io
 import zipfile
 
 
-@router.post("/projects/{project_id}/tests/generate", response_model=JobResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post("/projects/{project_id}/tests/generate", response_model=JobResponse, status_code=status.HTTP_202_ACCEPTED, dependencies=[Depends(rate_limit("testgen", max_requests=15, window_seconds=60))])
 def generate_project_tests(
     project_id: str,
     payload: GenerateTestsRequest,
@@ -1223,7 +1250,7 @@ from app.refactor.verification_models import RefactorVerificationResult, VerifyR
 from app.refactor.verification_service import run_refactor_verification
 
 
-@router.post("/projects/{project_id}/refactor", response_model=ProjectRefactorResult)
+@router.post("/projects/{project_id}/refactor", response_model=ProjectRefactorResult, dependencies=[Depends(rate_limit("refactor", max_requests=15, window_seconds=60))])
 def generate_project_refactor(
     project_id: str,
     payload: GenerateRefactorRequest,
@@ -1254,7 +1281,7 @@ def get_project_refactor(
     return ProjectRefactorResult.model_validate(record.refactor_data)
 
 
-@router.post("/projects/{project_id}/refactor/verify", response_model=RefactorVerificationResult)
+@router.post("/projects/{project_id}/refactor/verify", response_model=RefactorVerificationResult, dependencies=[Depends(rate_limit("verify", max_requests=15, window_seconds=60))])
 def verify_project_refactor(
     project_id: str,
     payload: VerifyRefactorRequest = VerifyRefactorRequest(),

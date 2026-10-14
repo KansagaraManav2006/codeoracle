@@ -122,9 +122,12 @@ def clone_github_repository(clean_url: str, target_dir: Path) -> None:
     env["GIT_TERMINAL_PROMPT"] = "0"
     env["GIT_OPTIONAL_LOCKS"] = "0"  # Prevent lock contention in concurrent clones
     env["LANG"] = "C"
+    env["GIT_ALLOW_PROTOCOL"] = "https"  # Strictly prevent git from accessing file://, ext::, or ssh://
 
     cmd = [
         "git",
+        "-c", "protocol.file.allow=never",
+        "-c", "submodule.recurse=false",
         "clone",
         "--depth",
         "1",
@@ -132,6 +135,7 @@ def clone_github_repository(clean_url: str, target_dir: Path) -> None:
         "--single-branch",
         "--no-progress",  # Suppress 'Updating files: X%' lines from stderr
         "--quiet",        # Suppress 'Cloning into ...' header line
+        "--",             # Strict option separator to prevent URL option injection
         clean_url,
         str(target_dir),
     ]

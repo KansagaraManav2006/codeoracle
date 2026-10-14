@@ -28,6 +28,7 @@ from app.api.auth import (
     verify_password,
 )
 from app.database import get_db
+from app.api.rate_limiter import rate_limit
 from app.models.db import User
 
 logger = logging.getLogger(__name__)
@@ -121,7 +122,7 @@ def _set_session_cookie(response: Response, token: str) -> None:
     )
 
 
-@auth_router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
+@auth_router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(rate_limit("auth_register", max_requests=10, window_seconds=60))])
 def register(payload: RegisterRequest, response: Response, db: Session = Depends(get_db)) -> AuthResponse:
     """Register a new user account with secure password hashing and start a session."""
     existing = db.query(User).filter(User.email == payload.email).first()
@@ -154,7 +155,7 @@ def register(payload: RegisterRequest, response: Response, db: Session = Depends
     )
 
 
-@auth_router.post("/login", response_model=AuthResponse)
+@auth_router.post("/login", response_model=AuthResponse, dependencies=[Depends(rate_limit("auth_login", max_requests=15, window_seconds=60))])
 def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)) -> AuthResponse:
     """Authenticate user with email and password, returning session token and setting cookie."""
     user = db.query(User).filter(User.email == payload.email).first()
@@ -215,7 +216,7 @@ def get_google_auth_status() -> dict:
     }
 
 
-@auth_router.get("/google/login")
+@auth_router.get("/google/login", dependencies=[Depends(rate_limit("auth_google", max_requests=15, window_seconds=60))])
 def google_login(redirect_url: Optional[str] = None) -> RedirectResponse:
     """Initiate Google OAuth2 flow with CSRF state protection."""
     if not settings.is_google_auth_configured:

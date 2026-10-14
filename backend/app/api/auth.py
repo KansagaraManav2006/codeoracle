@@ -44,34 +44,54 @@ def verify_password(password: str, hashed: str) -> bool:
         return False
 
 
+def hash_session_token(token: str) -> str:
+    """Compute deterministic SHA-256 hash of raw session token for secure storage at rest."""
+    import hashlib
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
 def create_user_session(db: Session, user_id: str) -> str:
-    """Generate cryptographically secure session token and persist to database."""
+    """Generate cryptographically secure session token and persist SHA-256 hash to database."""
     session_id = f"sess_{secrets.token_hex(12)}"
-    token = f"co_{secrets.token_urlsafe(32)}"
+    raw_token = f"co_{secrets.token_urlsafe(32)}"
+    token_hash = hash_session_token(raw_token)
     expires_at = datetime.now(timezone.utc) + timedelta(days=SESSION_DURATION_DAYS)
 
     session = UserSession(
         id=session_id,
         user_id=user_id,
-        token=token,
+        token=token_hash,
         created_at=datetime.now(timezone.utc),
         expires_at=expires_at,
     )
     db.add(session)
     db.commit()
-    return token
+    return raw_token
 
 
 def delete_user_session(db: Session, token: str) -> None:
-    """Invalidate session in database."""
+    """Invalidate session in database by matching hashed or raw token."""
+    token_hash = hash_session_token(token)
     session = (
         db.query(UserSession)
-        .filter((UserSession.token == token) | (UserSession.id == token))
+        .filter((UserSession.token == token_hash) | (UserSession.token == token) | (UserSession.id == token))
         .first()
     )
     if session:
         db.delete(session)
         db.commit()
+
+
+def cleanup_expired_sessions(db: Session) -> int:
+    """Purge all expired user sessions from database."""
+    now = datetime.now(timezone.utc)
+    deleted = (
+        db.query(UserSession)
+        .filter(UserSession.expires_at < now)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return deleted
 
 
 def get_token_from_request(request: Request) -> Optional[str]:
@@ -101,9 +121,10 @@ def get_current_user_optional(
     if not token:
         return None
 
+    token_hash = hash_session_token(token)
     session = (
         db.query(UserSession)
-        .filter((UserSession.token == token) | (UserSession.id == token))
+        .filter((UserSession.token == token_hash) | (UserSession.token == token) | (UserSession.id == token))
         .first()
     )
     if not session:
@@ -146,6 +167,20 @@ def can_access_project(project: Project, user: Optional[User]) -> bool:
     """
     if getattr(project, "is_public_demo", 0) == 1 or getattr(project, "is_public_demo", False) is True:
         return True
-    if user is not None and project.user_id == user.id:
+    if user is not None and getattr(project, "user_id", None) == user.id:
         return True
     return False
+
+
+def can_delete_project(project: Project, user: Optional[User]) -> bool:
+    """
+    Check if user is authorized to delete a project:
+    - Public demo projects cannot be deleted.
+    - Only the authenticated owner of a project can delete it.
+    """
+    if getattr(project, "is_public_demo", 0) == 1:
+        return False
+    if user is not None and getattr(project, "user_id", None) == user.id:
+        return True
+    return False
+
