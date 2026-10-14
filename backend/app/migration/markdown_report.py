@@ -1,0 +1,121 @@
+"""Markdown report generation for CodeOracle Modernization Plans."""
+
+from app.migration.models import MigrationPlanResponse
+
+
+def migration_plan_markdown(plan: MigrationPlanResponse, project_name: str) -> str:
+    """Renders a comprehensive, explainable markdown report of the modernization plan."""
+    lines = [
+        f"# {project_name} Modernization Plan",
+        "",
+        f"**Readiness Score:** {plan.readiness_score}/100 — {plan.readiness_label} (Confidence: {plan.readiness_confidence.upper()})",
+        f"**Full AST Coverage:** {plan.full_ast_coverage_pct}% | **Parser Readiness:** {plan.parser_readiness_score}/100",
+        "",
+        "> Readiness is a static-analysis planning score, not a guarantee of production safety.",
+        "",
+        plan.executive_summary,
+        "",
+    ]
+
+    if plan.next_best_action:
+        lines.extend([
+            "## Next Best Action",
+            "",
+            f"**{plan.next_best_action.action}**",
+            f"*{plan.next_best_action.reason}*",
+            "",
+        ])
+
+    if plan.first_action_summary:
+        lines.extend([
+            "## Recommended First Action",
+            "",
+            plan.first_action_summary,
+            "",
+        ])
+
+    if plan.why_score:
+        lines.extend(["## Why This Score?", ""])
+        if plan.why_score.strengths:
+            lines.append("**Strengths:**")
+            lines.extend(f"- {s}" for s in plan.why_score.strengths)
+            lines.append("")
+        if plan.why_score.needs_attention:
+            lines.append("**Needs Attention:**")
+            lines.extend(f"- {n}" for n in plan.why_score.needs_attention)
+            lines.append("")
+
+    if plan.global_blockers or plan.file_blockers:
+        lines.extend(["## Readiness Blockers", ""])
+        if plan.global_blockers:
+            lines.append("### Global Repository Blockers")
+            for b in plan.global_blockers:
+                lines.append(f"- **{b.label}**: {b.blocker_reason} ➔ *Action:* {b.unblocking_action}")
+            lines.append("")
+        if plan.file_blockers:
+            lines.append("### Top File Blockers")
+            for b in plan.file_blockers:
+                target = f" (`{b.target_file}`)" if b.target_file else ""
+                lines.append(f"- **{b.label}**{target}: {b.blocker_reason} ➔ *Action:* {b.unblocking_action}")
+            lines.append("")
+
+    if plan.waves:
+        lines.extend(["## Migration Waves Roadmap", ""])
+        for wave in plan.waves:
+            status_text = f" — {wave.status.replace('_', ' ').upper()}" if wave.status != "required" else ""
+            lines.extend([
+                f"### {wave.title} ({wave.risk_level.title()} Risk{status_text})",
+                "",
+                f"**Goal:** {wave.goal}",
+                "",
+                f"**Strategy:** {wave.strategy}",
+                "",
+                f"**Confidence:** {wave.confidence.upper()} | **Protection Readiness:** {wave.protection_readiness_pct}%",
+                f"**Direct Callers:** {wave.total_direct_dependents} | **Transitive Blast Radius:** {wave.total_transitive_blast_radius}",
+                "",
+            ])
+            if wave.files:
+                lines.append("Files in wave:")
+                lines.extend(f"- `{f}`" for f in wave.files)
+                lines.append("")
+            if wave.suggested_test_order:
+                lines.append("Suggested test order:")
+                lines.extend(f"- `{t}`" for t in wave.suggested_test_order)
+                lines.append("")
+            if wave.checklist:
+                lines.append("Checklist:")
+                lines.extend(f"- [ ] {item.task}" for item in wave.checklist)
+                lines.append("")
+
+    lines.extend([
+        "## Finding funnel",
+        "",
+        f"- **{plan.finding_funnel.total_findings} total findings**",
+        f"- **{plan.finding_funnel.modernization_candidates} modernization candidates detected**",
+        f"- **{plan.finding_funnel.generated_diffs} deterministic changes generated**",
+        f"- **{plan.finding_funnel.verified_changes} verified changes**",
+        "",
+        "## Readiness breakdown",
+        "",
+    ])
+    for item in plan.categories:
+        lines.append(f"### {item.label}: {item.score}/100 ({item.status}, Confidence: {item.confidence.upper()})")
+        lines.append(f"*{item.reason}*")
+        lines.append(f"Formula: `{item.formula}`")
+        if item.evidence:
+            lines.append("Evidence:")
+            lines.extend(f"- {e}" for e in item.evidence)
+        lines.append("")
+
+    lines.extend(["## Highest-impact files", ""])
+    lines.extend(
+        f"- **`{item.relative_path}`** — Risk: {item.risk_level.upper()} (score {item.hotspot_score}/100), Blast Radius: {item.blast_radius} file(s) ({item.architecture_role})"
+        for item in plan.top_priorities
+    )
+    lines.extend([
+        "",
+        "---",
+        "Generated by CodeOracle. Review this plan with the engineering team before applying changes.",
+        "",
+    ])
+    return "\n".join(lines)

@@ -4,12 +4,12 @@ import { DarkSegmentedControl } from './SegmentedControl';
 
 export type DiffMode = 'diff' | 'original' | 'modernized';
 
-interface RuleWarning {
+export interface RuleWarning {
   name: string;
   description: string;
 }
 
-interface DiffExplanation {
+export interface DiffExplanation {
   ruleId?: string;
   ruleName?: string;
   confidence?: 'high' | 'medium' | 'low' | string;

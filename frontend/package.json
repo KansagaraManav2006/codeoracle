@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "lint": "tsc --noEmit",
-    "test": "node --test tests/neural-map.test.mjs tests/job-poller.test.mjs tests/failure-recovery.test.mjs",
+    "test": "node --test tests/neural-map.test.mjs tests/job-poller.test.mjs tests/failure-recovery.test.mjs tests/presentation.test.mjs tests/modernization.test.mjs",
     "test:neural-map": "node --test tests/neural-map.test.mjs",
     "test:job-poller": "node --test tests/job-poller.test.mjs",
     "test:failure-recovery": "node --test tests/failure-recovery.test.mjs",
