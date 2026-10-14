@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from app.config import settings
 
@@ -109,10 +110,20 @@ if is_sqlite:
     connect_args["check_same_thread"] = False
     connect_args["timeout"] = 30
 
+engine_kwargs: Dict[str, Any] = {
+    "connect_args": connect_args,
+    "echo": False,
+}
+if is_sqlite:
+    engine_kwargs["poolclass"] = NullPool
+else:
+    engine_kwargs["pool_size"] = getattr(settings, "DB_POOL_SIZE", 20)
+    engine_kwargs["max_overflow"] = getattr(settings, "DB_MAX_OVERFLOW", 30)
+    engine_kwargs["pool_pre_ping"] = True
+
 engine = create_engine(
     FINAL_DATABASE_URL,
-    connect_args=connect_args,
-    echo=False,
+    **engine_kwargs,
 )
 
 if is_sqlite:
