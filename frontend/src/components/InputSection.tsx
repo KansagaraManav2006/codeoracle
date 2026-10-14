@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Github,
   FolderArchive,
@@ -45,6 +45,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
   initialGithubUrl,
 }) => {
   const { isAuthenticated } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<IngestionMode>('github');
   const [githubUrl, setGithubUrl] = useState(initialGithubUrl || '');
   const [githubError, setGithubError] = useState<string | null>(null);
@@ -357,6 +358,11 @@ export const InputSection: React.FC<InputSectionProps> = ({
 
                 {/* Drag and Drop Box */}
                 <div
+                  onClick={() => {
+                    if (!disabled && !selectedFile) {
+                      fileInputRef.current?.click();
+                    }
+                  }}
                   onDragOver={(e) => {
                     e.preventDefault();
                     if (!disabled) setIsDragging(true);
@@ -371,6 +377,8 @@ export const InputSection: React.FC<InputSectionProps> = ({
                     }
                   }}
                   className={`border-2 border-dashed rounded-xl p-6 sm:p-7 text-center transition-all ${
+                    !selectedFile && !disabled ? 'cursor-pointer' : ''
+                  } ${
                     isDragging
                       ? 'border-indigo bg-indigo-surface/30 ring-2 ring-indigo/20'
                       : selectedFile
@@ -378,9 +386,23 @@ export const InputSection: React.FC<InputSectionProps> = ({
                       : 'border-line hover:border-line-strong hover:bg-tile/50 bg-tile/30'
                   }`}
                 >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".zip"
+                    disabled={disabled}
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handleZipFile(e.target.files[0]);
+                      }
+                      e.target.value = '';
+                    }}
+                    className="hidden"
+                  />
+
                   {selectedFile ? (
                     /* Selected File Card */
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-3.5 bg-surface rounded-xl border border-line shadow-xs">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-3.5 bg-surface rounded-xl border border-line shadow-xs cursor-default">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-10 h-10 rounded-lg bg-indigo-surface text-indigo flex items-center justify-center shrink-0 border border-indigo/20">
                           <FileCode className="w-5 h-5" strokeWidth={1.75} />
@@ -401,31 +423,25 @@ export const InputSection: React.FC<InputSectionProps> = ({
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <label className="cursor-pointer">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={disabled}
-                            className="text-xs pointer-events-none"
-                          >
-                            Change File
-                          </Button>
-                          <input
-                            type="file"
-                            accept=".zip"
-                            disabled={disabled}
-                            onChange={(e) => {
-                              if (e.target.files && e.target.files[0]) {
-                                handleZipFile(e.target.files[0]);
-                              }
-                            }}
-                            className="hidden"
-                          />
-                        </label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={disabled}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            fileInputRef.current?.click();
+                          }}
+                          className="text-xs cursor-pointer"
+                        >
+                          Change File
+                        </Button>
                         <button
                           type="button"
-                          onClick={() => setSelectedFile(null)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedFile(null);
+                          }}
                           disabled={disabled}
                           className="p-1.5 text-ink-4 hover:text-ink rounded cursor-pointer transition-colors"
                           title="Remove file"
@@ -463,28 +479,19 @@ export const InputSection: React.FC<InputSectionProps> = ({
                         </span>
                       </div>
 
-                      <label className="cursor-pointer mt-0.5">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={disabled}
-                          className="pointer-events-none text-xs font-semibold shadow-xs"
-                        >
-                          Browse from Computer
-                        </Button>
-                        <input
-                          type="file"
-                          accept=".zip"
-                          disabled={disabled}
-                          onChange={(e) => {
-                            if (e.target.files && e.target.files[0]) {
-                              handleZipFile(e.target.files[0]);
-                            }
-                          }}
-                          className="hidden"
-                        />
-                      </label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={disabled}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          fileInputRef.current?.click();
+                        }}
+                        className="mt-0.5 text-xs font-semibold shadow-xs cursor-pointer"
+                      >
+                        Browse from Computer
+                      </Button>
                     </div>
                   )}
                 </div>

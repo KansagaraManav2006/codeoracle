@@ -5,12 +5,13 @@ export type KpiVariant = 'default' | 'highlight' | 'selected' | 'risk';
 
 interface KpiCardProps {
   label: string;
-  value: string | number;
-  subtext?: string;
+  value: React.ReactNode;
+  subtext?: React.ReactNode;
   variant?: KpiVariant;
   icon?: LucideIcon;
   onClick?: () => void;
   className?: string;
+  valueClassName?: string;
 }
 
 export const KpiCard: React.FC<KpiCardProps> = ({
@@ -21,6 +22,7 @@ export const KpiCard: React.FC<KpiCardProps> = ({
   icon: Icon,
   onClick,
   className = '',
+  valueClassName = '',
 }) => {
   const isClickable = Boolean(onClick);
 
@@ -96,12 +98,18 @@ export const KpiCard: React.FC<KpiCardProps> = ({
 
       <div className="mt-1">
         <div
-          className={`font-display font-extrabold text-[26px] sm:text-[30px] leading-[1.1] tracking-[-0.02em] num break-words ${style.valueColor}`}
+          className={
+            valueClassName
+              ? valueClassName
+              : typeof value === 'string' && value.length > 14
+              ? `font-display font-bold text-lg sm:text-xl leading-snug tracking-tight ${style.valueColor}`
+              : `font-display font-extrabold text-[24px] sm:text-[28px] leading-[1.1] tracking-[-0.02em] num break-words ${style.valueColor}`
+          }
         >
           {value}
         </div>
         {subtext && (
-          <p className="mt-1 text-[12px] leading-[1.4] text-ink-3 font-sans font-normal">
+          <p className="mt-1.5 text-[12px] leading-[1.4] text-ink-3 font-sans font-normal">
             {subtext}
           </p>
         )}
