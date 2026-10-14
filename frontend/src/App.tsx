@@ -6,7 +6,6 @@ import JobProgressView from './components/JobProgressView';
 import InputSection from './components/InputSection';
 import RecentProjectsSection from './components/RecentProjectsSection';
 import { ToastProvider } from './components/common/Toast';
-import PipelineStrip from './components/common/PipelineStrip';
 import ShortcutsModal from './components/common/ShortcutsModal';
 import ChangeImpactModal from './components/common/ChangeImpactModal';
 import { NotFoundPage } from './components/common/NotFoundPage';
@@ -670,21 +669,7 @@ const WorkspaceContent: React.FC = () => {
               </div>
             </WorkspaceShell>
           ) : project ? (
-            <>
-              {!(activeTab === 'graph' || activeTab === 'neural-map') && (
-                <PipelineStrip
-                  stage={
-                    activeTab === 'tests' || activeTab === 'refactor' || activeTab === 'migration'
-                      ? 'output'
-                      : 'analyze'
-                  }
-                  hasProject={Boolean(project)}
-                  onIngest={handleIngest}
-                  onAnalyze={() => handleTabChange('explanation')}
-                  onOutput={() => handleTabChange('tests')}
-                />
-              )}
-              <WorkspaceShell>
+            <WorkspaceShell>
                 <div className="w-full">
                   <Suspense fallback={<TabLoadingSkeleton />}>
                     {activeTab === 'overview' && (
@@ -792,37 +777,21 @@ const WorkspaceContent: React.FC = () => {
                   </Suspense>
                 </div>
               </WorkspaceShell>
-            </>
           ) : (
-            <>
-              {!(activeTab === 'graph' || activeTab === 'neural-map') && (
-                <PipelineStrip
-                  stage={
-                    activeTab === 'tests' || activeTab === 'refactor' || activeTab === 'migration'
-                      ? 'output'
-                      : 'analyze'
-                  }
-                  hasProject={false}
-                  onIngest={handleIngest}
-                  onAnalyze={() => handleTabChange('explanation')}
-                  onOutput={() => handleTabChange('tests')}
+            <WorkspaceShell>
+              <div className="w-full max-w-[1020px] mx-auto py-12">
+                <EmptyState
+                  icon={EMPTY_FEATURE_CONFIGS[activeTab].icon}
+                  headline={EMPTY_FEATURE_CONFIGS[activeTab].headline}
+                  description={EMPTY_FEATURE_CONFIGS[activeTab].description}
+                  actionText="Analyze a codebase"
+                  onAction={handleIngest}
+                  secondaryActionText="Load demo dataset"
+                  onSecondaryAction={() => loadDemo()}
+                  trustCopy="No external code execution required. Analysis runs in isolated, read-only sandboxes."
                 />
-              )}
-              <WorkspaceShell>
-                <div className="w-full max-w-[1020px] mx-auto py-12">
-                  <EmptyState
-                    icon={EMPTY_FEATURE_CONFIGS[activeTab].icon}
-                    headline={EMPTY_FEATURE_CONFIGS[activeTab].headline}
-                    description={EMPTY_FEATURE_CONFIGS[activeTab].description}
-                    actionText="Analyze a codebase"
-                    onAction={handleIngest}
-                    secondaryActionText="Load demo dataset"
-                    onSecondaryAction={() => loadDemo()}
-                    trustCopy="No external code execution required. Analysis runs in isolated, read-only sandboxes."
-                  />
-                </div>
-              </WorkspaceShell>
-            </>
+              </div>
+            </WorkspaceShell>
           )}
         </main>
 
